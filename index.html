@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#5f173f" />
+    <meta name="description" content="Rapport journalier travaux signalisation — AINM" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="styles.css" />
+    <title>Rapport journalier · AINM</title>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar no-print">
+        <div class="brand" aria-label="SNCF Réseau">
+          <span class="brand-mark">SNCF</span>
+          <span>Réseau · Travaux</span>
+        </div>
+        <div class="topbar-actions">
+          <span id="saveState" class="save-state" aria-live="polite">Brouillon local</span>
+          <button class="icon-button" id="newReportButton" type="button" title="Nouveau rapport" aria-label="Nouveau rapport">＋</button>
+          <button class="icon-button" id="moreButton" type="button" title="Actions" aria-label="Ouvrir les actions">•••</button>
+        </div>
+      </header>
+
+      <main class="app-main no-print">
+        <section class="hero-card">
+          <div>
+            <p class="eyebrow">AINM · Travaux signalisation</p>
+            <h1>Rapport journalier</h1>
+            <p id="heroSubtitle" class="muted">Prépare le rapport terrain et la valorisation indicative.</p>
+          </div>
+          <div class="hero-kpis">
+            <div class="kpi">
+              <span>Production</span>
+              <strong id="taskCount">0</strong>
+            </div>
+            <div class="kpi">
+              <span>Estimation HT</span>
+              <strong id="totalEstimate">—</strong>
+            </div>
+          </div>
+        </section>
+
+        <nav class="stepper" aria-label="Étapes du rapport">
+          <button class="step active" data-scroll-target="contextSection" type="button"><span>1</span>Contexte</button>
+          <button class="step" data-scroll-target="productionSection" type="button"><span>2</span>Production</button>
+          <button class="step" data-scroll-target="traceabilitySection" type="button"><span>3</span>Traçabilité</button>
+          <button class="step" data-scroll-target="reviewSection" type="button"><span>4</span>Contrôle</button>
+        </nav>
+
+        <section id="contextSection" class="section-card">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">1 · Contexte</p>
+              <h2>Une seule fois par séance</h2>
+            </div>
+            <span id="contextStatus" class="status-chip warning">À compléter</span>
+          </div>
+          <div class="form-grid context-grid">
+            <label class="field field-wide">
+              <span>Opération / chantier</span>
+              <input id="operationInput" data-path="meta.operation" autocomplete="organization" placeholder="Ex. RCT AINM — Moret–Montargis" />
+            </label>
+            <label class="field">
+              <span>N° rapport</span>
+              <input id="reportNoInput" data-path="meta.reportNo" placeholder="Ex. RJ-20260820-01" />
+            </label>
+            <label class="field">
+              <span>N° commande</span>
+              <input id="orderNoInput" data-path="meta.orderNo" placeholder="À renseigner" />
+            </label>
+            <label class="field field-wide">
+              <span>Entreprise</span>
+              <select id="enterpriseInput" data-path="meta.enterprise">
+                <option value="BOUYGUES ENERGIES & SERVICES / TSO SIGNALISATION">BOUYGUES ENERGIES & SERVICES / TSO SIGNALISATION</option>
+                <option value="TSO SIGNALISATION">TSO SIGNALISATION</option>
+                <option value="BOUYGUES ENERGIES & SERVICES">BOUYGUES ENERGIES & SERVICES</option>
+                <option value="Autre">Autre</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Date</span>
+              <input id="dateInput" data-path="meta.date" type="date" />
+            </label>
+            <label class="field">
+              <span>Nature</span>
+              <select id="shiftTypeInput" data-path="meta.shiftType">
+                <option value="jour">Journée</option>
+                <option value="nuit">Nuit</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Début réel</span>
+              <input id="shiftStartInput" data-path="meta.shiftStart" type="time" />
+            </label>
+            <label class="field">
+              <span>Fin réelle</span>
+              <input id="shiftEndInput" data-path="meta.shiftEnd" type="time" />
+            </label>
+            <label class="field">
+              <span>Durée effective travaux (h)</span>
+              <input id="workDurationInput" data-path="meta.workDuration" type="number" min="0" max="24" step="0.25" inputmode="decimal" placeholder="Ex. 5,5" />
+            </label>
+            <label class="field">
+              <span>Temps</span>
+              <select id="weatherInput" data-path="meta.weather">
+                <option value="">À renseigner</option>
+                <option value="Beau">Beau</option>
+                <option value="Nuageux">Nuageux</option>
+                <option value="Pluie">Pluie</option>
+                <option value="Vent">Vent</option>
+                <option value="Gel">Gel</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Température (°C)</span>
+              <input id="temperatureInput" data-path="meta.temperature" type="number" min="-20" max="60" step="0.5" inputmode="decimal" />
+            </label>
+            <label class="field field-wide">
+              <span>Rédacteur</span>
+              <input id="reporterInput" data-path="meta.reporter" placeholder="Nom et prénom du surveillant" autocomplete="name" />
+            </label>
+            <label class="field">
+              <span>Représentant MOETx SNCF</span>
+              <input id="moeRepresentativeInput" data-path="meta.moeRepresentative" placeholder="Nom et prénom" />
+            </label>
+            <label class="field">
+              <span>Représentant entreprise</span>
+              <input id="companyRepresentativeInput" data-path="meta.companyRepresentative" placeholder="Nom et prénom" />
+            </label>
+          </div>
+          <div class="inline-option">
+            <label class="check-row"><input id="publicHolidayInput" data-path="meta.publicHoliday" type="checkbox" /> Jour férié / régime week-end à appliquer</label>
+            <label class="check-row danger"><input id="cancelledInput" data-path="meta.cancelled" type="checkbox" /> Chantier annulé</label>
+          </div>
+          <label id="cancelReasonField" class="field hidden">
+            <span>Motif d’annulation</span>
+            <textarea id="cancelReasonInput" data-path="meta.cancelReason" rows="2" placeholder="Motif, causes et conséquences"></textarea>
+          </label>
+          <div id="pricingContext" class="info-banner"></div>
+        </section>
+
+        <section id="productionSection" class="section-card">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">2 · Production</p>
+              <h2>Ce qui a été réellement fait</h2>
+              <p class="muted">Les agents choisissent un libellé simple. Le prix reste en arrière-plan.</p>
+            </div>
+            <button id="openTaskCatalog" class="primary-button" type="button">＋ Ajouter une prestation</button>
+          </div>
+          <div id="quickCatalog" class="quick-catalog" aria-label="Prestations fréquentes"></div>
+          <div id="taskList" class="task-list"></div>
+          <div id="emptyTasks" class="empty-state">
+            <span class="empty-icon">⌁</span>
+            <p>Aucune prestation saisie.</p>
+            <button class="secondary-button" data-action="catalog" type="button">Ajouter la première prestation</button>
+          </div>
+        </section>
+
+        <section id="traceabilitySection" class="two-column-grid">
+          <section class="section-card compact-card">
+            <div class="section-heading">
+              <div><p class="eyebrow">Ressources</p><h2>Personnel entreprise</h2></div>
+              <button class="text-button" data-add-row="personnel" type="button">＋ Ajouter</button>
+            </div>
+            <div id="personnelList" class="data-list"></div>
+          </section>
+
+          <section class="section-card compact-card">
+            <div class="section-heading">
+              <div><p class="eyebrow">Ressources</p><h2>Engins entreprise</h2></div>
+              <button class="text-button" data-add-row="equipment" type="button">＋ Ajouter</button>
+            </div>
+            <div id="equipmentList" class="data-list"></div>
+          </section>
+
+          <section class="section-card compact-card wide-on-tablet">
+            <div class="section-heading">
+              <div><p class="eyebrow">Interceptions</p><h2>Possessions / consignations</h2></div>
+              <button class="text-button" data-add-row="possession" type="button">＋ Ajouter</button>
+            </div>
+            <div id="possessionList" class="data-list"></div>
+          </section>
+
+          <section class="section-card compact-card">
+            <div class="section-heading">
+              <div><p class="eyebrow">Qualité & sécurité</p><h2>Anomalies constatées</h2></div>
+              <button class="text-button" data-add-row="anomaly" type="button">＋ Ajouter</button>
+            </div>
+            <div id="anomalyList" class="data-list"></div>
+          </section>
+
+          <section class="section-card compact-card">
+            <div class="section-heading">
+              <div><p class="eyebrow">Pièces</p><h2>Rapports fournis</h2></div>
+              <button class="text-button" data-add-row="document" type="button">＋ Ajouter</button>
+            </div>
+            <div id="documentList" class="data-list"></div>
+          </section>
+
+          <section class="section-card compact-card">
+            <div class="section-heading">
+              <div><p class="eyebrow">SNCF</p><h2>Moyens engagés</h2></div>
+              <button class="text-button" data-add-row="sncfMeans" type="button">＋ Ajouter</button>
+            </div>
+            <div id="sncfMeansList" class="data-list"></div>
+          </section>
+        </section>
+
+        <section id="reviewSection" class="section-card review-card">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">4 · Contrôle</p>
+              <h2>Rapport prêt à éditer</h2>
+              <p class="muted">Le PDF terrain ne contient que les libellés opérationnels. La valorisation est éditée en annexe interne.</p>
+            </div>
+            <span id="reviewStatus" class="status-chip warning">Brouillon</span>
+          </div>
+          <div id="reviewChecks" class="review-checks"></div>
+          <div class="review-actions">
+            <button id="printButton" class="primary-button" type="button">Imprimer / PDF</button>
+            <button id="exportButton" class="secondary-button" type="button">Exporter la saisie</button>
+            <button id="shareButton" class="secondary-button" type="button">Partager</button>
+          </div>
+          <details class="valuation-details">
+            <summary>Voir le contrôle de valorisation interne</summary>
+            <div id="valuationPreview"></div>
+          </details>
+        </section>
+      </main>
+
+      <section id="printReport" class="print-report"></section>
+    </div>
+
+    <dialog id="taskDialog" class="dialog task-dialog">
+      <form method="dialog" id="taskForm">
+        <header class="dialog-header">
+          <div><p class="eyebrow">Production</p><h2 id="taskDialogTitle">Ajouter une prestation</h2></div>
+          <button class="icon-button" value="cancel" aria-label="Fermer" type="submit">×</button>
+        </header>
+        <div id="taskCatalogPane"></div>
+        <div id="taskEditorPane" class="hidden"></div>
+      </form>
+    </dialog>
+
+    <dialog id="rowDialog" class="dialog">
+      <form method="dialog" id="rowForm">
+        <header class="dialog-header">
+          <div><p class="eyebrow">Traçabilité</p><h2 id="rowDialogTitle">Ajouter</h2></div>
+          <button class="icon-button" value="cancel" aria-label="Fermer" type="submit">×</button>
+        </header>
+        <div id="rowEditorPane"></div>
+      </form>
+    </dialog>
+
+    <dialog id="moreDialog" class="dialog menu-dialog">
+      <form method="dialog">
+        <header class="dialog-header">
+          <div><p class="eyebrow">Rapport</p><h2>Actions</h2></div>
+          <button class="icon-button" value="cancel" aria-label="Fermer" type="submit">×</button>
+        </header>
+        <div class="menu-stack">
+          <button id="configurePricesButton" class="menu-button" type="button">Paramétrer les prix du chantier</button>
+          <button id="importButton" class="menu-button" type="button">Importer une saisie</button>
+          <button id="saveSnapshotButton" class="menu-button" type="button">Sauvegarder un instantané</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="mappingDialog" class="dialog mapping-dialog">
+      <form method="dialog">
+        <header class="dialog-header">
+          <div><p class="eyebrow">Encadrant</p><h2>Paramétrage prix du chantier</h2></div>
+          <button class="icon-button" value="cancel" aria-label="Fermer" type="submit">×</button>
+        </header>
+        <p class="muted">Cette page est faite pour lever les ambiguïtés une seule fois par chantier. Les agents ne voient ensuite que les libellés terrain.</p>
+        <div id="mappingPane"></div>
+      </form>
+    </dialog>
+
+    <input id="importInput" type="file" accept="application/json" hidden />
+    <script src="data/price-catalog.js"></script>
+    <script src="data/terrain-catalog.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
