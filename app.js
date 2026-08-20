@@ -5,6 +5,11 @@
   const STORAGE_KEY = "ainm-rj-pwa-v1";
   const snapshotKey = "ainm-rj-pwa-last-snapshot";
   const adminSessionKey = "ainm-rj-pwa-admin-unlocked";
+  const reportSequenceKey = "ainm-rj-pwa-report-serial-v2";
+  const reportDeviceKey = "ainm-rj-pwa-report-device-v2";
+  const reportHistoryKey = "ainm-rj-pwa-report-history-v2";
+  const REPORT_HISTORY_LIMIT = 30;
+  const MAX_PHOTOS = 6;
   const billingEvidence = window.RJ_BILLING_EVIDENCE || { series300Profiles: {}, manualRecords: [], billedTimeArticleBases: [] };
   const basePriceCatalog = Array.isArray(window.RJ_PRICE_CATALOG) ? window.RJ_PRICE_CATALOG : [];
   const priceCatalog = [...basePriceCatalog, ...(Array.isArray(billingEvidence.manualRecords) ? billingEvidence.manualRecords : [])];
@@ -53,10 +58,8 @@
     "Autre matériel": ["Groupe électrogène", "Compresseur", "Outillage spécialisé", "Autre"],
   };
   const QUICK_TEMPLATE_IDS = new Set([
-    "pose-caniveau-pm-mm", "pose-caniveau-gm-tgm", "pose-caniveau-composite", "ouverture-fermeture-artere",
+    "pose-caniveau-pm-mm", "pose-caniveau-gm-tgm", "deroulage-240", "deroulage-95",
     "pose-intervalle-decharge", "depose-intervalle-decharge", "pose-ci-equilibrage", "depose-ci-equilibrage",
-    "demi-entretoise", "connexion-95-7m", "connexion-240-7m", "insert-crocodile",
-    "deroulage-95", "deroulage-240", "deplacement-lateral-cables", "saisie-libre",
   ]);
 
   const selectOptions = (options, selected, placeholder = "À renseigner") => `<option value="">${escapeHtml(placeholder)}</option>${options.map((option) => `<option value="${escapeHtml(option)}" ${option === selected ? "selected" : ""}>${escapeHtml(option)}</option>`).join("")}`;
@@ -66,6 +69,72 @@
   const enterpriseName = () => state.meta.enterprise === "Autre" ? (state.meta.enterpriseOther || "Autre entreprise") : state.meta.enterprise;
   const isOtherEquipmentType = (type) => String(type || "").startsWith("Autre");
   const equipmentName = (row) => isOtherEquipmentType(row?.type || row?.name) ? (row.typeOther || row.type || row.name) : (row?.type || row?.name || "Engin à préciser");
+
+  function deviceCode() {
+    try {
+      let code = localStorage.getItem(reportDeviceKey);
+      if (!code) {
+        const raw = globalThis.crypto?.randomUUID?.() || uid();
+        code = raw.replace(/[^a-z0-9]/gi, "").slice(-8).toUpperCase();
+        localStorage.setItem(reportDeviceKey, code);
+      }
+      return code;
+    } catch (_) {
+      return "LOCAL";
+    }
+  }
+
+  function reserveReportSerial(serial) {
+    const safeSerial = Math.max(0, Math.floor(number(serial)));
+    if (!safeSerial) return;
+    try {
+      const next = Math.max(1, Math.floor(number(localStorage.getItem(reportSequenceKey))) || 1);
+      if (next <= safeSerial) localStorage.setItem(reportSequenceKey, String(safeSerial + 1));
+    } catch (_) { /* Stockage local indisponible : le suffixe appareil reste distinctif. */ }
+  }
+
+  function allocateReportIdentity() {
+    let serial = 1;
+    try {
+      serial = Math.max(1, Math.floor(number(localStorage.getItem(reportSequenceKey))) || 1);
+      localStorage.setItem(reportSequenceKey, String(serial + 1));
+    } catch (_) { /* Voir commentaire dans reserveReportSerial. */ }
+    const code = deviceCode();
+    return {
+      serial,
+      uid: `${code}-${String(serial).padStart(6, "0")}-${uid()}`,
+      reportNo: `AINM-RJ-${String(serial).padStart(6, "0")}-${code}`,
+    };
+  }
+
+  function readReportHistory() {
+    try {
+      const history = JSON.parse(localStorage.getItem(reportHistoryKey));
+      return Array.isArray(history) ? history : [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function writeReportHistory(history) {
+    try { localStorage.setItem(reportHistoryKey, JSON.stringify(history.slice(0, REPORT_HISTORY_LIMIT))); } catch (_) { /* Historique facultatif. */ }
+  }
+
+  function archiveCurrentReport() {
+    if (!state?.reportUid || !state?.meta?.reportNo) return;
+    const record = {
+      reportUid: state.reportUid,
+      reportSerial: state.reportSerial,
+      savedAt: new Date().toISOString(),
+      meta: clone(state.meta),
+      personnel: clone(state.personnel || []),
+      equipment: clone(state.equipment || []),
+      sncfMeans: clone(state.sncfMeans || []),
+    };
+    const history = readReportHistory().filter((item) => item.reportUid !== record.reportUid);
+    history.unshift(record);
+    writeReportHistory(history);
+  }
   // L'espace interne n'est affiché que si un code a été créé sur cet appareil
   // et si la session actuelle a été déverrouillée.
   const isAdminView = () => adminUnlocked && isAdminConfigured();
@@ -81,15 +150,16 @@
 
   const initialState = () => {
     const date = dateToday();
-    const base = date.replaceAll("-", "");
-    const sequence = Number(localStorage.getItem("ainm-rj-sequence") || "0") + 1;
-    localStorage.setItem("ainm-rj-sequence", String(sequence));
+    const identity = allocateReportIdentity();
     return {
       schema: 1,
+      appVersion: 5,
       updatedAt: new Date().toISOString(),
+      reportSerial: identity.serial,
+      reportUid: identity.uid,
       meta: {
         operation: "RCT AINM — Tronçon Moret–Montargis",
-        reportNo: `RJ-${base}-${String(sequence).padStart(2, "0")}`,
+        reportNo: identity.reportNo,
         orderNo: "",
         enterprise: "BOUYGUES ENERGIES & SERVICES / TSO SIGNALISATION",
         enterpriseOther: "",
@@ -114,6 +184,8 @@
       anomalies: [],
       documents: [],
       sncfMeans: [],
+      photos: [],
+      afterWorkSignature: { name: "", role: "", signedAt: "", dataUrl: "" },
       settings: { mappings: {}, admin: { pinHash: "", configuredAt: "", includeCommonCosts: false } },
     };
   };
@@ -134,8 +206,26 @@
     if (typeof state.settings.admin.includeCommonCosts !== "boolean") state.settings.admin.includeCommonCosts = false;
   };
   ensureSettings();
+  const ensureState = () => {
+    state.meta ||= {};
+    ["tasks", "personnel", "equipment", "possessions", "anomalies", "documents", "sncfMeans", "photos"].forEach((key) => { if (!Array.isArray(state[key])) state[key] = []; });
+    state.afterWorkSignature ||= { name: "", role: "", signedAt: "", dataUrl: "" };
+    if (!state.reportSerial || !state.reportUid) {
+      const identity = allocateReportIdentity();
+      state.reportSerial = identity.serial;
+      state.reportUid = identity.uid;
+      state.meta.previousReportNo ||= state.meta.reportNo || "";
+      state.meta.reportNo = identity.reportNo;
+    }
+    reserveReportSerial(state.reportSerial);
+  };
+  ensureState();
   let taskDraft = null;
   let rowDraft = null;
+  let catalogSearch = "";
+  let catalogCategory = "Toutes";
+  let selectedPhotoPhase = "avant";
+  let signatureCanvasReady = false;
   let adminLoginOpen = false;
   let adminUnlocked = (() => {
     try { return sessionStorage.getItem(adminSessionKey) === "1"; } catch (_) { return false; }
@@ -151,12 +241,18 @@
 
   function save(label = "Brouillon local") {
     state.updatedAt = new Date().toISOString();
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch (_) {
+      alert("L’espace local du téléphone est presque plein. Exportez le rapport ou supprimez des photos avant de continuer.");
+      return false;
+    }
     const target = $("#saveState");
     if (target) {
       target.textContent = label;
       window.setTimeout(() => { target.textContent = "Brouillon local"; }, 1200);
     }
+    return true;
   }
 
   function formatDate(value) {
@@ -165,21 +261,34 @@
     return year && month && day ? `${day}/${month}/${year}` : value;
   }
 
+  function formatDateTime(value) {
+    if (!value) return "—";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return new Intl.DateTimeFormat("fr-FR", { dateStyle: "short", timeStyle: "short" }).format(date);
+  }
+
   function getShiftContext() {
     const duration = number(state.meta.workDuration);
     const date = state.meta.date ? new Date(`${state.meta.date}T12:00:00`) : null;
     const weekend = Boolean(date && [0, 6].includes(date.getDay()));
     const isWeekend = weekend || Boolean(state.meta.publicHoliday);
     if (isWeekend) return { key: "W", label: "Week-end / jour férié", status: "ok" };
-    if (!duration) return { key: null, label: "Durée effective à renseigner", pricingReason: "Durée effective à renseigner", status: "warning" };
+    // N2 sert de référence provisoire. Le montant reste calculable si un
+    // brouillon historique ne contient pas encore sa durée ;
+    // l'administrateur voit alors l'indication de contrôle au lieu d'une ligne
+    // sans prix.
+    if (!duration) return state.meta.shiftType === "nuit"
+      ? { key: "N2", label: "Nuit N2 par défaut — durée à contrôler", pricingReason: "Durée effective à confirmer", status: "warning", provisional: true }
+      : { key: "J", label: "Jour par défaut — durée à contrôler", pricingReason: "Durée effective à confirmer", status: "warning", provisional: true };
     if (state.meta.shiftType === "jour") {
       if (duration > 4) return { key: "J", label: "Intervention de jour (> 4 h)", status: "ok" };
-      return { key: null, label: "Intervention de jour (≤ 4 h)", pricingReason: "Jour ≤ 4 h : régime de règlement à confirmer", status: "warning" };
+      return { key: "J", label: "Intervention de jour (≤ 4 h) — à contrôler", pricingReason: "Jour ≤ 4 h : contrôle administratif recommandé", status: "warning", provisional: true };
     }
     if (duration > 2 && duration <= 3) return { key: "N1", label: "Intervention de nuit N1 (> 2 h à 3 h)", status: "ok" };
     if (duration > 3 && duration <= 5) return { key: "N2", label: "Intervention de nuit N2 (> 3 h à 5 h)", status: "ok" };
     if (duration > 5) return { key: "N3", label: "Intervention de nuit N3 (> 5 h)", status: "ok" };
-    return { key: null, label: "Intervention de nuit (≤ 2 h)", pricingReason: "Nuit ≤ 2 h : régime de règlement à confirmer", status: "warning" };
+    return { key: "N1", label: "Intervention de nuit (≤ 2 h) — à contrôler", pricingReason: "Nuit ≤ 2 h : contrôle administratif recommandé", status: "warning", provisional: true };
   }
 
   function candidatesFor(template) {
@@ -217,6 +326,14 @@
     return priceCatalog.find((record) => record.article === article) || null;
   }
 
+  function mappedArticleFor(template) {
+    const route = template?.priceRoute || {};
+    return state.settings?.mappings?.[template?.id]
+      || billingEvidence.defaultMappings?.[template?.id]
+      || route.defaultArticle
+      || "";
+  }
+
   function isNightWeek() {
     const date = state.meta.date ? new Date(`${state.meta.date}T12:00:00`) : null;
     return state.meta.shiftType === "nuit" && !state.meta.publicHoliday && !(date && [0, 6].includes(date.getDay()));
@@ -235,13 +352,13 @@
     const profile = billingEvidence.series300Profiles?.[record.article];
     const overrideCr = number(task.billingCr);
     const cr = overrideCr || number(profile?.defaultCr);
-    if (!cr) return { status: "review", reason: "Coefficient CR à confirmer dans l’espace administrateur" };
-    if (!overrideCr && billingEvidence.sourcePeriod === "nuit semaine" && !isNightWeek()) {
-      return { status: "review", reason: "CR du décompte observé de nuit semaine : à confirmer pour cette séance" };
-    }
+    if (!cr) return { status: "review", reason: "Coefficient CR absent du référentiel administrateur" };
     const majoration = number(record.coefficient);
     const unitPrice = roundMoney(number(record.unitPriceHT) * (1 + majoration) * cr);
-    return { status: "priced", unitPrice, cr, source: billingEvidence.sourceLabel || "Décompte facturé" };
+    const notice = !overrideCr && !isNightWeek()
+      ? "CR par défaut du référentiel : contrôler cette séance hors nuit de semaine."
+      : (profile?.marketDefault ? "CR par défaut appliqué : contrôle hebdomadaire recommandé." : "");
+    return { status: "priced", unitPrice, cr, source: billingEvidence.sourceLabel || "Décompte facturé", notice };
   }
 
   function documentedUnitPrice(record) {
@@ -256,7 +373,7 @@
     const price = priceForRecord(record, task);
     if (price.status !== "priced") return { status: "review", record, quantity, reason: price.reason };
     return {
-      status: "priced", record, quantity, unitPrice: price.unitPrice, cr: price.cr || null, priceSource: price.source,
+      status: "priced", record, quantity, unitPrice: price.unitPrice, cr: price.cr || null, priceSource: price.source, notice: price.notice || "",
       amount: roundMoney(quantity * price.unitPrice),
     };
   }
@@ -302,20 +419,19 @@
     }
 
     if (route.type === "mapped") {
-      const selectedArticle = state.settings.mappings[template.id];
+      const selectedArticle = mappedArticleFor(template);
       const record = selectedArticle ? findPrice(selectedArticle) : null;
       if (!record) {
         const count = candidatesFor(template).length;
-        return { status: "review", reason: count ? "Rattachement marché à paramétrer" : "Aucun article trouvé automatiquement", quantity };
+        return { status: "review", reason: count ? "Référence marché introuvable" : "Aucun article trouvé automatiquement", quantity };
       }
       return resolveRecord(record, quantity, task);
     }
 
     if (route.type === "time-mapped") {
       const context = getShiftContext();
-      if (!context.key) return { status: "review", reason: context.label, quantity };
-      const articleBase = state.settings.mappings[template.id];
-      if (!articleBase) return { status: "review", reason: "Famille de prix à paramétrer", quantity };
+      const articleBase = mappedArticleFor(template);
+      if (!articleBase) return { status: "review", reason: "Famille de prix introuvable", quantity };
       const record = priceCatalog.find((item) => item.articleBase === articleBase && item.timeVariant === context.key);
       if (!record) return { status: "review", reason: "Variante horaire introuvable", quantity };
       return resolveRecord(record, quantity, task);
@@ -359,6 +475,7 @@
       if (element.type === "checkbox") element.checked = Boolean(value);
       else element.value = value ?? "";
     });
+    if ($("#reportNoInput")) $("#reportNoInput").value = state.meta.reportNo || "";
     $("#cancelReasonField").classList.toggle("hidden", !state.meta.cancelled);
     $("#enterpriseOtherField")?.classList.toggle("hidden", state.meta.enterprise !== "Autre");
   }
@@ -372,7 +489,7 @@
     }
     banner.classList.remove("hidden");
     banner.classList.toggle("warning", context.status !== "ok");
-    banner.innerHTML = `<strong>Régime de règlement identifié :</strong> ${escapeHtml(context.label)}. ${context.key ? "Les prestations éligibles à plage horaire sont prêtes au contrôle." : `Aucune valorisation automatique ne sera appliquée tant que ce point n’est pas clarifié : ${escapeHtml(context.pricingReason || context.label)}.`}`;
+    banner.innerHTML = `<strong>Régime de règlement identifié :</strong> ${escapeHtml(context.label)}. ${context.provisional ? `${escapeHtml(context.pricingReason || "Contrôle administratif recommandé")}.` : "Les prestations éligibles à plage horaire sont prêtes au contrôle."}`;
   }
 
   function renderHeader() {
@@ -404,7 +521,7 @@
   function taskStatusMarkup(result) {
     if (!isAdminView()) return `<span class="status-chip neutral">Saisi</span>`;
     if (result.status === "priced") return `<span class="status-chip success">Valorisé</span>`;
-    return `<span class="status-chip warning">À qualifier</span>`;
+    return `<span class="status-chip warning">À compléter</span>`;
   }
 
   function taskText(task, template) {
@@ -421,7 +538,7 @@
       const result = resolveTask(task);
       const place = [task.voie && `Voie ${task.voie}`, task.pkStart && `PK ${task.pkStart}`, task.pkEnd && `→ ${task.pkEnd}`].filter(Boolean).join(" · ");
       const pricing = isAdminView()
-        ? (result.status === "priced" ? `${euros(result.amount)} HT estimés` : result.reason)
+        ? (result.status === "priced" ? `${euros(result.amount)} HT estimés${result.notice ? " · contrôle recommandé" : ""}` : result.reason)
         : "Prestation enregistrée";
       return `
         <article class="task-card">
@@ -472,11 +589,9 @@
       <div class="task-extra-grid">
         <label class="field"><span>Fonction</span><select id="row_role">${selectOptions(PERSONNEL_ROLES[team] || [], row.role || "", "Choisir une fonction")}</select></label>
         <label class="field"><span>Nombre de personnes</span><input id="row_count" type="number" min="1" step="1" inputmode="numeric" value="${escapeHtml(row.count ?? "")}" placeholder="Ex. 2" /></label>
-        <label class="field"><span>Heures par personne</span><input id="row_hours" type="number" min="0" max="24" step="0.25" inputmode="decimal" value="${escapeHtml(row.hours ?? "")}" placeholder="Ex. 5,5" /></label>
-        <label class="field"><span>Chef d’équipe / précision</span><input id="row_lead" value="${escapeHtml(row.lead ?? "")}" placeholder="Nom, équipe ou précision" /></label>
       </div>
       <label id="row_roleOtherField" class="field ${row.role === "Autre" ? "" : "hidden"}"><span>Autre fonction</span><input id="row_roleOther" value="${escapeHtml(row.roleOther ?? "")}" placeholder="Préciser la fonction" /></label>
-      <label class="field"><span>Observation</span><textarea id="row_observation" rows="3" placeholder="Particularité, coactivité, absence, renfort…">${escapeHtml(row.observation ?? "")}</textarea></label>
+      <details class="optional-details"><summary>Compléments d’équipe</summary><div class="task-extra-grid"><label class="field"><span>Heures par personne</span><input id="row_hours" type="number" min="0" max="24" step="0.25" inputmode="decimal" value="${escapeHtml(row.hours ?? state.meta.workDuration ?? "")}" placeholder="Reprend la durée de séance si renseignée" /></label><label class="field"><span>Chef d’équipe / précision</span><input id="row_lead" value="${escapeHtml(row.lead ?? "")}" placeholder="Nom, équipe ou précision" /></label></div><label class="field"><span>Observation</span><textarea id="row_observation" rows="3" placeholder="Particularité, coactivité, absence, renfort…">${escapeHtml(row.observation ?? "")}</textarea></label></details>
       <div class="dialog-actions"><button id="saveRowButton" type="button" class="primary-button">Enregistrer l’intervenant</button></div>
     </div>`;
   }
@@ -524,13 +639,7 @@
       </div>
       <label id="row_companyOtherField" class="field ${company === "Autre" ? "" : "hidden"}"><span>Autre entreprise</span><input id="row_companyOther" value="${escapeHtml(row.companyOther ?? "")}" placeholder="Nom de l’entreprise" autocomplete="organization" /></label>
       <label id="row_typeOtherField" class="field ${isOtherEquipmentType(type) ? "" : "hidden"}"><span>Préciser le type d’engin</span><input id="row_typeOther" value="${escapeHtml(row.typeOther ?? "")}" placeholder="Ex. portique, wagon outillé…" /></label>
-      <div class="task-extra-grid">
-        <label class="field"><span>Identification</span><input id="row_identification" value="${escapeHtml(row.identification ?? "")}" placeholder="Ex. Pelle RR ETF 01 / immatriculation" /></label>
-        <label class="field"><span>Voie / zone d’intervention</span><input id="row_zone" value="${escapeHtml(row.zone ?? "")}" placeholder="Ex. V1, plateforme, accès nord" /></label>
-        <label class="field"><span>PK / secteur</span><input id="row_pk" value="${escapeHtml(row.pk ?? "")}" placeholder="Ex. PK 79,240" /></label>
-        <label id="row_railRoadDetails" class="field ${family === "Rail-route / LAM" ? "" : "hidden"}"><span>Mise en voie</span><select id="row_miseEnVoie">${selectOptions(["Plateforme aménagée", "Sans plateforme aménagée", "Déjà en voie", "Non concerné"], row.miseEnVoie || "", "Choisir le mode")}</select></label>
-      </div>
-      <label class="field"><span>Observation / mesure de sécurité</span><textarea id="row_observation" rows="3" placeholder="Remorque, stabilisateurs, limite de circulation, coactivité, consigne…">${escapeHtml(row.observation ?? "")}</textarea></label>
+      <details class="optional-details"><summary>Identification, zone et sécurité</summary><div class="task-extra-grid"><label class="field"><span>Identification</span><input id="row_identification" value="${escapeHtml(row.identification ?? "")}" placeholder="Ex. Pelle RR ETF 01 / immatriculation" /></label><label class="field"><span>Voie / zone d’intervention</span><input id="row_zone" value="${escapeHtml(row.zone ?? "")}" placeholder="Ex. V1, plateforme, accès nord" /></label><label class="field"><span>PK / secteur</span><input id="row_pk" value="${escapeHtml(row.pk ?? "")}" placeholder="Ex. PK 79,240" /></label><label id="row_railRoadDetails" class="field ${family === "Rail-route / LAM" ? "" : "hidden"}"><span>Mise en voie</span><select id="row_miseEnVoie">${selectOptions(["Plateforme aménagée", "Sans plateforme aménagée", "Déjà en voie", "Non concerné"], row.miseEnVoie || "", "Choisir le mode")}</select></label></div><label class="field"><span>Observation / mesure de sécurité</span><textarea id="row_observation" rows="3" placeholder="Remorque, stabilisateurs, limite de circulation, coactivité, consigne…">${escapeHtml(row.observation ?? "")}</textarea></label></details>
       <div class="dialog-actions"><button id="saveRowButton" type="button" class="primary-button">Enregistrer l’engin</button></div>
     </div>`;
   }
@@ -550,6 +659,50 @@
     };
   }
 
+  function possessionTimesAreShared(row) {
+    if (row.useSameTimes === false) return false;
+    const starts = [row.plannedStart, row.agreedStart, row.actualStart].filter(Boolean);
+    const ends = [row.plannedEnd, row.agreedEnd, row.actualEnd].filter(Boolean);
+    return !starts.length || (new Set(starts).size === 1 && new Set(ends).size === 1);
+  }
+
+  function renderPossessionEditor(row) {
+    const shared = possessionTimesAreShared(row);
+    const start = row.actualStart || row.agreedStart || row.plannedStart || state.meta.shiftStart || "";
+    const end = row.actualEnd || row.agreedEnd || row.plannedEnd || state.meta.shiftEnd || "";
+    return `<div class="resource-editor">
+      <div class="resource-banner"><span class="resource-symbol">T</span><div><strong>Possession / consignation</strong><p>En saisie habituelle, indiquer seulement la voie et les horaires réels. Les autres horaires peuvent être repris automatiquement.</p></div></div>
+      <div class="task-extra-grid"><label class="field"><span>Voie</span><input id="row_voie" value="${escapeHtml(row.voie ?? "")}" placeholder="Ex. V1" /></label><label class="field"><span>Début réel</span><input id="row_actualStart" type="time" value="${escapeHtml(start)}" /></label><label class="field"><span>Fin réelle</span><input id="row_actualEnd" type="time" value="${escapeHtml(end)}" /></label></div>
+      <label class="check-row"><input id="row_useSameTimes" type="checkbox" ${shared ? "checked" : ""} /> Prévue, accordée et réelle identiques</label>
+      <details id="rowPossessionAdvanced" class="optional-details ${shared ? "hidden" : ""}" ${shared ? "" : "open"}><summary>Préciser les horaires prévus / accordés</summary><div class="task-extra-grid"><label class="field"><span>Prévue — début</span><input id="row_plannedStart" type="time" value="${escapeHtml(row.plannedStart ?? start)}" /></label><label class="field"><span>Prévue — fin</span><input id="row_plannedEnd" type="time" value="${escapeHtml(row.plannedEnd ?? end)}" /></label><label class="field"><span>Accordée — début</span><input id="row_agreedStart" type="time" value="${escapeHtml(row.agreedStart ?? start)}" /></label><label class="field"><span>Accordée — fin</span><input id="row_agreedEnd" type="time" value="${escapeHtml(row.agreedEnd ?? end)}" /></label></div></details>
+      <label class="field"><span>Observation</span><textarea id="row_observation" rows="3" placeholder="ARF, AAN, motif de décalage…">${escapeHtml(row.observation ?? "")}</textarea></label>
+      <div class="dialog-actions"><button id="saveRowButton" type="button" class="primary-button">Enregistrer la possession</button></div>
+    </div>`;
+  }
+
+  function bindPossessionEditor() {
+    $("#row_useSameTimes")?.addEventListener("change", (event) => {
+      const details = $("#rowPossessionAdvanced");
+      if (!details) return;
+      details.classList.toggle("hidden", event.target.checked);
+      if (!event.target.checked) details.open = true;
+    });
+  }
+
+  function readPossessionEditor() {
+    const shared = Boolean($("#row_useSameTimes")?.checked);
+    const actualStart = editorValue("row_actualStart");
+    const actualEnd = editorValue("row_actualEnd");
+    return {
+      voie: editorValue("row_voie"), actualStart, actualEnd, useSameTimes: shared,
+      plannedStart: shared ? actualStart : editorValue("row_plannedStart"),
+      plannedEnd: shared ? actualEnd : editorValue("row_plannedEnd"),
+      agreedStart: shared ? actualStart : editorValue("row_agreedStart"),
+      agreedEnd: shared ? actualEnd : editorValue("row_agreedEnd"),
+      observation: editorValue("row_observation"),
+    };
+  }
+
   const rowConfig = {
     personnel: {
       title: "Personnel et intervenants", editor: renderPersonnelEditor, bind: bindPersonnelEditor, read: readPersonnelEditor,
@@ -560,17 +713,7 @@
       display: (row) => `<h3><span class="resource-mini equipment-mini">E</span>${escapeHtml(equipmentName(row))}${row.count ? ` · ${displayNumber(row.count, 0)}` : ""}</h3><p><span class="resource-chip">${escapeHtml(row.family || "Matériel")}</span><span>${escapeHtml(companyName(row))}</span>${row.identification ? `<span>${escapeHtml(row.identification)}</span>` : ""}${row.zone ? `<span>${escapeHtml([row.zone, row.pk].filter(Boolean).join(" · "))}</span>` : row.pk ? `<span>${escapeHtml(row.pk)}</span>` : ""}${row.miseEnVoie ? `<span>${escapeHtml(row.miseEnVoie)}</span>` : ""}${row.observation ? `<span>${escapeHtml(row.observation)}</span>` : ""}</p>`,
     },
     possession: {
-      title: "Possession / consignation",
-      fields: [
-        ["voie", "Voie", "text", "Ex. V1"],
-        ["plannedStart", "Prévue — début", "time", ""],
-        ["plannedEnd", "Prévue — fin", "time", ""],
-        ["agreedStart", "Accordée — début", "time", ""],
-        ["agreedEnd", "Accordée — fin", "time", ""],
-        ["actualStart", "Réelle — début", "time", ""],
-        ["actualEnd", "Réelle — fin", "time", ""],
-        ["observation", "Observation", "textarea", "ARF, AAN, motif de décalage…"],
-      ],
+      title: "Possession / consignation", editor: renderPossessionEditor, bind: bindPossessionEditor, read: readPossessionEditor,
       display: (row) => `<h3>Voie ${escapeHtml(row.voie || "à préciser")} · Réel ${escapeHtml(row.actualStart || "—")} → ${escapeHtml(row.actualEnd || "—")}</h3><p>Prévu ${escapeHtml(row.plannedStart || "—")} → ${escapeHtml(row.plannedEnd || "—")} · Accordé ${escapeHtml(row.agreedStart || "—")} → ${escapeHtml(row.agreedEnd || "—")}${row.observation ? ` · ${escapeHtml(row.observation)}` : ""}</p>`,
     },
     anomaly: {
@@ -581,7 +724,7 @@
         ["detail", "Fait constaté", "textarea", "Décrire factuellement l’anomalie"],
         ["action", "Mesure prise / suite", "textarea", "Action immédiate, responsable, prochaine étape"],
       ],
-      display: (row) => `<h3>${escapeHtml(row.type || "Anomalie")} · ${escapeHtml(row.severity || "À qualifier")}</h3><p>${escapeHtml(row.detail || "Sans détail")}${row.action ? ` · Suite : ${escapeHtml(row.action)}` : ""}</p>`,
+      display: (row) => `<h3>${escapeHtml(row.type || "Anomalie")} · ${escapeHtml(row.severity || "À préciser")}</h3><p>${escapeHtml(row.detail || "Sans détail")}${row.action ? ` · Suite : ${escapeHtml(row.action)}` : ""}</p>`,
     },
     document: {
       title: "Rapport fourni",
@@ -614,6 +757,176 @@
       </div></article>`).join("") : `<p class="empty-inline">Aucune donnée saisie.</p>`;
   }
 
+  function renderPhotos() {
+    const target = $("#photoList");
+    if (!target) return;
+    const photos = state.photos || [];
+    if (!photos.length) {
+      target.innerHTML = `<p class="empty-inline">Aucune photo ajoutée. Utiliser « Avant » ou « Après » pour ouvrir l’appareil photo.</p>`;
+      return;
+    }
+    target.innerHTML = ["avant", "apres"].map((phase) => {
+      const rows = photos.filter((photo) => photo.phase === phase);
+      if (!rows.length) return "";
+      const label = phase === "avant" ? "Avant nuit" : "Après nuit";
+      return `<section class="photo-group"><h3>${label}</h3><div class="photo-grid">${rows.map((photo) => `<figure class="photo-card"><img src="${photo.dataUrl}" alt="${escapeHtml(`${label} — ${photo.caption || "photo terrain"}`)}" /><figcaption><strong>${formatDateTime(photo.capturedAt)}</strong><input data-photo-caption="${escapeHtml(photo.id)}" value="${escapeHtml(photo.caption || "")}" placeholder="Légende / localisation" /><button type="button" class="mini-button danger" data-delete-photo="${escapeHtml(photo.id)}">Supprimer</button></figcaption></figure>`).join("")}</div></section>`;
+    }).join("");
+  }
+
+  function readImage(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error("lecture"));
+      reader.onload = () => resolve(reader.result);
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function compactPhoto(file) {
+    if (!file?.type?.startsWith("image/")) throw new Error("format");
+    const source = await readImage(file);
+    const image = new Image();
+    await new Promise((resolve, reject) => {
+      image.onload = resolve;
+      image.onerror = reject;
+      image.src = source;
+    });
+    const maxSize = 960;
+    const ratio = Math.min(1, maxSize / Math.max(image.naturalWidth || image.width, image.naturalHeight || image.height));
+    const width = Math.max(1, Math.round((image.naturalWidth || image.width) * ratio));
+    const height = Math.max(1, Math.round((image.naturalHeight || image.height) * ratio));
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    canvas.getContext("2d").drawImage(image, 0, 0, width, height);
+    return canvas.toDataURL("image/jpeg", 0.64);
+  }
+
+  async function addPhotos(files) {
+    const selected = [...(files || [])].slice(0, Math.max(0, MAX_PHOTOS - state.photos.length));
+    if (!selected.length) {
+      alert(`Maximum de ${MAX_PHOTOS} photos par rapport atteint.`);
+      return;
+    }
+    const added = [];
+    for (const file of selected) {
+      try {
+        added.push({ id: uid(), phase: selectedPhotoPhase, capturedAt: new Date().toISOString(), caption: "", dataUrl: await compactPhoto(file) });
+      } catch (_) {
+        alert(`La photo « ${file.name || "sans nom"} » n’a pas pu être ajoutée.`);
+      }
+    }
+    if (!added.length) return;
+    state.photos.push(...added);
+    if (!save(`${added.length} photo(s) ajoutée(s)`)) {
+      state.photos.splice(-added.length, added.length);
+      return;
+    }
+    renderPhotos();
+    renderPrintReport();
+  }
+
+  function drawSignatureData(dataUrl = "") {
+    const canvas = $("#afterWorkSignatureCanvas");
+    if (!canvas || !signatureCanvasReady) return;
+    const context = canvas.getContext("2d");
+    const ratio = Number(canvas.dataset.ratio || 1);
+    const width = canvas.width / ratio;
+    const height = canvas.height / ratio;
+    context.save();
+    context.setTransform(ratio, 0, 0, ratio, 0, 0);
+    context.clearRect(0, 0, width, height);
+    context.restore();
+    if (!dataUrl) return;
+    const image = new Image();
+    image.onload = () => {
+      context.save();
+      context.setTransform(ratio, 0, 0, ratio, 0, 0);
+      context.drawImage(image, 0, 0, width, height);
+      context.restore();
+    };
+    image.src = dataUrl;
+  }
+
+  function renderAfterWorkSignature() {
+    const signature = state.afterWorkSignature || {};
+    const name = $("#afterWorkSignerName");
+    const role = $("#afterWorkSignerRole");
+    if (name && document.activeElement !== name) name.value = signature.name || "";
+    if (role && document.activeElement !== role) role.value = signature.role || "";
+    const status = $("#afterWorkSignatureStatus");
+    if (status) status.textContent = signature.signedAt
+      ? `Signée le ${formatDateTime(signature.signedAt)}${signature.name ? ` par ${signature.name}` : ""}.`
+      : "Signer au doigt dans la zone ci-dessus.";
+    if (signatureCanvasReady) drawSignatureData(signature.dataUrl);
+  }
+
+  function setupSignatureCanvas() {
+    const canvas = $("#afterWorkSignatureCanvas");
+    if (!canvas || signatureCanvasReady) return;
+    const resize = () => {
+      const rect = canvas.getBoundingClientRect();
+      const ratio = Math.max(1, window.devicePixelRatio || 1);
+      canvas.width = Math.max(300, Math.floor(rect.width || 300) * ratio);
+      canvas.height = 148 * ratio;
+      canvas.dataset.ratio = String(ratio);
+      drawSignatureData(state.afterWorkSignature?.dataUrl || "");
+    };
+    let drawing = false;
+    let lastPoint = null;
+    const point = (event) => {
+      const rect = canvas.getBoundingClientRect();
+      return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+    };
+    const context = () => {
+      const drawingContext = canvas.getContext("2d");
+      const ratio = Number(canvas.dataset.ratio || 1);
+      drawingContext.setTransform(ratio, 0, 0, ratio, 0, 0);
+      drawingContext.strokeStyle = "#17272c";
+      drawingContext.lineWidth = 2.2;
+      drawingContext.lineCap = "round";
+      drawingContext.lineJoin = "round";
+      return drawingContext;
+    };
+    canvas.addEventListener("pointerdown", (event) => {
+      drawing = true;
+      lastPoint = point(event);
+      canvas.setPointerCapture?.(event.pointerId);
+      const drawingContext = context();
+      drawingContext.beginPath();
+      drawingContext.moveTo(lastPoint.x, lastPoint.y);
+      drawingContext.arc(lastPoint.x, lastPoint.y, 0.8, 0, Math.PI * 2);
+      drawingContext.fillStyle = "#17272c";
+      drawingContext.fill();
+      event.preventDefault();
+    });
+    canvas.addEventListener("pointermove", (event) => {
+      if (!drawing) return;
+      const next = point(event);
+      const drawingContext = context();
+      drawingContext.beginPath();
+      drawingContext.moveTo(lastPoint.x, lastPoint.y);
+      drawingContext.lineTo(next.x, next.y);
+      drawingContext.stroke();
+      lastPoint = next;
+      event.preventDefault();
+    });
+    const finish = () => {
+      if (!drawing) return;
+      drawing = false;
+      state.afterWorkSignature.dataUrl = canvas.toDataURL("image/png");
+      state.afterWorkSignature.signedAt = new Date().toISOString();
+      save("Visa après travaux signé");
+      renderAfterWorkSignature();
+      renderPrintReport();
+    };
+    canvas.addEventListener("pointerup", finish);
+    canvas.addEventListener("pointercancel", finish);
+    signatureCanvasReady = true;
+    resize();
+    window.addEventListener("resize", resize);
+  }
+
   function validation() {
     const checks = [];
     const metaMissing = [state.meta.operation, state.meta.reportNo, state.meta.date].some((value) => !value);
@@ -624,7 +937,7 @@
       checks.push({ ok: state.tasks.length > 0, message: state.tasks.length ? "Au moins une prestation est saisie." : "Ajouter les prestations réellement réalisées." });
       if (isAdminView()) {
         const openTasks = state.tasks.filter((task) => resolveTask(task).status !== "priced");
-        checks.push({ ok: openTasks.length === 0, message: openTasks.length ? `${openTasks.length} ligne(s) restent à qualifier dans le contrôle financier.` : "Toutes les prestations sont rattachées au référentiel administrateur." });
+        checks.push({ ok: openTasks.length === 0, message: openTasks.length ? `${openTasks.length} ligne(s) hors catalogue ou incomplètes restent à contrôler.` : "Toutes les prestations saisies sont rattachées au référentiel administrateur." });
       }
     }
     return checks;
@@ -653,7 +966,7 @@
       <table class="valuation-table"><thead><tr><th>Prestation</th><th>Réf. PB</th><th class="numeric">Qté</th><th>CR</th><th class="numeric">PU HT</th><th class="numeric">Montant HT</th></tr></thead>
       <tbody>${valuations.map(({ task, template, result }) => `
         <tr><td>${escapeHtml(task.label || template?.reportLabel || "Prestation")}${result.status !== "priced" ? `<br><small>${escapeHtml(result.reason)}</small>` : ""}</td>
-        <td>${result.record ? escapeHtml(result.record.article) : "À qualifier"}</td>
+        <td>${result.record ? escapeHtml(result.record.article) : "Hors catalogue"}</td>
         <td class="numeric">${displayNumber(result.quantity)} ${escapeHtml(task.unit || template?.unit || "u")}</td>
         <td>${renderRateEditor(task, result)}</td>
         <td class="numeric">${result.status === "priced" ? euros(result.unitPrice) : "—"}</td>
@@ -692,7 +1005,7 @@
     if (!unlocked) return;
     const breakdown = valuationBreakdown();
     const open = breakdown.valuations.length - breakdown.priced.length;
-    $("#adminEvidenceNote").textContent = `${billingEvidence.sourceLabel || "Référentiel de décompte"} : ${billingEvidence.billedTimeArticleBases?.length || 0} familles à plage horaire et les articles Série 300 facturés sont intégrés.`;
+    $("#adminEvidenceNote").textContent = `${billingEvidence.sourceLabel || "Référentiel de décompte"} : ${billingEvidence.billedTimeArticleBases?.length || 0} postes PB2, ${billingEvidence.billedSeries300Articles?.length || 0} articles Série 300 et les postes PB1 observés sont intégrés.`;
     $("#includeCommonCostsCheckbox").checked = Boolean(state.settings.admin.includeCommonCosts);
     $("#adminValuationStats").innerHTML = `<span class="admin-stat"><strong>${breakdown.priced.length}</strong> ligne(s) valorisée(s)</span><span class="admin-stat"><strong>${open}</strong> à contrôler</span><span class="admin-stat"><strong>${euros(breakdown.total)}</strong> HT indicatif</span>`;
     renderValuationPreview();
@@ -740,12 +1053,15 @@
     renderQuickCatalog();
     renderTasks();
     ["personnel", "equipment", "possession", "anomaly", "document", "sncfMeans"].forEach(renderDataList);
+    renderPhotos();
+    renderAfterWorkSignature();
     renderReview();
     renderPrintReport();
   }
 
   function openTaskCatalog(editId = null) {
     taskDraft = editId ? clone(state.tasks.find((task) => task.id === editId)) : null;
+    if (!editId) { catalogSearch = ""; catalogCategory = "Toutes"; }
     $("#taskDialogTitle").textContent = editId ? "Modifier une prestation" : "Ajouter une prestation";
     $("#taskCatalogPane").classList.toggle("hidden", Boolean(taskDraft));
     $("#taskEditorPane").classList.toggle("hidden", !taskDraft);
@@ -755,13 +1071,22 @@
   }
 
   function renderTaskCatalog() {
-    const groups = terrainCatalog.filter((template) => !template.legacy).reduce((acc, template) => {
+    const available = terrainCatalog.filter((template) => !template.legacy);
+    const categories = ["Toutes", ...new Set(available.map((template) => template.category))];
+    const query = normalise(catalogSearch);
+    const filtered = available.filter((template) => {
+      const inCategory = catalogCategory === "Toutes" || template.category === catalogCategory;
+      const haystack = normalise(`${template.label} ${template.reportLabel} ${template.hint}`);
+      return inCategory && (!query || haystack.includes(query));
+    });
+    const groups = filtered.reduce((acc, template) => {
       (acc[template.category] ||= []).push(template);
       return acc;
     }, {});
-    $("#taskCatalogPane").innerHTML = `<div class="catalog-groups">${Object.entries(groups).map(([category, templates]) => `
+    const options = Object.entries(groups).map(([category, templates]) => `
       <section class="catalog-group"><h3>${escapeHtml(category)}</h3><div class="catalog-options">${templates.map((template) => `
-        <button class="catalog-option" data-select-template="${escapeHtml(template.id)}" type="button"><strong>${escapeHtml(template.label)}</strong><span>${escapeHtml(template.hint)}</span></button>`).join("")}</div></section>`).join("")}</div>`;
+        <button class="catalog-option" data-select-template="${escapeHtml(template.id)}" type="button"><strong>${escapeHtml(template.label)}</strong><span>${escapeHtml(template.hint)}</span></button>`).join("")}</div></section>`).join("");
+    $("#taskCatalogPane").innerHTML = `<div class="catalog-toolbar"><label class="catalog-search"><span>Rechercher</span><input id="catalogSearch" value="${escapeHtml(catalogSearch)}" placeholder="Ex. câble, chambre, CI, RVL…" autofocus /></label><div class="catalog-filters">${categories.map((category) => `<button type="button" class="catalog-filter ${category === catalogCategory ? "active" : ""}" data-catalog-category="${escapeHtml(category)}">${escapeHtml(category)}</button>`).join("")}</div></div><div class="catalog-groups">${options || `<div class="empty-state"><p>Aucune prestation ne correspond à cette recherche.</p></div>`}</div>`;
   }
 
   function renderTaskEditor(template, existing = null) {
@@ -779,7 +1104,7 @@
     const routeConfig = template.priceRoute || {};
     const note = isAdminView()
       ? (["mapped", "time-mapped"].includes(route)
-        ? (routeConfig.mappingNote || "Ce libellé est volontairement simple ; l’encadrant choisira une seule fois le bon article dans le paramétrage chantier.")
+        ? (routeConfig.mappingNote || "Le rattachement par défaut est déjà appliqué ; l’encadrant peut le modifier dans les réglages d’exception.")
         : route === "manual"
           ? (routeConfig.reason || "La production sera présente dans le rapport ; le rattachement au prix devra être fait par l’encadrant.")
           : "Le rattachement au référentiel sera contrôlé dans l’espace administrateur.")
@@ -791,12 +1116,8 @@
       <div class="task-editor">
         <div class="task-identity"><strong>${escapeHtml(template.label)}</strong><p>${escapeHtml(template.hint)}</p></div>
         ${isCustom ? `<label class="field"><span>Libellé terrain</span><input id="taskLabel" value="${escapeHtml(task.label === template.reportLabel ? "" : task.label)}" placeholder="Décrire simplement la prestation"></label>` : ""}
-        <div class="task-extra-grid">${customFields}
-          <label class="field"><span>Voie</span><input id="taskVoie" value="${escapeHtml(task.voie)}" placeholder="Ex. V1"></label>
-          <label class="field"><span>PK début</span><input id="taskPkStart" value="${escapeHtml(task.pkStart)}" placeholder="Ex. 80+050"></label>
-          <label class="field"><span>PK fin</span><input id="taskPkEnd" value="${escapeHtml(task.pkEnd)}" placeholder="Ex. 80+200"></label>
-        </div>
-        <label class="field"><span>Observation / précision</span><textarea id="taskNote" rows="3" placeholder="Localisation, type précis, difficulté, matériel…">${escapeHtml(task.note)}</textarea></label>
+        <div class="task-extra-grid">${customFields}</div>
+        <details class="optional-details"><summary>Ajouter une localisation / observation</summary><div class="task-extra-grid"><label class="field"><span>Voie</span><input id="taskVoie" value="${escapeHtml(task.voie)}" placeholder="Ex. V1"></label><label class="field"><span>PK début</span><input id="taskPkStart" value="${escapeHtml(task.pkStart)}" placeholder="Ex. 80+050"></label><label class="field"><span>PK fin</span><input id="taskPkEnd" value="${escapeHtml(task.pkEnd)}" placeholder="Ex. 80+200"></label></div><label class="field"><span>Observation / précision</span><textarea id="taskNote" rows="3" placeholder="Localisation, type précis, difficulté, matériel…">${escapeHtml(task.note)}</textarea></label></details>
         <p class="dialog-note">${escapeHtml(note)}</p>
         <div class="dialog-actions"><button id="backToTaskCatalog" type="button" class="secondary-button">Retour</button><button id="saveTaskButton" type="button" class="primary-button">Enregistrer la prestation</button></div>
       </div>`;
@@ -861,9 +1182,9 @@
     $("#mappingPane").innerHTML = mappedTemplates.map((template) => {
       const route = template.priceRoute || {};
       const isTimeMapped = route.type === "time-mapped";
-      const selected = state.settings.mappings[template.id] || "";
+      const selected = mappedArticleFor(template);
       const candidates = isTimeMapped ? timeCandidatesFor(template) : candidatesFor(template);
-      const placeholder = isTimeMapped ? "Choisir la famille d’article" : "Choisir la référence marché";
+      const placeholder = isTimeMapped ? "Famille automatique" : "Référence automatique";
       const options = candidates.map((record) => {
         const value = isTimeMapped ? record.articleBase : record.article;
         const unitPrice = documentedUnitPrice(record);
@@ -873,9 +1194,9 @@
           : `${record.article} — ${record.description.slice(0, 105)} · ${amount}`;
         return `<option value="${escapeHtml(value)}" ${value === selected ? "selected" : ""}>${escapeHtml(label)}</option>`;
       }).join("");
-      const select = candidates.length ? `<select id="mapping_${template.id}"><option value="">${placeholder}</option>${options}</select>` : `<span class="muted">Aucun candidat trouvé dans le bordereau : associer ce libellé après analyse marché.</span>`;
+      const select = candidates.length ? `<select id="mapping_${template.id}"><option value="">${placeholder}</option>${options}</select>` : `<span class="muted">Aucun candidat trouvé dans le bordereau.</span>`;
       const note = route.mappingNote ? `<p class="muted">${escapeHtml(route.mappingNote)}</p>` : "";
-      return `<article class="mapping-item"><h3>${escapeHtml(template.label)}</h3><p>${escapeHtml(template.hint)}</p>${note}<div class="mapping-actions">${select}${candidates.length ? `<button class="secondary-button" type="button" data-save-mapping="${template.id}">Enregistrer</button>` : ""}</div></article>`;
+      return `<article class="mapping-item"><h3>${escapeHtml(template.label)}</h3><p>${escapeHtml(template.hint)}</p>${note}<div class="mapping-actions">${select}${candidates.length ? `<button class="secondary-button" type="button" data-save-mapping="${template.id}">Enregistrer l’exception</button>` : ""}</div></article>`;
     }).join("");
   }
 
@@ -889,6 +1210,7 @@
     const resolved = breakdown.valuations;
     const total = breakdown.total;
     const reportTitle = state.meta.cancelled ? "RAPPORT JOURNALIER — CHANTIER ANNULÉ" : "RAPPORT JOURNALIER";
+    const durationText = state.meta.workDuration ? `${displayNumber(state.meta.workDuration)} h` : "—";
     const taskRows = renderTableRows(resolved, ({ task, template, result }) => `
       <tr><td>${escapeHtml(task.label || template?.reportLabel || "Prestation")}${task.note ? `<br><small>${escapeHtml(task.note)}</small>` : ""}</td>
       <td class="numeric">${template?.metric === "openClose" ? `Ouv. ${displayNumber(task.opening)}<br>Ferm. ${displayNumber(task.closing)}` : `${displayNumber(task.quantity)} ${escapeHtml(task.unit || template?.unit || "u")}`}</td>
@@ -901,9 +1223,20 @@
     const documentsRows = renderTableRows(state.documents, (row) => `<tr><td>${escapeHtml(row.name || "—")}</td><td>${escapeHtml(row.reference || "—")}</td><td>${escapeHtml(row.observation || "—")}</td></tr>`, 3);
     const sncfRows = renderTableRows(state.sncfMeans, (row) => `<tr><td>${escapeHtml(row.role || "—")}</td><td class="numeric">${displayNumber(row.count, 0)}</td><td>${escapeHtml(row.observation || "—")}</td></tr>`, 3);
     const valuationRows = [
-      ...resolved.map(({ task, template, result }) => `<tr><td>${escapeHtml(task.label || template?.reportLabel || "Prestation")}</td><td>${result.record ? escapeHtml(result.record.article) : "À qualifier"}</td><td class="numeric">${displayNumber(result.quantity)} ${escapeHtml(task.unit || template?.unit || "u")}</td><td class="numeric">${result.status === "priced" ? euros(result.unitPrice) : "—"}</td><td class="numeric">${result.status === "priced" ? euros(result.amount) : "—"}</td></tr>`),
+      ...resolved.map(({ task, template, result }) => `<tr><td>${escapeHtml(task.label || template?.reportLabel || "Prestation")}</td><td>${result.record ? escapeHtml(result.record.article) : "Hors catalogue"}</td><td class="numeric">${displayNumber(result.quantity)} ${escapeHtml(task.unit || template?.unit || "u")}</td><td class="numeric">${result.status === "priced" ? euros(result.unitPrice) : "—"}</td><td class="numeric">${result.status === "priced" ? euros(result.amount) : "—"}</td></tr>`),
       ...breakdown.commonCosts.map((row) => `<tr><td>${escapeHtml(row.label)}<br><small>Base de calcul : ${euros(row.base)}</small></td><td>${escapeHtml(row.article)}</td><td class="numeric">Base ${euros(row.base)}</td><td class="numeric">${displayNumber(row.rate * 100)} %</td><td class="numeric">${euros(row.amount)}</td></tr>`),
     ].join("") || `<tr><td colspan="5" class="print-empty">Aucune donnée saisie.</td></tr>`;
+
+    const photoSection = ["avant", "apres"].map((phase) => {
+      const rows = state.photos.filter((photo) => photo.phase === phase);
+      if (!rows.length) return "";
+      const label = phase === "avant" ? "Avant nuit" : "Après nuit";
+      return `<section class="print-section"><h2>Photos ${label}</h2><div class="print-photo-grid">${rows.map((photo) => `<figure class="print-photo"><img src="${escapeHtml(photo.dataUrl)}" alt="${escapeHtml(label)}"><figcaption><strong>${formatDateTime(photo.capturedAt)}</strong>${photo.caption ? `<br>${escapeHtml(photo.caption)}` : ""}</figcaption></figure>`).join("")}</div></section>`;
+    }).join("");
+    const signature = state.afterWorkSignature || {};
+    const signatureMarkup = signature.dataUrl
+      ? `<img class="print-signature-image" src="${escapeHtml(signature.dataUrl)}" alt="Signature après travaux">`
+      : `<span>Signature à renseigner</span>`;
 
     $("#printReport").innerHTML = `
       <article class="print-page">
@@ -911,7 +1244,7 @@
           <div class="print-meta">AINM · Travaux signalisation<br>Référentiel rapport journalier<br>Édité le ${formatDate(dateToday())}</div></header>
         <section class="print-section"><h2>Identification</h2><div class="print-info-grid">
           <div><strong>Opération / chantier</strong>${escapeHtml(state.meta.operation || "—")}</div><div><strong>N° rapport</strong>${escapeHtml(state.meta.reportNo || "—")}</div><div><strong>N° commande</strong>${escapeHtml(state.meta.orderNo || "—")}</div>
-          <div><strong>Entreprise</strong>${escapeHtml(enterpriseName() || "—")}</div><div><strong>Date / nature</strong>${formatDate(state.meta.date)} · ${escapeHtml(state.meta.shiftType || "—")}</div><div><strong>Intervention réelle</strong>${escapeHtml(`${state.meta.shiftStart || "—"} → ${state.meta.shiftEnd || "—"}`)} · ${displayNumber(state.meta.workDuration)} h</div>
+          <div><strong>Entreprise</strong>${escapeHtml(enterpriseName() || "—")}</div><div><strong>Date / nature</strong>${formatDate(state.meta.date)} · ${escapeHtml(state.meta.shiftType || "—")}</div><div><strong>Intervention réelle</strong>${escapeHtml(`${state.meta.shiftStart || "—"} → ${state.meta.shiftEnd || "—"}`)} · ${durationText}</div>
           <div><strong>Météo / température</strong>${escapeHtml(state.meta.weather || "—")} · ${escapeHtml(state.meta.temperature || "—")} °C</div><div><strong>Rédacteur</strong>${escapeHtml(state.meta.reporter || "—")}</div><div><strong>Régime de séance</strong>${escapeHtml(getShiftContext().label)}</div>
         </div></section>
         ${state.meta.cancelled ? `<section class="print-section"><h2>Annulation du chantier</h2><div class="print-note">${escapeHtml(state.meta.cancelReason || "Motif non renseigné")}</div></section>` : `
@@ -922,13 +1255,14 @@
         <section class="print-section"><h2>Anomalies constatées</h2><table class="print-table"><thead><tr><th>Type</th><th>Niveau</th><th>Fait constaté</th><th>Mesure prise / suite</th></tr></thead><tbody>${anomalyRows}</tbody></table></section>
         <section class="print-section"><h2>Rapports fournis par l’entreprise</h2><table class="print-table"><thead><tr><th>Document</th><th>Référence</th><th>Observation</th></tr></thead><tbody>${documentsRows}</tbody></table></section>
         <section class="print-section"><h2>Moyens SNCF entrepreneur</h2><table class="print-table"><thead><tr><th>Fonction</th><th class="numeric">Nb</th><th>Observation</th></tr></thead><tbody>${sncfRows}</tbody></table></section>
-        <section class="print-signatures"><div class="signature-box"><strong>Lieu / date</strong>${escapeHtml(formatDate(state.meta.date))}</div><div class="signature-box"><strong>Visa représentant MOETx SNCF</strong>${escapeHtml(state.meta.moeRepresentative || "Nom / prénom à renseigner")}</div><div class="signature-box"><strong>Visa représentant entreprise extérieure</strong>${escapeHtml(state.meta.companyRepresentative || "Nom / prénom à renseigner")}</div></section>
+        ${photoSection}
+        <section class="print-signatures"><div class="signature-box"><strong>Lieu / date</strong>${escapeHtml(formatDate(state.meta.date))}</div><div class="signature-box"><strong>Visa représentant MOETx SNCF</strong>${escapeHtml(state.meta.moeRepresentative || "Nom / prénom à renseigner")}</div><div class="signature-box"><strong>Visa représentant entreprise extérieure</strong>${escapeHtml(state.meta.companyRepresentative || "Nom / prénom à renseigner")}</div><div class="signature-box signature-after-work"><strong>Visa après travaux</strong>${escapeHtml([signature.name, signature.role].filter(Boolean).join(" · ") || "Nom / fonction à renseigner")}${signature.signedAt ? `<small>Signée le ${escapeHtml(formatDateTime(signature.signedAt))}</small>` : ""}${signatureMarkup}</div></section>
         <p class="print-footer">Rapport opérationnel généré depuis l’application rapport journalier AINM.</p>
       </article>
       ${includeValuation ? `<article class="print-page print-internal">
         <header class="print-header"><div><span class="print-brand">AINM</span><h1 class="print-title">ANNEXE DE VALORISATION INTERNE</h1></div><div class="print-meta">${escapeHtml(state.meta.reportNo || "—")}<br>Montants indicatifs HT</div></header>
         <section class="print-section"><h2>Rapprochement production / bordereau</h2><table class="print-table"><thead><tr><th>Prestation terrain</th><th>Référence PB</th><th class="numeric">Quantité / base</th><th class="numeric">PU / taux</th><th class="numeric">Montant HT</th></tr></thead><tbody>${valuationRows}<tr><td colspan="4"><strong>Total valorisé indicatif HT</strong></td><td class="numeric"><strong>${euros(total)}</strong></td></tr></tbody></table></section>
-        <section class="print-section"><h2>Contrôle</h2><div class="print-note">Les lignes « À qualifier » ont bien été saisies dans le rapport terrain, mais nécessitent un rattachement de prix par l’administrateur ou le gestionnaire de marché. Les dispositions communes, lorsqu’elles sont activées, sont calculées à titre indicatif à partir des postes du présent rapport. Cette annexe ne remplace pas la validation de la situation de travaux.</div></section>
+        <section class="print-section"><h2>Contrôle</h2><div class="print-note">Les prestations hors catalogue ou incomplètes restent visibles dans le rapport terrain et nécessitent un contrôle administratif. Les dispositions communes, lorsqu’elles sont activées, sont calculées à titre indicatif à partir des postes du présent rapport. Cette annexe ne remplace pas la validation de la situation de travaux.</div></section>
       </article>` : ""}`;
   }
 
@@ -953,6 +1287,55 @@
     URL.revokeObjectURL(link.href);
   }
 
+  function startNewReport(source = state, { reuseResources = false } = {}) {
+    const sourceCopy = clone(source);
+    archiveCurrentReport();
+    const currentSettings = clone(state.settings || {});
+    state = initialState();
+    Object.assign(state.meta, {
+      operation: sourceCopy.meta?.operation || state.meta.operation,
+      orderNo: sourceCopy.meta?.orderNo || "",
+      enterprise: sourceCopy.meta?.enterprise || state.meta.enterprise,
+      enterpriseOther: sourceCopy.meta?.enterpriseOther || "",
+      reporter: sourceCopy.meta?.reporter || "",
+      moeRepresentative: sourceCopy.meta?.moeRepresentative || "",
+      companyRepresentative: sourceCopy.meta?.companyRepresentative || "",
+      shiftType: sourceCopy.meta?.shiftType || "nuit",
+      shiftStart: sourceCopy.meta?.shiftStart || "22:00",
+      shiftEnd: sourceCopy.meta?.shiftEnd || "06:00",
+      workDuration: sourceCopy.meta?.workDuration || "",
+      weather: "",
+      temperature: "",
+      publicHoliday: false,
+      cancelled: false,
+      cancelReason: "",
+    });
+    if (reuseResources) {
+      state.personnel = clone(sourceCopy.personnel || []);
+      state.equipment = clone(sourceCopy.equipment || []);
+      state.sncfMeans = clone(sourceCopy.sncfMeans || []);
+    }
+    state.settings = currentSettings;
+    ensureSettings();
+    ensureState();
+  }
+
+  function duplicateLastNight() {
+    const history = readReportHistory();
+    const source = history.find((report) => report.meta?.shiftType === "nuit")
+      || (state.meta.shiftType === "nuit" && (state.personnel.length || state.equipment.length) ? state : null);
+    if (!source) {
+      alert("Aucune nuit précédente avec personnel ou engin n’est disponible sur cet appareil. Créez le premier rapport puis utilisez Nouveau rapport à la fin de la séance.");
+      return;
+    }
+    const label = `${formatDate(source.meta?.date)} · ${source.meta?.reportNo || "rapport précédent"}`;
+    if (!confirm(`Créer un nouveau rapport en reprenant le personnel, les engins et les moyens SNCF de ${label} ? Les travaux, photos, anomalies, consignations et signatures ne seront pas recopiés.`)) return;
+    startNewReport(source, { reuseResources: true });
+    save("Dernière nuit reprise");
+    refresh({ inputs: true });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   function setupEvents() {
     $$("[data-path]").forEach((element) => {
       const handler = () => {
@@ -966,12 +1349,26 @@
     });
 
     $$("[data-scroll-target]").forEach((button) => button.addEventListener("click", () => $(`#${button.dataset.scrollTarget}`).scrollIntoView({ behavior: "smooth", block: "start" })));
+    $$("[data-duration-preset]").forEach((button) => button.addEventListener("click", () => {
+      state.meta.workDuration = button.dataset.durationPreset;
+      save("Durée de travaux renseignée");
+      refresh({ inputs: true });
+    }));
+    $("#duplicateLastNightButton").addEventListener("click", duplicateLastNight);
     $("#openTaskCatalog").addEventListener("click", () => openTaskCatalog());
     $("#taskDialog").addEventListener("click", (event) => {
+      const filter = event.target.closest("[data-catalog-category]");
+      if (filter) { catalogCategory = filter.dataset.catalogCategory; renderTaskCatalog(); return; }
       const select = event.target.closest("[data-select-template]");
       if (select) renderTaskEditor(templateById.get(select.dataset.selectTemplate));
       if (event.target.closest("#backToTaskCatalog")) { taskDraft = null; $("#taskEditorPane").classList.add("hidden"); $("#taskCatalogPane").classList.remove("hidden"); renderTaskCatalog(); }
       if (event.target.closest("#saveTaskButton")) saveTask();
+    });
+    $("#taskDialog").addEventListener("input", (event) => {
+      if (event.target.id !== "catalogSearch") return;
+      catalogSearch = event.target.value;
+      renderTaskCatalog();
+      window.setTimeout(() => { const input = $("#catalogSearch"); input?.focus(); input?.setSelectionRange(catalogSearch.length, catalogSearch.length); }, 0);
     });
     $("#quickCatalog").addEventListener("click", (event) => {
       const button = event.target.closest("[data-template]");
@@ -1007,6 +1404,55 @@
       refresh();
     }));
 
+    $("#photoSection").addEventListener("click", (event) => {
+      const button = event.target.closest("[data-add-photo-phase]");
+      if (!button) return;
+      selectedPhotoPhase = button.dataset.addPhotoPhase;
+      $("#photoInput").click();
+    });
+    $("#photoInput").addEventListener("change", async (event) => {
+      await addPhotos(event.target.files);
+      event.target.value = "";
+    });
+    $("#photoList").addEventListener("click", (event) => {
+      const remove = event.target.closest("[data-delete-photo]");
+      if (!remove || !confirm("Supprimer cette photo ?")) return;
+      state.photos = state.photos.filter((photo) => photo.id !== remove.dataset.deletePhoto);
+      save("Photo supprimée");
+      renderPhotos();
+      renderPrintReport();
+    });
+    $("#photoList").addEventListener("change", (event) => {
+      const input = event.target.closest("[data-photo-caption]");
+      if (!input) return;
+      const photo = state.photos.find((item) => item.id === input.dataset.photoCaption);
+      if (!photo) return;
+      photo.caption = input.value.trim();
+      save("Légende photo enregistrée");
+      renderPrintReport();
+    });
+    $("#afterWorkSignerName").addEventListener("input", (event) => {
+      state.afterWorkSignature.name = event.target.value;
+      save();
+      renderAfterWorkSignature();
+      renderPrintReport();
+    });
+    $("#afterWorkSignerRole").addEventListener("input", (event) => {
+      state.afterWorkSignature.role = event.target.value;
+      save();
+      renderAfterWorkSignature();
+      renderPrintReport();
+    });
+    $("#clearAfterWorkSignatureButton").addEventListener("click", () => {
+      if (!state.afterWorkSignature.dataUrl || confirm("Effacer la signature après travaux ?")) {
+        state.afterWorkSignature.dataUrl = "";
+        state.afterWorkSignature.signedAt = "";
+        save("Signature effacée");
+        renderAfterWorkSignature();
+        renderPrintReport();
+      }
+    });
+
     $("#printButton").addEventListener("click", () => { renderPrintReport(); window.print(); });
     $("#exportButton").addEventListener("click", () => exportState(false));
     $("#shareButton").addEventListener("click", () => exportState(true));
@@ -1033,18 +1479,14 @@
       refresh();
     });
     $("#newReportButton").addEventListener("click", () => {
-      if (!confirm("Créer un nouveau rapport ? Le brouillon actuel restera exportable seulement s’il est sauvegardé.")) return;
-      const project = { operation: state.meta.operation, orderNo: state.meta.orderNo, enterprise: state.meta.enterprise, enterpriseOther: state.meta.enterpriseOther, reporter: state.meta.reporter, moeRepresentative: state.meta.moeRepresentative, companyRepresentative: state.meta.companyRepresentative };
-      const currentSettings = clone(state.settings || {});
-      state = initialState();
-      Object.assign(state.meta, project);
-      state.settings = currentSettings;
-      ensureSettings();
+      if (!confirm("Créer un nouveau rapport ? Le rapport actuel sera conservé localement pour pouvoir reprendre ses équipes et engins.")) return;
+      startNewReport(state);
       save("Nouveau rapport créé");
       refresh({ inputs: true });
       window.scrollTo({ top: 0, behavior: "smooth" });
     });
     $("#moreButton").addEventListener("click", () => $("#moreDialog").showModal());
+    $("#duplicateLastNightMenuButton").addEventListener("click", () => { $("#moreDialog").close(); duplicateLastNight(); });
     $("#configurePricesButton").addEventListener("click", () => {
       if (!isAdminView()) return;
       $("#moreDialog").close();
@@ -1058,7 +1500,7 @@
       const select = $(`#mapping_${templateId}`);
       if (select.value) state.settings.mappings[templateId] = select.value;
       else delete state.settings.mappings[templateId];
-      save("Prix chantier paramétré");
+      save("Réglage d’exception enregistré");
       renderMappingDialog();
       refresh();
     });
@@ -1080,6 +1522,7 @@
           admin: currentSettings.admin || { pinHash: "", configuredAt: "" },
         };
         ensureSettings();
+        ensureState();
         adminUnlocked = false;
         adminLoginOpen = false;
         try { sessionStorage.removeItem(adminSessionKey); } catch (_) { /* Session locale indisponible. */ }
@@ -1097,8 +1540,12 @@
   }
 
   function boot() {
+    // Persiste aussi la migration des rapports créés par les versions précédentes
+    // afin qu'un rechargement ne réattribue jamais un numéro.
+    save();
     renderInputs();
     setupEvents();
+    setupSignatureCanvas();
     refresh();
     registerServiceWorker();
   }

@@ -57,7 +57,10 @@
               <p class="eyebrow">1 · Contexte</p>
               <h2>Une seule fois par séance</h2>
             </div>
-            <span id="contextStatus" class="status-chip warning">À compléter</span>
+            <div class="heading-actions">
+              <button id="duplicateLastNightButton" class="secondary-button compact-button" type="button">↻ Reprendre dernière nuit</button>
+              <span id="contextStatus" class="status-chip warning">À compléter</span>
+            </div>
           </div>
           <div class="form-grid context-grid">
             <label class="field field-wide">
@@ -66,7 +69,7 @@
             </label>
             <label class="field">
               <span>N° rapport</span>
-              <input id="reportNoInput" data-path="meta.reportNo" placeholder="Ex. RJ-20260820-01" />
+              <input id="reportNoInput" readonly aria-readonly="true" />
             </label>
             <label class="field">
               <span>N° commande</span>
@@ -116,35 +119,27 @@
             <label class="field">
               <span>Durée effective travaux (h)</span>
               <input id="workDurationInput" data-path="meta.workDuration" type="number" min="0" max="24" step="0.25" inputmode="decimal" placeholder="Ex. 5,5" />
-            </label>
-            <label class="field">
-              <span>Temps</span>
-              <select id="weatherInput" data-path="meta.weather">
-                <option value="">À renseigner</option>
-                <option value="Beau">Beau</option>
-                <option value="Nuageux">Nuageux</option>
-                <option value="Pluie">Pluie</option>
-                <option value="Vent">Vent</option>
-                <option value="Gel">Gel</option>
-              </select>
-            </label>
-            <label class="field">
-              <span>Température (°C)</span>
-              <input id="temperatureInput" data-path="meta.temperature" type="number" min="-20" max="60" step="0.5" inputmode="decimal" />
+              <span class="duration-presets" aria-label="Durées courantes"><button type="button" data-duration-preset="3">3 h</button><button type="button" data-duration-preset="4">4 h</button><button type="button" data-duration-preset="5">5 h</button><button type="button" data-duration-preset="6">6 h</button></span>
             </label>
             <label class="field field-wide">
               <span>Rédacteur</span>
               <input id="reporterInput" data-path="meta.reporter" placeholder="Nom et prénom du surveillant" autocomplete="name" />
             </label>
-            <label class="field">
-              <span>Représentant MOETx SNCF</span>
-              <input id="moeRepresentativeInput" data-path="meta.moeRepresentative" placeholder="Nom et prénom" />
-            </label>
-            <label class="field">
-              <span>Représentant entreprise</span>
-              <input id="companyRepresentativeInput" data-path="meta.companyRepresentative" placeholder="Nom et prénom" />
-            </label>
           </div>
+          <details class="optional-details context-options">
+            <summary>Compléments de rapport : météo et visas</summary>
+            <div class="form-grid">
+              <label class="field">
+                <span>Temps</span>
+                <select id="weatherInput" data-path="meta.weather">
+                  <option value="">À renseigner</option><option value="Beau">Beau</option><option value="Nuageux">Nuageux</option><option value="Pluie">Pluie</option><option value="Vent">Vent</option><option value="Gel">Gel</option>
+                </select>
+              </label>
+              <label class="field"><span>Température (°C)</span><input id="temperatureInput" data-path="meta.temperature" type="number" min="-20" max="60" step="0.5" inputmode="decimal" /></label>
+              <label class="field"><span>Représentant MOETx SNCF</span><input id="moeRepresentativeInput" data-path="meta.moeRepresentative" placeholder="Nom et prénom" /></label>
+              <label class="field"><span>Représentant entreprise</span><input id="companyRepresentativeInput" data-path="meta.companyRepresentative" placeholder="Nom et prénom" /></label>
+            </div>
+          </details>
           <div class="inline-option">
             <label class="check-row"><input id="publicHolidayInput" data-path="meta.publicHoliday" type="checkbox" /> Jour férié / régime week-end à appliquer</label>
             <label class="check-row danger"><input id="cancelledInput" data-path="meta.cancelled" type="checkbox" /> Chantier annulé</label>
@@ -222,6 +217,14 @@
             </div>
             <div id="sncfMeansList" class="data-list"></div>
           </section>
+
+          <section class="section-card compact-card wide-on-tablet" id="photoSection">
+            <div class="section-heading">
+              <div><p class="eyebrow">Photos</p><h2>Avant / après nuit</h2><p class="muted">Photos datées et classées directement dans le rapport.</p></div>
+              <div class="photo-actions"><button class="text-button" type="button" data-add-photo-phase="avant">＋ Avant</button><button class="text-button" type="button" data-add-photo-phase="apres">＋ Après</button></div>
+            </div>
+            <div id="photoList" class="photo-list"></div>
+          </section>
         </section>
 
         <section id="reviewSection" class="section-card review-card">
@@ -233,6 +236,15 @@
             </div>
             <span id="reviewStatus" class="status-chip warning">Brouillon</span>
           </div>
+          <section class="after-work-signature" aria-label="Visa après travaux">
+            <div><p class="eyebrow">Visa après travaux</p><h3>Signature de l’invité / intervenant</h3><p class="muted">Ajoutée au rapport terrain, en complément des visas MOETx et entreprise.</p></div>
+            <div class="signature-fields">
+              <label class="field"><span>Nom et prénom</span><input id="afterWorkSignerName" autocomplete="name" placeholder="Nom du signataire" /></label>
+              <label class="field"><span>Fonction / entreprise</span><input id="afterWorkSignerRole" placeholder="Ex. Chef de chantier – TSO" /></label>
+            </div>
+            <div class="signature-canvas-wrap"><canvas id="afterWorkSignatureCanvas" aria-label="Zone de signature après travaux"></canvas><p id="afterWorkSignatureStatus" class="muted">Signer au doigt dans la zone ci-dessus.</p></div>
+            <button id="clearAfterWorkSignatureButton" class="text-button" type="button">Effacer la signature</button>
+          </section>
           <div id="reviewChecks" class="review-checks"></div>
           <div class="review-actions">
             <button id="printButton" class="primary-button" type="button">Imprimer le rapport PDF</button>
@@ -311,6 +323,7 @@
           <button id="configurePricesButton" class="menu-button admin-finance hidden" type="button">Paramétrer les prix du chantier</button>
           <button id="importButton" class="menu-button" type="button">Importer une saisie</button>
           <button id="saveSnapshotButton" class="menu-button" type="button">Sauvegarder un instantané</button>
+          <button id="duplicateLastNightMenuButton" class="menu-button" type="button">Reprendre la dernière nuit</button>
         </div>
       </form>
     </dialog>
@@ -327,6 +340,7 @@
     </dialog>
 
     <input id="importInput" type="file" accept="application/json" hidden />
+    <input id="photoInput" type="file" accept="image/*" capture="environment" multiple hidden />
     <script src="data/price-catalog.js"></script>
     <script src="data/terrain-catalog.js"></script>
     <script src="data/billing-evidence.js"></script>
