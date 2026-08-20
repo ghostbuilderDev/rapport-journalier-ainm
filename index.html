@@ -29,7 +29,7 @@
           <div class="hero-copy">
             <p class="eyebrow">AINM · Travaux signalisation</p>
             <h1>Rapport journalier</h1>
-            <p id="heroSubtitle" class="muted">Prépare le rapport terrain et la valorisation indicative.</p>
+            <p id="heroSubtitle" class="muted">Prépare le rapport terrain de la séance.</p>
           </div>
           <img class="hero-logo" src="assets/ainm-infrapole-paris-sud-est.jpg" alt="AINM Infrapôle Paris Sud Est" />
           <div class="hero-kpis">
@@ -38,8 +38,8 @@
               <strong id="taskCount">0</strong>
             </div>
             <div class="kpi">
-              <span>Estimation HT</span>
-              <strong id="totalEstimate">—</strong>
+              <span id="secondaryKpiLabel">Rapport</span>
+              <strong id="secondaryKpiValue">Terrain</strong>
             </div>
           </div>
         </section>
@@ -153,7 +153,7 @@
             <span>Motif d’annulation</span>
             <textarea id="cancelReasonInput" data-path="meta.cancelReason" rows="2" placeholder="Motif, causes et conséquences"></textarea>
           </label>
-          <div id="pricingContext" class="info-banner"></div>
+          <div id="pricingContext" class="info-banner admin-finance hidden"></div>
         </section>
 
         <section id="productionSection" class="section-card">
@@ -229,20 +229,51 @@
             <div>
               <p class="eyebrow">4 · Contrôle</p>
               <h2>Rapport prêt à éditer</h2>
-              <p class="muted">Le PDF terrain ne contient que les libellés opérationnels. La valorisation est éditée en annexe interne.</p>
+              <p class="muted">Le PDF terrain ne contient que les faits constatés et les quantités réellement réalisées.</p>
             </div>
             <span id="reviewStatus" class="status-chip warning">Brouillon</span>
           </div>
           <div id="reviewChecks" class="review-checks"></div>
           <div class="review-actions">
-            <button id="printButton" class="primary-button" type="button">Imprimer / PDF</button>
+            <button id="printButton" class="primary-button" type="button">Imprimer le rapport PDF</button>
             <button id="exportButton" class="secondary-button" type="button">Exporter la saisie</button>
             <button id="shareButton" class="secondary-button" type="button">Partager</button>
           </div>
-          <details class="valuation-details">
-            <summary>Voir le contrôle de valorisation interne</summary>
-            <div id="valuationPreview"></div>
-          </details>
+          <section id="adminPanel" class="admin-panel" aria-label="Espace administrateur">
+            <div id="adminLockedPane" class="admin-access">
+              <div>
+                <p class="eyebrow">Administrateur</p>
+                <h3>Contrôle hebdomadaire</h3>
+                <p class="muted">Réservé à l’administrateur principal pour le contrôle de fin de semaine.</p>
+              </div>
+              <button id="openAdminButton" class="secondary-button" type="button">Accès administrateur</button>
+            </div>
+            <div id="adminLoginPane" class="admin-login hidden">
+              <div>
+                <p class="eyebrow">Accès administrateur</p>
+                <h3 id="adminLoginTitle">Déverrouiller l’espace administrateur</h3>
+                <p id="adminLoginHint" class="muted">Saisir le code administrateur de cet appareil.</p>
+              </div>
+              <label class="field"><span id="adminPinLabel">Code à 6 chiffres</span><input id="adminPinInput" type="password" inputmode="numeric" autocomplete="off" maxlength="6" placeholder="••••••" /></label>
+              <div class="dialog-actions"><button id="cancelAdminButton" class="secondary-button" type="button">Retour terrain</button><button id="confirmAdminButton" class="primary-button" type="button">Déverrouiller</button></div>
+            </div>
+            <div id="adminWorkspace" class="admin-workspace hidden">
+              <div class="admin-workspace-heading">
+                <div><p class="eyebrow">Administrateur principal</p><h3>Valorisation et contrôle de la semaine</h3><p id="adminEvidenceNote" class="muted"></p></div>
+                <button id="lockAdminButton" class="text-button" type="button">Verrouiller</button>
+              </div>
+              <div id="adminValuationStats" class="admin-stats"></div>
+              <label class="admin-common-option"><input id="includeCommonCostsCheckbox" type="checkbox" /> <span>Inclure les dispositions communes PCLE à titre indicatif (7 % GC, 7 % signalisation et 5 % installations)</span></label>
+              <div class="admin-actions">
+                <button id="adminConfigurePricesButton" class="secondary-button" type="button">Paramétrer les références marché</button>
+                <button id="adminPrintButton" class="secondary-button" type="button">Imprimer avec annexe interne</button>
+              </div>
+              <details class="valuation-details" open>
+                <summary>Contrôle de valorisation interne</summary>
+                <div id="valuationPreview"></div>
+              </details>
+            </div>
+          </section>
         </section>
       </main>
 
@@ -277,7 +308,7 @@
           <button class="icon-button" value="cancel" aria-label="Fermer" type="submit">×</button>
         </header>
         <div class="menu-stack">
-          <button id="configurePricesButton" class="menu-button" type="button">Paramétrer les prix du chantier</button>
+          <button id="configurePricesButton" class="menu-button admin-finance hidden" type="button">Paramétrer les prix du chantier</button>
           <button id="importButton" class="menu-button" type="button">Importer une saisie</button>
           <button id="saveSnapshotButton" class="menu-button" type="button">Sauvegarder un instantané</button>
         </div>
@@ -298,6 +329,7 @@
     <input id="importInput" type="file" accept="application/json" hidden />
     <script src="data/price-catalog.js"></script>
     <script src="data/terrain-catalog.js"></script>
+    <script src="data/billing-evidence.js"></script>
     <script src="app.js"></script>
   </body>
 </html>

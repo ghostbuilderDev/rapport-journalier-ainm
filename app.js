@@ -4,7 +4,10 @@
 
   const STORAGE_KEY = "ainm-rj-pwa-v1";
   const snapshotKey = "ainm-rj-pwa-last-snapshot";
-  const priceCatalog = Array.isArray(window.RJ_PRICE_CATALOG) ? window.RJ_PRICE_CATALOG : [];
+  const adminSessionKey = "ainm-rj-pwa-admin-unlocked";
+  const billingEvidence = window.RJ_BILLING_EVIDENCE || { series300Profiles: {}, manualRecords: [], billedTimeArticleBases: [] };
+  const basePriceCatalog = Array.isArray(window.RJ_PRICE_CATALOG) ? window.RJ_PRICE_CATALOG : [];
+  const priceCatalog = [...basePriceCatalog, ...(Array.isArray(billingEvidence.manualRecords) ? billingEvidence.manualRecords : [])];
   const terrainCatalog = Array.isArray(window.RJ_TERRAIN_CATALOG) ? window.RJ_TERRAIN_CATALOG : [];
   const templateById = new Map(terrainCatalog.map((item) => [item.id, item]));
 
@@ -20,6 +23,7 @@
   };
   const displayNumber = (value, digits = 2) => new Intl.NumberFormat("fr-FR", { maximumFractionDigits: digits, minimumFractionDigits: 0 }).format(number(value));
   const euros = (value) => new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 2 }).format(number(value));
+  const roundMoney = (value) => Math.round((number(value) + 1e-9) * 100) / 100;
   const escapeHtml = (value) => String(value ?? "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -48,6 +52,12 @@
     "Manutention / levage": ["Nacelle", "Chariot télescopique", "Manitou", "Grue", "Remorque", "Chariot élévateur", "Autre matériel de levage"],
     "Autre matériel": ["Groupe électrogène", "Compresseur", "Outillage spécialisé", "Autre"],
   };
+  const QUICK_TEMPLATE_IDS = new Set([
+    "pose-caniveau-pm-mm", "pose-caniveau-gm-tgm", "pose-caniveau-composite", "ouverture-fermeture-artere",
+    "pose-intervalle-decharge", "depose-intervalle-decharge", "pose-ci-equilibrage", "depose-ci-equilibrage",
+    "demi-entretoise", "connexion-95-7m", "connexion-240-7m", "insert-crocodile",
+    "deroulage-95", "deroulage-240", "deplacement-lateral-cables", "saisie-libre",
+  ]);
 
   const selectOptions = (options, selected, placeholder = "À renseigner") => `<option value="">${escapeHtml(placeholder)}</option>${options.map((option) => `<option value="${escapeHtml(option)}" ${option === selected ? "selected" : ""}>${escapeHtml(option)}</option>`).join("")}`;
   const editorValue = (id) => String($(`#${id}`)?.value ?? "").trim();
@@ -56,6 +66,18 @@
   const enterpriseName = () => state.meta.enterprise === "Autre" ? (state.meta.enterpriseOther || "Autre entreprise") : state.meta.enterprise;
   const isOtherEquipmentType = (type) => String(type || "").startsWith("Autre");
   const equipmentName = (row) => isOtherEquipmentType(row?.type || row?.name) ? (row.typeOther || row.type || row.name) : (row?.type || row?.name || "Engin à préciser");
+  // L'espace interne n'est affiché que si un code a été créé sur cet appareil
+  // et si la session actuelle a été déverrouillée.
+  const isAdminView = () => adminUnlocked && isAdminConfigured();
+  const isAdminConfigured = () => Boolean(state.settings?.admin?.pinHash);
+  const hashAdminPin = (pin) => {
+    let hash = 2166136261;
+    for (const character of `AINM-RJ-ADMIN|${pin}`) {
+      hash ^= character.charCodeAt(0);
+      hash = Math.imul(hash, 16777619);
+    }
+    return `v1-${(hash >>> 0).toString(36)}`;
+  };
 
   const initialState = () => {
     const date = dateToday();
@@ -92,7 +114,7 @@
       anomalies: [],
       documents: [],
       sncfMeans: [],
-      settings: { mappings: {} },
+      settings: { mappings: {}, admin: { pinHash: "", configuredAt: "", includeCommonCosts: false } },
     };
   };
 
@@ -105,8 +127,19 @@
   };
 
   let state = load();
+  const ensureSettings = () => {
+    state.settings ||= {};
+    state.settings.mappings ||= {};
+    state.settings.admin ||= { pinHash: "", configuredAt: "", includeCommonCosts: false };
+    if (typeof state.settings.admin.includeCommonCosts !== "boolean") state.settings.admin.includeCommonCosts = false;
+  };
+  ensureSettings();
   let taskDraft = null;
   let rowDraft = null;
+  let adminLoginOpen = false;
+  let adminUnlocked = (() => {
+    try { return sessionStorage.getItem(adminSessionKey) === "1"; } catch (_) { return false; }
+  })();
 
   const getPath = (object, path) => path.split(".").reduce((value, key) => value?.[key], object);
   const setPath = (object, path, value) => {
@@ -138,15 +171,15 @@
     const weekend = Boolean(date && [0, 6].includes(date.getDay()));
     const isWeekend = weekend || Boolean(state.meta.publicHoliday);
     if (isWeekend) return { key: "W", label: "Week-end / jour férié", status: "ok" };
-    if (!duration) return { key: null, label: "Durée effective à renseigner", status: "warning" };
+    if (!duration) return { key: null, label: "Durée effective à renseigner", pricingReason: "Durée effective à renseigner", status: "warning" };
     if (state.meta.shiftType === "jour") {
-      if (duration > 4) return { key: "J", label: "Jour (> 4 h)", status: "ok" };
-      return { key: null, label: "Jour ≤ 4 h : prix à qualifier", status: "warning" };
+      if (duration > 4) return { key: "J", label: "Intervention de jour (> 4 h)", status: "ok" };
+      return { key: null, label: "Intervention de jour (≤ 4 h)", pricingReason: "Jour ≤ 4 h : régime de règlement à confirmer", status: "warning" };
     }
-    if (duration > 2 && duration <= 3) return { key: "N1", label: "Nuit N1 (> 2 h à 3 h)", status: "ok" };
-    if (duration > 3 && duration <= 5) return { key: "N2", label: "Nuit N2 (> 3 h à 5 h)", status: "ok" };
-    if (duration > 5) return { key: "N3", label: "Nuit N3 (> 5 h)", status: "ok" };
-    return { key: null, label: "Nuit ≤ 2 h : prix à qualifier", status: "warning" };
+    if (duration > 2 && duration <= 3) return { key: "N1", label: "Intervention de nuit N1 (> 2 h à 3 h)", status: "ok" };
+    if (duration > 3 && duration <= 5) return { key: "N2", label: "Intervention de nuit N2 (> 3 h à 5 h)", status: "ok" };
+    if (duration > 5) return { key: "N3", label: "Intervention de nuit N3 (> 5 h)", status: "ok" };
+    return { key: null, label: "Intervention de nuit (≤ 2 h)", pricingReason: "Nuit ≤ 2 h : régime de règlement à confirmer", status: "warning" };
   }
 
   function candidatesFor(template) {
@@ -184,6 +217,50 @@
     return priceCatalog.find((record) => record.article === article) || null;
   }
 
+  function isNightWeek() {
+    const date = state.meta.date ? new Date(`${state.meta.date}T12:00:00`) : null;
+    return state.meta.shiftType === "nuit" && !state.meta.publicHoliday && !(date && [0, 6].includes(date.getDay()));
+  }
+
+  function getStandardShiftKey() {
+    const date = state.meta.date ? new Date(`${state.meta.date}T12:00:00`) : null;
+    if (state.meta.publicHoliday || (date && [0, 6].includes(date.getDay()))) return "W";
+    return state.meta.shiftType === "nuit" ? "N" : "J";
+  }
+
+  function priceForRecord(record, task = {}) {
+    if (record.pricingFamily !== "serie-300") {
+      return { status: "priced", unitPrice: number(record.contractualUnitPriceHT), source: "BPU" };
+    }
+    const profile = billingEvidence.series300Profiles?.[record.article];
+    const overrideCr = number(task.billingCr);
+    const cr = overrideCr || number(profile?.defaultCr);
+    if (!cr) return { status: "review", reason: "Coefficient CR à confirmer dans l’espace administrateur" };
+    if (!overrideCr && billingEvidence.sourcePeriod === "nuit semaine" && !isNightWeek()) {
+      return { status: "review", reason: "CR du décompte observé de nuit semaine : à confirmer pour cette séance" };
+    }
+    const majoration = number(record.coefficient);
+    const unitPrice = roundMoney(number(record.unitPriceHT) * (1 + majoration) * cr);
+    return { status: "priced", unitPrice, cr, source: billingEvidence.sourceLabel || "Décompte facturé" };
+  }
+
+  function documentedUnitPrice(record) {
+    if (!record) return null;
+    if (record.pricingFamily !== "serie-300") return number(record.contractualUnitPriceHT);
+    const profile = billingEvidence.series300Profiles?.[record.article];
+    if (!profile?.defaultCr) return null;
+    return roundMoney(number(record.unitPriceHT) * (1 + number(record.coefficient)) * number(profile.defaultCr));
+  }
+
+  function resolveRecord(record, quantity, task) {
+    const price = priceForRecord(record, task);
+    if (price.status !== "priced") return { status: "review", record, quantity, reason: price.reason };
+    return {
+      status: "priced", record, quantity, unitPrice: price.unitPrice, cr: price.cr || null, priceSource: price.source,
+      amount: roundMoney(quantity * price.unitPrice),
+    };
+  }
+
   function resolveTask(task) {
     const template = templateById.get(task.templateId);
     if (!template) return { status: "review", reason: "Prestation hors catalogue à rattacher", quantity: number(task.quantity) };
@@ -209,13 +286,19 @@
       if (!context.key) return { status: "review", reason: context.label, quantity };
       const record = priceCatalog.find((item) => item.articleBase === route.articleBase && item.timeVariant === context.key);
       if (!record) return { status: "review", reason: "Prix de bordereau introuvable", quantity };
-      return { status: "priced", record, quantity, amount: Math.round(quantity * record.contractualUnitPriceHT * 100) / 100 };
+      return resolveRecord(record, quantity, task);
+    }
+
+    if (route.type === "shift") {
+      const record = findPrice(`${route.articleBase} ${getStandardShiftKey()}`);
+      if (!record) return { status: "review", reason: "Variante jour / nuit / week-end à confirmer", quantity };
+      return resolveRecord(record, quantity, task);
     }
 
     if (route.type === "direct") {
       const record = findPrice(route.article);
       if (!record) return { status: "review", reason: "Prix de bordereau introuvable", quantity };
-      return { status: "priced", record, quantity, amount: Math.round(quantity * record.contractualUnitPriceHT * 100) / 100 };
+      return resolveRecord(record, quantity, task);
     }
 
     if (route.type === "mapped") {
@@ -225,7 +308,7 @@
         const count = candidatesFor(template).length;
         return { status: "review", reason: count ? "Rattachement marché à paramétrer" : "Aucun article trouvé automatiquement", quantity };
       }
-      return { status: "priced", record, quantity, amount: Math.round(quantity * record.contractualUnitPriceHT * 100) / 100 };
+      return resolveRecord(record, quantity, task);
     }
 
     if (route.type === "time-mapped") {
@@ -235,10 +318,39 @@
       if (!articleBase) return { status: "review", reason: "Famille de prix à paramétrer", quantity };
       const record = priceCatalog.find((item) => item.articleBase === articleBase && item.timeVariant === context.key);
       if (!record) return { status: "review", reason: "Variante horaire introuvable", quantity };
-      return { status: "priced", record, quantity, amount: Math.round(quantity * record.contractualUnitPriceHT * 100) / 100 };
+      return resolveRecord(record, quantity, task);
     }
 
     return { status: "review", reason: route.reason || "Prestation à rattacher au bordereau", quantity };
+  }
+
+  function valuationBreakdown() {
+    const valuations = state.tasks.map((task) => ({ task, template: templateById.get(task.templateId), result: resolveTask(task) }));
+    const priced = valuations.filter(({ result }) => result.status === "priced");
+    const productionTotal = roundMoney(priced.reduce((sum, { result }) => sum + result.amount, 0));
+    const includeCommonCosts = Boolean(state.settings?.admin?.includeCommonCosts);
+    const civilEngineeringTotal = roundMoney(priced
+      .filter(({ result }) => String(result.record?.articleBase || result.record?.article || "").startsWith("PB2-"))
+      .reduce((sum, { result }) => sum + result.amount, 0));
+    const signallingTotal = roundMoney(priced
+      .filter(({ result }) => result.record?.pricingFamily === "serie-300")
+      .reduce((sum, { result }) => sum + result.amount, 0));
+    const commonCosts = includeCommonCosts ? [
+      {
+        article: "PB1-1-1", label: "Études, méthodes et contrôles GC", base: civilEngineeringTotal, rate: 0.07,
+        amount: roundMoney(civilEngineeringTotal * 0.07),
+      },
+      {
+        article: "PB1-1-2", label: "Études, méthodes et contrôles signalisation", base: signallingTotal, rate: 0.07,
+        amount: roundMoney(signallingTotal * 0.07),
+      },
+      {
+        article: "PB1-2-1", label: "Installations de chantier", base: roundMoney(civilEngineeringTotal + signallingTotal), rate: 0.05,
+        amount: roundMoney((civilEngineeringTotal + signallingTotal) * 0.05),
+      },
+    ].filter((row) => row.base > 0) : [];
+    const total = roundMoney(productionTotal + commonCosts.reduce((sum, row) => sum + row.amount, 0));
+    return { valuations, priced, productionTotal, civilEngineeringTotal, signallingTotal, commonCosts, total };
   }
 
   function renderInputs() {
@@ -254,19 +366,26 @@
   function renderPricingContext() {
     const context = getShiftContext();
     const banner = $("#pricingContext");
+    if (!isAdminView()) {
+      banner.classList.add("hidden");
+      return;
+    }
+    banner.classList.remove("hidden");
     banner.classList.toggle("warning", context.status !== "ok");
-    banner.innerHTML = `<strong>Régime de prix identifié :</strong> ${escapeHtml(context.label)}. ${context.key ? "Les prestations de génie civil éligibles seront valorisées avec cette variante." : "Aucune valorisation automatique ne sera appliquée aux articles à plage horaire tant que ce point n’est pas clarifié."}`;
+    banner.innerHTML = `<strong>Régime de règlement identifié :</strong> ${escapeHtml(context.label)}. ${context.key ? "Les prestations éligibles à plage horaire sont prêtes au contrôle." : `Aucune valorisation automatique ne sera appliquée tant que ce point n’est pas clarifié : ${escapeHtml(context.pricingReason || context.label)}.`}`;
   }
 
   function renderHeader() {
-    const resolved = state.tasks.map(resolveTask);
-    const total = resolved.filter((item) => item.status === "priced").reduce((sum, item) => sum + item.amount, 0);
-    const toReview = resolved.filter((item) => item.status !== "priced").length;
+    const breakdown = valuationBreakdown();
+    const toReview = breakdown.valuations.filter(({ result }) => result.status !== "priced").length;
     $("#taskCount").textContent = state.tasks.length;
-    $("#totalEstimate").textContent = total ? euros(total) : "—";
+    $("#secondaryKpiLabel").textContent = isAdminView() ? "Estimation HT" : "Mode";
+    $("#secondaryKpiValue").textContent = isAdminView() ? (breakdown.total ? euros(breakdown.total) : "—") : "Terrain";
     $("#heroSubtitle").textContent = state.meta.cancelled
       ? "Chantier annulé — éditer la cause et la trace de la séance."
-      : `${state.meta.operation || "Opération à renseigner"} · ${toReview ? `${toReview} prestation(s) à qualifier` : "valorisation prête"}`;
+      : isAdminView()
+        ? `${state.meta.operation || "Opération à renseigner"} · ${toReview ? `${toReview} ligne(s) à contrôler` : "contrôle financier prêt"}`
+        : `${state.meta.operation || "Opération à renseigner"} · ${state.tasks.length ? `${state.tasks.length} prestation(s) saisie(s)` : "saisie terrain à démarrer"}`;
 
     const contextDone = Boolean(state.meta.operation && state.meta.reportNo && state.meta.date && state.meta.workDuration);
     const contextChip = $("#contextStatus");
@@ -275,7 +394,7 @@
   }
 
   function renderQuickCatalog() {
-    const quick = terrainCatalog.filter((item) => item.id !== "saisie-libre");
+    const quick = terrainCatalog.filter((item) => !item.legacy && QUICK_TEMPLATE_IDS.has(item.id));
     $("#quickCatalog").innerHTML = quick.map((item) => `
       <button class="quick-card" type="button" data-template="${escapeHtml(item.id)}">
         <span class="quick-category">${escapeHtml(item.category)}</span>${escapeHtml(item.label)}
@@ -283,6 +402,7 @@
   }
 
   function taskStatusMarkup(result) {
+    if (!isAdminView()) return `<span class="status-chip neutral">Saisi</span>`;
     if (result.status === "priced") return `<span class="status-chip success">Valorisé</span>`;
     return `<span class="status-chip warning">À qualifier</span>`;
   }
@@ -300,7 +420,9 @@
       const template = templateById.get(task.templateId);
       const result = resolveTask(task);
       const place = [task.voie && `Voie ${task.voie}`, task.pkStart && `PK ${task.pkStart}`, task.pkEnd && `→ ${task.pkEnd}`].filter(Boolean).join(" · ");
-      const pricing = result.status === "priced" ? `${euros(result.amount)} HT estimés` : result.reason;
+      const pricing = isAdminView()
+        ? (result.status === "priced" ? `${euros(result.amount)} HT estimés` : result.reason)
+        : "Prestation enregistrée";
       return `
         <article class="task-card">
           <div class="task-main">
@@ -500,8 +622,10 @@
       checks.push({ ok: Boolean(state.meta.cancelReason), message: state.meta.cancelReason ? "Motif d’annulation renseigné." : "Ajouter le motif d’annulation." });
     } else {
       checks.push({ ok: state.tasks.length > 0, message: state.tasks.length ? "Au moins une prestation est saisie." : "Ajouter les prestations réellement réalisées." });
-      const openTasks = state.tasks.filter((task) => resolveTask(task).status !== "priced");
-      checks.push({ ok: openTasks.length === 0, message: openTasks.length ? `${openTasks.length} prestation(s) restent à qualifier pour la valorisation.` : "Toutes les prestations ont un prix de bordereau déterminé." });
+      if (isAdminView()) {
+        const openTasks = state.tasks.filter((task) => resolveTask(task).status !== "priced");
+        checks.push({ ok: openTasks.length === 0, message: openTasks.length ? `${openTasks.length} ligne(s) restent à qualifier dans le contrôle financier.` : "Toutes les prestations sont rattachées au référentiel administrateur." });
+      }
     }
     return checks;
   }
@@ -513,23 +637,100 @@
     const status = $("#reviewStatus");
     status.className = `status-chip ${okay ? "success" : "warning"}`;
     status.textContent = okay ? "Prêt à éditer" : "Brouillon";
-    renderValuationPreview();
+    renderAdminPanel();
   }
 
   function renderValuationPreview() {
-    const valuations = state.tasks.map((task) => ({ task, template: templateById.get(task.templateId), result: resolveTask(task) }));
-    const priced = valuations.filter(({ result }) => result.status === "priced");
-    const total = priced.reduce((sum, { result }) => sum + result.amount, 0);
+    const breakdown = valuationBreakdown();
+    const { valuations, commonCosts, total } = breakdown;
+    const commonRows = commonCosts.map((row) => `
+      <tr class="valuation-common"><td>${escapeHtml(row.label)}<br><small>Base de calcul : ${euros(row.base)}</small></td>
+      <td>${escapeHtml(row.article)}</td><td class="numeric">Base ${euros(row.base)}</td><td>${displayNumber(row.rate * 100)} %</td><td class="numeric">—</td><td class="numeric">${euros(row.amount)}</td></tr>`).join("");
+    const commonNote = commonCosts.length
+      ? "Les dispositions communes sont incluses à titre indicatif sur la base des prestations du rapport. Elles restent à rapprocher de la situation de travaux hebdomadaire."
+      : "Les dispositions communes (PB1-1-1, PB1-1-2 et PB1-2-1) restent désactivées tant que l’administrateur ne les active pas pour le contrôle hebdomadaire.";
     $("#valuationPreview").innerHTML = valuations.length ? `
-      <table class="valuation-table"><thead><tr><th>Prestation</th><th>Réf. PB</th><th class="numeric">Qté</th><th class="numeric">PU HT</th><th class="numeric">Montant HT</th></tr></thead>
+      <table class="valuation-table"><thead><tr><th>Prestation</th><th>Réf. PB</th><th class="numeric">Qté</th><th>CR</th><th class="numeric">PU HT</th><th class="numeric">Montant HT</th></tr></thead>
       <tbody>${valuations.map(({ task, template, result }) => `
         <tr><td>${escapeHtml(task.label || template?.reportLabel || "Prestation")}${result.status !== "priced" ? `<br><small>${escapeHtml(result.reason)}</small>` : ""}</td>
         <td>${result.record ? escapeHtml(result.record.article) : "À qualifier"}</td>
         <td class="numeric">${displayNumber(result.quantity)} ${escapeHtml(task.unit || template?.unit || "u")}</td>
-        <td class="numeric">${result.record ? euros(result.record.contractualUnitPriceHT) : "—"}</td>
+        <td>${renderRateEditor(task, result)}</td>
+        <td class="numeric">${result.status === "priced" ? euros(result.unitPrice) : "—"}</td>
         <td class="numeric">${result.status === "priced" ? euros(result.amount) : "—"}</td></tr>`).join("")}
-        <tr class="valuation-total"><td colspan="4">Total valorisé indicatif HT</td><td class="numeric">${euros(total)}</td></tr></tbody></table>
-      <p class="muted" style="margin-top:9px;font-size:.79rem">Les montants sont une aide au contrôle. La qualification contractuelle finale reste soumise au contrôle MOE / marché.</p>` : `<p class="empty-inline">La valorisation apparaîtra dès la première prestation.</p>`;
+        ${commonRows}
+        <tr class="valuation-total"><td colspan="5">Total valorisé indicatif HT</td><td class="numeric">${euros(total)}</td></tr></tbody></table>
+      <p class="muted" style="margin-top:9px;font-size:.79rem">Référentiel complété avec le décompte n°04 PCLE. Pour la série 300, le PU est contrôlé selon la formule documentée dans le décompte ; une valeur CR exceptionnelle peut être ajustée ici par l’administrateur. ${commonNote}</p>` : `<p class="empty-inline">La valorisation apparaîtra dès la première prestation.</p>`;
+  }
+
+  function renderRateEditor(task, result) {
+    if (result.record?.pricingFamily !== "serie-300") return "—";
+    const profile = billingEvidence.series300Profiles?.[result.record.article] || {};
+    const options = [...new Set([...(profile.observedCrs || []), 1.75, 1.9])].sort((a, b) => a - b);
+    const selected = number(task.billingCr);
+    const defaultLabel = profile.defaultCr ? `Automatique (${displayNumber(profile.defaultCr)})` : "À confirmer";
+    return `<select class="rate-select" data-task-rate="${escapeHtml(task.id)}"><option value="" ${selected ? "" : "selected"}>${escapeHtml(defaultLabel)}</option>${options.map((rate) => `<option value="${rate}" ${selected === rate ? "selected" : ""}>CR ${displayNumber(rate)}</option>`).join("")}</select>`;
+  }
+
+  function renderAdminPanel() {
+    const configured = isAdminConfigured();
+    const unlocked = isAdminView();
+    $("#adminLockedPane").classList.toggle("hidden", unlocked || adminLoginOpen);
+    $("#adminLoginPane").classList.toggle("hidden", unlocked || !adminLoginOpen);
+    $("#adminWorkspace").classList.toggle("hidden", !unlocked);
+    $$(".admin-finance").forEach((element) => element.classList.toggle("hidden", !unlocked));
+    $("#printButton").textContent = unlocked ? "Imprimer rapport + annexe interne" : "Imprimer le rapport PDF";
+    if (adminLoginOpen && !unlocked) {
+      $("#adminLoginTitle").textContent = configured ? "Déverrouiller l’espace administrateur" : "Initialiser l’espace administrateur";
+      $("#adminLoginHint").textContent = configured
+        ? "Saisir le code administrateur de cet appareil."
+        : "Première utilisation sur cet appareil : choisissez un code à 6 chiffres, réservé à l’administrateur principal.";
+      $("#adminPinLabel").textContent = configured ? "Code à 6 chiffres" : "Créer le code à 6 chiffres";
+      $("#confirmAdminButton").textContent = configured ? "Déverrouiller" : "Initialiser et ouvrir";
+      return;
+    }
+    if (!unlocked) return;
+    const breakdown = valuationBreakdown();
+    const open = breakdown.valuations.length - breakdown.priced.length;
+    $("#adminEvidenceNote").textContent = `${billingEvidence.sourceLabel || "Référentiel de décompte"} : ${billingEvidence.billedTimeArticleBases?.length || 0} familles à plage horaire et les articles Série 300 facturés sont intégrés.`;
+    $("#includeCommonCostsCheckbox").checked = Boolean(state.settings.admin.includeCommonCosts);
+    $("#adminValuationStats").innerHTML = `<span class="admin-stat"><strong>${breakdown.priced.length}</strong> ligne(s) valorisée(s)</span><span class="admin-stat"><strong>${open}</strong> à contrôler</span><span class="admin-stat"><strong>${euros(breakdown.total)}</strong> HT indicatif</span>`;
+    renderValuationPreview();
+  }
+
+  function openAdminAccess() {
+    adminLoginOpen = true;
+    renderAdminPanel();
+    window.setTimeout(() => $("#adminPinInput")?.focus(), 0);
+  }
+
+  function closeAdminAccess() {
+    adminLoginOpen = false;
+    $("#adminPinInput").value = "";
+    renderAdminPanel();
+  }
+
+  function confirmAdminAccess() {
+    const pin = $("#adminPinInput").value.trim();
+    if (!/^\d{6}$/.test(pin)) { alert("Le code administrateur doit contenir exactement 6 chiffres."); return; }
+    if (isAdminConfigured() && hashAdminPin(pin) !== state.settings.admin.pinHash) { alert("Code administrateur incorrect."); return; }
+    if (!isAdminConfigured()) {
+      state.settings.admin = { pinHash: hashAdminPin(pin), configuredAt: new Date().toISOString(), includeCommonCosts: false };
+    }
+    adminUnlocked = true;
+    try { sessionStorage.setItem(adminSessionKey, "1"); } catch (_) { /* Session locale indisponible. */ }
+    adminLoginOpen = false;
+    $("#adminPinInput").value = "";
+    save("Mode administrateur ouvert");
+    refresh();
+  }
+
+  function lockAdminAccess() {
+    adminUnlocked = false;
+    adminLoginOpen = false;
+    try { sessionStorage.removeItem(adminSessionKey); } catch (_) { /* Session locale indisponible. */ }
+    save("Mode terrain verrouillé");
+    refresh();
   }
 
   function refresh({ inputs = false } = {}) {
@@ -554,7 +755,7 @@
   }
 
   function renderTaskCatalog() {
-    const groups = terrainCatalog.reduce((acc, template) => {
+    const groups = terrainCatalog.filter((template) => !template.legacy).reduce((acc, template) => {
       (acc[template.category] ||= []).push(template);
       return acc;
     }, {});
@@ -576,11 +777,13 @@
       <label class="field"><span>${escapeHtml(template.quantityLabel)}</span><input id="taskQuantity" type="number" min="0" step="0.1" inputmode="decimal" value="${escapeHtml(task.quantity)}" autofocus></label>`;
     const route = template.priceRoute?.type;
     const routeConfig = template.priceRoute || {};
-    const note = ["mapped", "time-mapped"].includes(route)
-      ? (routeConfig.mappingNote || "Ce libellé est volontairement simple ; l’encadrant choisira une seule fois le bon article dans le paramétrage chantier.")
-      : route === "manual"
-        ? (routeConfig.reason || "La production sera présente dans le rapport ; le rattachement au prix devra être fait par l’encadrant.")
-        : "Le prix de bordereau sera déterminé automatiquement selon le contexte de séance.";
+    const note = isAdminView()
+      ? (["mapped", "time-mapped"].includes(route)
+        ? (routeConfig.mappingNote || "Ce libellé est volontairement simple ; l’encadrant choisira une seule fois le bon article dans le paramétrage chantier.")
+        : route === "manual"
+          ? (routeConfig.reason || "La production sera présente dans le rapport ; le rattachement au prix devra être fait par l’encadrant.")
+          : "Le rattachement au référentiel sera contrôlé dans l’espace administrateur.")
+      : "La prestation est enregistrée au rapport avec son libellé terrain. Le contrôle administratif est réalisé séparément.";
     $("#taskCatalogPane").classList.add("hidden");
     const pane = $("#taskEditorPane");
     pane.classList.remove("hidden");
@@ -654,7 +857,7 @@
   }
 
   function renderMappingDialog() {
-    const mappedTemplates = terrainCatalog.filter((template) => ["mapped", "time-mapped"].includes(template.priceRoute?.type));
+    const mappedTemplates = terrainCatalog.filter((template) => !template.legacy && ["mapped", "time-mapped"].includes(template.priceRoute?.type));
     $("#mappingPane").innerHTML = mappedTemplates.map((template) => {
       const route = template.priceRoute || {};
       const isTimeMapped = route.type === "time-mapped";
@@ -663,9 +866,11 @@
       const placeholder = isTimeMapped ? "Choisir la famille d’article" : "Choisir la référence marché";
       const options = candidates.map((record) => {
         const value = isTimeMapped ? record.articleBase : record.article;
+        const unitPrice = documentedUnitPrice(record);
+        const amount = unitPrice === null ? "CR à confirmer" : `${euros(unitPrice)}${record.pricingFamily === "serie-300" ? " (nuit sem.)" : ""}`;
         const label = isTimeMapped
-          ? `${record.articleBase} — ${record.description.slice(0, 105)} · variante jour ${euros(record.contractualUnitPriceHT)}`
-          : `${record.article} — ${record.description.slice(0, 105)} · ${euros(record.contractualUnitPriceHT)}`;
+          ? `${record.articleBase} — ${record.description.slice(0, 105)} · variante jour ${amount}`
+          : `${record.article} — ${record.description.slice(0, 105)} · ${amount}`;
         return `<option value="${escapeHtml(value)}" ${value === selected ? "selected" : ""}>${escapeHtml(label)}</option>`;
       }).join("");
       const select = candidates.length ? `<select id="mapping_${template.id}"><option value="">${placeholder}</option>${options}</select>` : `<span class="muted">Aucun candidat trouvé dans le bordereau : associer ce libellé après analyse marché.</span>`;
@@ -679,21 +884,26 @@
   }
 
   function renderPrintReport() {
-    const resolved = state.tasks.map((task) => ({ task, template: templateById.get(task.templateId), result: resolveTask(task) }));
-    const total = resolved.filter(({ result }) => result.status === "priced").reduce((sum, { result }) => sum + result.amount, 0);
+    const includeValuation = isAdminView();
+    const breakdown = valuationBreakdown();
+    const resolved = breakdown.valuations;
+    const total = breakdown.total;
     const reportTitle = state.meta.cancelled ? "RAPPORT JOURNALIER — CHANTIER ANNULÉ" : "RAPPORT JOURNALIER";
     const taskRows = renderTableRows(resolved, ({ task, template, result }) => `
       <tr><td>${escapeHtml(task.label || template?.reportLabel || "Prestation")}${task.note ? `<br><small>${escapeHtml(task.note)}</small>` : ""}</td>
       <td class="numeric">${template?.metric === "openClose" ? `Ouv. ${displayNumber(task.opening)}<br>Ferm. ${displayNumber(task.closing)}` : `${displayNumber(task.quantity)} ${escapeHtml(task.unit || template?.unit || "u")}`}</td>
       <td>${escapeHtml(task.voie || "—")}</td><td>${escapeHtml([task.pkStart, task.pkEnd].filter(Boolean).join(" → ") || "—")}</td>
-      <td>${result.status === "priced" ? "Rattachée" : `À qualifier — ${escapeHtml(result.reason)}`}</td></tr>`, 5);
+      <td>Saisie terrain</td></tr>`, 5);
     const personnelRows = renderTableRows(state.personnel, (row) => `<tr><td>${escapeHtml(roleName(row))}</td><td>${escapeHtml([row.team, companyName(row)].filter(Boolean).join(" · "))}</td><td class="numeric">${displayNumber(row.count, 0)}</td><td class="numeric">${row.hours ? displayNumber(row.hours) : "—"}</td><td>${escapeHtml([row.lead, row.observation].filter(Boolean).join(" · ") || "—")}</td></tr>`, 5);
     const equipmentRows = renderTableRows(state.equipment, (row) => `<tr><td>${escapeHtml(equipmentName(row))}</td><td>${escapeHtml(companyName(row))}</td><td class="numeric">${displayNumber(row.count, 0)}</td><td>${escapeHtml([row.zone, row.pk, row.miseEnVoie].filter(Boolean).join(" · ") || "—")}</td><td>${escapeHtml([row.identification, row.observation].filter(Boolean).join(" · ") || "—")}</td></tr>`, 5);
     const possessionRows = renderTableRows(state.possessions, (row) => `<tr><td>${escapeHtml(row.voie || "—")}</td><td>${escapeHtml(`${row.plannedStart || "—"} → ${row.plannedEnd || "—"}`)}</td><td>${escapeHtml(`${row.agreedStart || "—"} → ${row.agreedEnd || "—"}`)}</td><td>${escapeHtml(`${row.actualStart || "—"} → ${row.actualEnd || "—"}`)}</td><td>${escapeHtml(row.observation || "—")}</td></tr>`, 5);
     const anomalyRows = renderTableRows(state.anomalies, (row) => `<tr><td>${escapeHtml(row.type || "—")}</td><td>${escapeHtml(row.severity || "—")}</td><td>${escapeHtml(row.detail || "—")}</td><td>${escapeHtml(row.action || "—")}</td></tr>`, 4);
     const documentsRows = renderTableRows(state.documents, (row) => `<tr><td>${escapeHtml(row.name || "—")}</td><td>${escapeHtml(row.reference || "—")}</td><td>${escapeHtml(row.observation || "—")}</td></tr>`, 3);
     const sncfRows = renderTableRows(state.sncfMeans, (row) => `<tr><td>${escapeHtml(row.role || "—")}</td><td class="numeric">${displayNumber(row.count, 0)}</td><td>${escapeHtml(row.observation || "—")}</td></tr>`, 3);
-    const valuationRows = renderTableRows(resolved, ({ task, template, result }) => `<tr><td>${escapeHtml(task.label || template?.reportLabel || "Prestation")}</td><td>${result.record ? escapeHtml(result.record.article) : "À qualifier"}</td><td class="numeric">${displayNumber(result.quantity)} ${escapeHtml(task.unit || template?.unit || "u")}</td><td class="numeric">${result.record ? euros(result.record.contractualUnitPriceHT) : "—"}</td><td class="numeric">${result.status === "priced" ? euros(result.amount) : "—"}</td></tr>`, 5);
+    const valuationRows = [
+      ...resolved.map(({ task, template, result }) => `<tr><td>${escapeHtml(task.label || template?.reportLabel || "Prestation")}</td><td>${result.record ? escapeHtml(result.record.article) : "À qualifier"}</td><td class="numeric">${displayNumber(result.quantity)} ${escapeHtml(task.unit || template?.unit || "u")}</td><td class="numeric">${result.status === "priced" ? euros(result.unitPrice) : "—"}</td><td class="numeric">${result.status === "priced" ? euros(result.amount) : "—"}</td></tr>`),
+      ...breakdown.commonCosts.map((row) => `<tr><td>${escapeHtml(row.label)}<br><small>Base de calcul : ${euros(row.base)}</small></td><td>${escapeHtml(row.article)}</td><td class="numeric">Base ${euros(row.base)}</td><td class="numeric">${displayNumber(row.rate * 100)} %</td><td class="numeric">${euros(row.amount)}</td></tr>`),
+    ].join("") || `<tr><td colspan="5" class="print-empty">Aucune donnée saisie.</td></tr>`;
 
     $("#printReport").innerHTML = `
       <article class="print-page">
@@ -713,18 +923,23 @@
         <section class="print-section"><h2>Rapports fournis par l’entreprise</h2><table class="print-table"><thead><tr><th>Document</th><th>Référence</th><th>Observation</th></tr></thead><tbody>${documentsRows}</tbody></table></section>
         <section class="print-section"><h2>Moyens SNCF entrepreneur</h2><table class="print-table"><thead><tr><th>Fonction</th><th class="numeric">Nb</th><th>Observation</th></tr></thead><tbody>${sncfRows}</tbody></table></section>
         <section class="print-signatures"><div class="signature-box"><strong>Lieu / date</strong>${escapeHtml(formatDate(state.meta.date))}</div><div class="signature-box"><strong>Visa représentant MOETx SNCF</strong>${escapeHtml(state.meta.moeRepresentative || "Nom / prénom à renseigner")}</div><div class="signature-box"><strong>Visa représentant entreprise extérieure</strong>${escapeHtml(state.meta.companyRepresentative || "Nom / prénom à renseigner")}</div></section>
-        <p class="print-footer">Rapport opérationnel généré depuis l’application rapport journalier AINM. Les prix de bordereau sont traités dans l’annexe interne ci-après.</p>
+        <p class="print-footer">Rapport opérationnel généré depuis l’application rapport journalier AINM.</p>
       </article>
-      <article class="print-page print-internal">
+      ${includeValuation ? `<article class="print-page print-internal">
         <header class="print-header"><div><span class="print-brand">AINM</span><h1 class="print-title">ANNEXE DE VALORISATION INTERNE</h1></div><div class="print-meta">${escapeHtml(state.meta.reportNo || "—")}<br>Montants indicatifs HT</div></header>
-        <section class="print-section"><h2>Rapprochement production / bordereau</h2><table class="print-table"><thead><tr><th>Prestation terrain</th><th>Référence PB</th><th class="numeric">Quantité</th><th class="numeric">PU HT</th><th class="numeric">Montant HT</th></tr></thead><tbody>${valuationRows}<tr><td colspan="4"><strong>Total valorisé indicatif HT</strong></td><td class="numeric"><strong>${euros(total)}</strong></td></tr></tbody></table></section>
-        <section class="print-section"><h2>Contrôle</h2><div class="print-note">Les lignes « À qualifier » ont bien été saisies dans le rapport terrain, mais nécessitent un rattachement de prix par l’encadrant ou le gestionnaire de marché. Cette annexe ne remplace pas la validation de la situation de travaux.</div></section>
-      </article>`;
+        <section class="print-section"><h2>Rapprochement production / bordereau</h2><table class="print-table"><thead><tr><th>Prestation terrain</th><th>Référence PB</th><th class="numeric">Quantité / base</th><th class="numeric">PU / taux</th><th class="numeric">Montant HT</th></tr></thead><tbody>${valuationRows}<tr><td colspan="4"><strong>Total valorisé indicatif HT</strong></td><td class="numeric"><strong>${euros(total)}</strong></td></tr></tbody></table></section>
+        <section class="print-section"><h2>Contrôle</h2><div class="print-note">Les lignes « À qualifier » ont bien été saisies dans le rapport terrain, mais nécessitent un rattachement de prix par l’administrateur ou le gestionnaire de marché. Les dispositions communes, lorsqu’elles sont activées, sont calculées à titre indicatif à partir des postes du présent rapport. Cette annexe ne remplace pas la validation de la situation de travaux.</div></section>
+      </article>` : ""}`;
   }
 
   function exportState(share = false) {
     const filename = `rapport-journalier-${(state.meta.reportNo || "brouillon").replace(/[^a-zA-Z0-9_-]+/g, "-")}.json`;
-    const file = new File([JSON.stringify(state, null, 2)], filename, { type: "application/json" });
+    const exportable = clone(state);
+    if (!isAdminView()) {
+      delete exportable.settings;
+      exportable.tasks = exportable.tasks.map(({ billingCr, ...task }) => task);
+    }
+    const file = new File([JSON.stringify(exportable, null, 2)], filename, { type: "application/json" });
     if (share && navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
       navigator.share({ title: "Rapport journalier", text: state.meta.operation || "Rapport journalier", files: [file] }).catch(() => {});
       return;
@@ -795,17 +1010,47 @@
     $("#printButton").addEventListener("click", () => { renderPrintReport(); window.print(); });
     $("#exportButton").addEventListener("click", () => exportState(false));
     $("#shareButton").addEventListener("click", () => exportState(true));
+    $("#openAdminButton").addEventListener("click", openAdminAccess);
+    $("#cancelAdminButton").addEventListener("click", closeAdminAccess);
+    $("#confirmAdminButton").addEventListener("click", confirmAdminAccess);
+    $("#adminPinInput").addEventListener("keydown", (event) => { if (event.key === "Enter") { event.preventDefault(); confirmAdminAccess(); } });
+    $("#lockAdminButton").addEventListener("click", lockAdminAccess);
+    $("#adminPrintButton").addEventListener("click", () => { renderPrintReport(); window.print(); });
+    $("#adminConfigurePricesButton").addEventListener("click", () => { renderMappingDialog(); $("#mappingDialog").showModal(); });
+    $("#includeCommonCostsCheckbox").addEventListener("change", (event) => {
+      if (!isAdminView()) return;
+      state.settings.admin.includeCommonCosts = event.target.checked;
+      save("Dispositions communes mises à jour");
+      refresh();
+    });
+    $("#valuationPreview").addEventListener("change", (event) => {
+      const select = event.target.closest("[data-task-rate]");
+      if (!select || !isAdminView()) return;
+      const task = state.tasks.find((item) => item.id === select.dataset.taskRate);
+      if (!task) return;
+      task.billingCr = select.value;
+      save("CR de règlement mis à jour");
+      refresh();
+    });
     $("#newReportButton").addEventListener("click", () => {
       if (!confirm("Créer un nouveau rapport ? Le brouillon actuel restera exportable seulement s’il est sauvegardé.")) return;
       const project = { operation: state.meta.operation, orderNo: state.meta.orderNo, enterprise: state.meta.enterprise, enterpriseOther: state.meta.enterpriseOther, reporter: state.meta.reporter, moeRepresentative: state.meta.moeRepresentative, companyRepresentative: state.meta.companyRepresentative };
+      const currentSettings = clone(state.settings || {});
       state = initialState();
       Object.assign(state.meta, project);
+      state.settings = currentSettings;
+      ensureSettings();
       save("Nouveau rapport créé");
       refresh({ inputs: true });
       window.scrollTo({ top: 0, behavior: "smooth" });
     });
     $("#moreButton").addEventListener("click", () => $("#moreDialog").showModal());
-    $("#configurePricesButton").addEventListener("click", () => { $("#moreDialog").close(); renderMappingDialog(); $("#mappingDialog").showModal(); });
+    $("#configurePricesButton").addEventListener("click", () => {
+      if (!isAdminView()) return;
+      $("#moreDialog").close();
+      renderMappingDialog();
+      $("#mappingDialog").showModal();
+    });
     $("#mappingDialog").addEventListener("click", (event) => {
       const button = event.target.closest("[data-save-mapping]");
       if (!button) return;
@@ -825,7 +1070,19 @@
       try {
         const parsed = JSON.parse(await file.text());
         if (parsed?.schema !== 1) throw new Error("format");
+        const currentSettings = clone(state.settings || {});
+        const importedSettings = parsed.settings || {};
         state = parsed;
+        state.settings = {
+          ...currentSettings,
+          ...importedSettings,
+          mappings: { ...(currentSettings.mappings || {}), ...(importedSettings.mappings || {}) },
+          admin: currentSettings.admin || { pinHash: "", configuredAt: "" },
+        };
+        ensureSettings();
+        adminUnlocked = false;
+        adminLoginOpen = false;
+        try { sessionStorage.removeItem(adminSessionKey); } catch (_) { /* Session locale indisponible. */ }
         save("Saisie importée");
         refresh({ inputs: true });
       } catch (_) { alert("Ce fichier n’est pas une exportation compatible de rapport journalier."); }

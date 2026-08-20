@@ -1,4 +1,4 @@
-const CACHE = "rj-ainm-v3";
+const CACHE = "rj-ainm-v4";
 const ASSETS = [
   "./",
   "index.html",
@@ -7,6 +7,7 @@ const ASSETS = [
   "manifest.webmanifest",
   "data/price-catalog.js",
   "data/terrain-catalog.js",
+  "data/billing-evidence.js",
   "icons/icon.svg",
   "assets/ainm-infrapole-paris-sud-est.jpg",
 ];
