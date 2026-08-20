@@ -23,9 +23,8 @@ Cette règle concerne les situations où le BPU demande une information qui n’
 ## Rapprochements déjà identifiés
 
 - **Automatiques** : création de caniveaux PM/MM ou GM/TGM, caniveaux composites, dépose de caniveaux béton, ouverture + fermeture d’artère, fouille de recherche de BJ, coupe / perçage courant, demi-entretoise, jonction jusqu’à 95 ou 240 mm².
-- **Paramétrage unique par chantier** : connexions de câble jusqu’à 7 m, connexions inductives 1 500 V / 25 kV, intervalles de décharge, pose et dépose de câble. Pour les câbles, le paramétrage sélectionne une **famille PB** et l’application applique ensuite automatiquement la variante jour / nuit / week-end.
+- **Paramétrage unique par chantier** : connexions de câble jusqu’à 7 m, CIT 1400 (connexion inductive), RVL 120 (intervalle de décharge), pose et dépose de câble. Pour les câbles, le paramétrage sélectionne une **famille PB** et l’application applique ensuite automatiquement la variante jour / nuit / week-end.
 - **À valider avant facturation** : finitions BJ (règle de décompte « 1 BJ = 1 jonction ») ; perçage sur métal avec caractéristiques spécifiques ; caniveaux composites en dépose.
-- **Non présents dans le BPU joint** : CIT 1400 et RVL 120. Ils restent dans le rapport mais apparaissent volontairement « À qualifier » dans l’annexe.
 
 ## Déploiement terrain
 
@@ -38,7 +37,8 @@ Cette règle concerne les situations où le BPU demande une information qui n’
 
 ## À confirmer avant la mise en production
 
-- Table de correspondance contractuelle des éléments CIT 1400 et RVL 120, absents du BPU joint.
+- Choix contractuel pour CIT 1400 : VE 1 500 V (29050) ou 25 kV (29051), puis variante `.01` / `.02`.
+- Choix contractuel pour RVL 120 : famille 24050 ou 24150, puis variante `.01` / `.02`.
 - Signification métier des variantes `.01` / `.02` lorsque leur libellé de bordereau est identique.
 - Règle de décompte des finitions BJ : une BJ équivaut-elle à une jonction, ou à plusieurs jonctions facturables ?
 - Gestion des signatures, archivage SharePoint et numérotation centralisée ; ces éléments peuvent reprendre le mécanisme déjà établi pour le briefing au pied d’opération.
