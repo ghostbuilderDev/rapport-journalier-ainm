@@ -126,7 +126,13 @@
   }
 
   function candidatesFor(template) {
-    const search = template?.priceRoute?.search;
+    const route = template?.priceRoute || {};
+    if (Array.isArray(route.candidates) && route.candidates.length) {
+      return route.candidates
+        .map((article) => priceCatalog.find((record) => record.article === article))
+        .filter(Boolean);
+    }
+    const search = route.search;
     if (!search) return [];
     const words = normalise(search).split(" ").filter((word) => word.length > 2 && !["pose", "pour", "avec", "dans", "une", "des", "les"].includes(word));
     return priceCatalog
@@ -139,6 +145,15 @@
       .sort((a, b) => b.score - a.score || a.record.article.localeCompare(b.record.article, "fr"))
       .slice(0, 16)
       .map(({ record }) => record);
+  }
+
+  function timeCandidatesFor(template) {
+    const route = template?.priceRoute || {};
+    const bases = Array.isArray(route.candidates) ? route.candidates : [];
+    return bases.map((articleBase) => {
+      const variants = priceCatalog.filter((record) => record.articleBase === articleBase);
+      return variants.find((record) => record.timeVariant === "J") || variants[0] || null;
+    }).filter(Boolean);
   }
 
   function findPrice(article) {
@@ -189,7 +204,17 @@
       return { status: "priced", record, quantity, amount: Math.round(quantity * record.contractualUnitPriceHT * 100) / 100 };
     }
 
-    return { status: "review", reason: "Prestation à rattacher au bordereau", quantity };
+    if (route.type === "time-mapped") {
+      const context = getShiftContext();
+      if (!context.key) return { status: "review", reason: context.label, quantity };
+      const articleBase = state.settings.mappings[template.id];
+      if (!articleBase) return { status: "review", reason: "Famille de prix à paramétrer", quantity };
+      const record = priceCatalog.find((item) => item.articleBase === articleBase && item.timeVariant === context.key);
+      if (!record) return { status: "review", reason: "Variante horaire introuvable", quantity };
+      return { status: "priced", record, quantity, amount: Math.round(quantity * record.contractualUnitPriceHT * 100) / 100 };
+    }
+
+    return { status: "review", reason: route.reason || "Prestation à rattacher au bordereau", quantity };
   }
 
   function renderInputs() {
@@ -426,7 +451,12 @@
       <label class="field"><span>Longueur refermée (ml)</span><input id="taskClosing" type="number" min="0" step="0.1" inputmode="decimal" value="${escapeHtml(task.closing)}"></label>` : `
       <label class="field"><span>${escapeHtml(template.quantityLabel)}</span><input id="taskQuantity" type="number" min="0" step="0.1" inputmode="decimal" value="${escapeHtml(task.quantity)}" autofocus></label>`;
     const route = template.priceRoute?.type;
-    const note = route === "mapped" ? "Ce libellé est volontairement simple ; l’encadrant choisira une seule fois le bon article dans le paramétrage chantier." : route === "manual" ? "La production sera présente dans le rapport ; le rattachement au prix devra être fait par l’encadrant." : "Le prix de bordereau sera déterminé automatiquement selon le contexte de séance.";
+    const routeConfig = template.priceRoute || {};
+    const note = ["mapped", "time-mapped"].includes(route)
+      ? (routeConfig.mappingNote || "Ce libellé est volontairement simple ; l’encadrant choisira une seule fois le bon article dans le paramétrage chantier.")
+      : route === "manual"
+        ? (routeConfig.reason || "La production sera présente dans le rapport ; le rattachement au prix devra être fait par l’encadrant.")
+        : "Le prix de bordereau sera déterminé automatiquement selon le contexte de séance.";
     $("#taskCatalogPane").classList.add("hidden");
     const pane = $("#taskEditorPane");
     pane.classList.remove("hidden");
@@ -494,12 +524,23 @@
   }
 
   function renderMappingDialog() {
-    const mappedTemplates = terrainCatalog.filter((template) => template.priceRoute?.type === "mapped");
+    const mappedTemplates = terrainCatalog.filter((template) => ["mapped", "time-mapped"].includes(template.priceRoute?.type));
     $("#mappingPane").innerHTML = mappedTemplates.map((template) => {
+      const route = template.priceRoute || {};
+      const isTimeMapped = route.type === "time-mapped";
       const selected = state.settings.mappings[template.id] || "";
-      const candidates = candidatesFor(template);
-      const select = candidates.length ? `<select id="mapping_${template.id}"><option value="">Choisir la référence marché</option>${candidates.map((record) => `<option value="${escapeHtml(record.article)}" ${record.article === selected ? "selected" : ""}>${escapeHtml(record.article)} — ${escapeHtml(record.description.slice(0, 105))} · ${euros(record.contractualUnitPriceHT)}</option>`).join("")}</select>` : `<span class="muted">Aucun candidat trouvé dans le bordereau : associer ce libellé après analyse marché.</span>`;
-      return `<article class="mapping-item"><h3>${escapeHtml(template.label)}</h3><p>${escapeHtml(template.hint)}</p><div class="mapping-actions">${select}${candidates.length ? `<button class="secondary-button" type="button" data-save-mapping="${template.id}">Enregistrer</button>` : ""}</div></article>`;
+      const candidates = isTimeMapped ? timeCandidatesFor(template) : candidatesFor(template);
+      const placeholder = isTimeMapped ? "Choisir la famille d’article" : "Choisir la référence marché";
+      const options = candidates.map((record) => {
+        const value = isTimeMapped ? record.articleBase : record.article;
+        const label = isTimeMapped
+          ? `${record.articleBase} — ${record.description.slice(0, 105)} · variante jour ${euros(record.contractualUnitPriceHT)}`
+          : `${record.article} — ${record.description.slice(0, 105)} · ${euros(record.contractualUnitPriceHT)}`;
+        return `<option value="${escapeHtml(value)}" ${value === selected ? "selected" : ""}>${escapeHtml(label)}</option>`;
+      }).join("");
+      const select = candidates.length ? `<select id="mapping_${template.id}"><option value="">${placeholder}</option>${options}</select>` : `<span class="muted">Aucun candidat trouvé dans le bordereau : associer ce libellé après analyse marché.</span>`;
+      const note = route.mappingNote ? `<p class="muted">${escapeHtml(route.mappingNote)}</p>` : "";
+      return `<article class="mapping-item"><h3>${escapeHtml(template.label)}</h3><p>${escapeHtml(template.hint)}</p>${note}<div class="mapping-actions">${select}${candidates.length ? `<button class="secondary-button" type="button" data-save-mapping="${template.id}">Enregistrer</button>` : ""}</div></article>`;
     }).join("");
   }
 
