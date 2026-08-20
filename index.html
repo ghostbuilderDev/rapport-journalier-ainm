@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#5f173f" />
+    <meta name="theme-color" content="#34464c" />
     <meta name="description" content="Rapport journalier travaux signalisation — AINM" />
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
@@ -13,9 +13,9 @@
   <body>
     <div class="app-shell">
       <header class="topbar no-print">
-        <div class="brand" aria-label="SNCF Réseau">
-          <span class="brand-mark">SNCF</span>
-          <span>Réseau · Travaux</span>
+        <div class="brand" aria-label="AINM Infrapôle Paris Sud Est">
+          <img class="brand-logo" src="assets/ainm-infrapole-paris-sud-est.jpg" alt="AINM Infrapôle Paris Sud Est" />
+          <span class="brand-context">Rapport terrain</span>
         </div>
         <div class="topbar-actions">
           <span id="saveState" class="save-state" aria-live="polite">Brouillon local</span>
@@ -26,11 +26,12 @@
 
       <main class="app-main no-print">
         <section class="hero-card">
-          <div>
+          <div class="hero-copy">
             <p class="eyebrow">AINM · Travaux signalisation</p>
             <h1>Rapport journalier</h1>
             <p id="heroSubtitle" class="muted">Prépare le rapport terrain et la valorisation indicative.</p>
           </div>
+          <img class="hero-logo" src="assets/ainm-infrapole-paris-sud-est.jpg" alt="AINM Infrapôle Paris Sud Est" />
           <div class="hero-kpis">
             <div class="kpi">
               <span>Production</span>
@@ -72,13 +73,26 @@
               <input id="orderNoInput" data-path="meta.orderNo" placeholder="À renseigner" />
             </label>
             <label class="field field-wide">
-              <span>Entreprise</span>
+              <span>Entreprise principale</span>
               <select id="enterpriseInput" data-path="meta.enterprise">
                 <option value="BOUYGUES ENERGIES & SERVICES / TSO SIGNALISATION">BOUYGUES ENERGIES & SERVICES / TSO SIGNALISATION</option>
-                <option value="TSO SIGNALISATION">TSO SIGNALISATION</option>
-                <option value="BOUYGUES ENERGIES & SERVICES">BOUYGUES ENERGIES & SERVICES</option>
+                <option value="SNCF">SNCF</option>
+                <option value="ATIF">ATIF</option>
+                <option value="SYSTRA">SYSTRA</option>
+                <option value="ETF">ETF</option>
+                <option value="LSDR">LSDR</option>
+                <option value="ETF SERVICE">ETF SERVICE</option>
+                <option value="TSO">TSO</option>
+                <option value="HP ELEC">HP ELEC</option>
+                <option value="TSO Signalisation">TSO Signalisation</option>
+                <option value="Bouygues">Bouygues</option>
+                <option value="TSO (LTV)">TSO (LTV)</option>
                 <option value="Autre">Autre</option>
               </select>
+            </label>
+            <label id="enterpriseOtherField" class="field field-wide hidden">
+              <span>Autre entreprise</span>
+              <input id="enterpriseOtherInput" data-path="meta.enterpriseOther" autocomplete="organization" placeholder="Nom de l’entreprise" />
             </label>
             <label class="field">
               <span>Date</span>
@@ -163,7 +177,7 @@
         <section id="traceabilitySection" class="two-column-grid">
           <section class="section-card compact-card">
             <div class="section-heading">
-              <div><p class="eyebrow">Ressources</p><h2>Personnel entreprise</h2></div>
+              <div><p class="eyebrow">Ressources</p><h2>Personnel et intervenants</h2><p class="muted">Entreprise, SNCF ou prestataire sécurité.</p></div>
               <button class="text-button" data-add-row="personnel" type="button">＋ Ajouter</button>
             </div>
             <div id="personnelList" class="data-list"></div>
@@ -171,7 +185,7 @@
 
           <section class="section-card compact-card">
             <div class="section-heading">
-              <div><p class="eyebrow">Ressources</p><h2>Engins entreprise</h2></div>
+              <div><p class="eyebrow">Ressources</p><h2>Engins et mobiles travaux</h2><p class="muted">Rail-route, LAM, routier, chenillard et levage.</p></div>
               <button class="text-button" data-add-row="equipment" type="button">＋ Ajouter</button>
             </div>
             <div id="equipmentList" class="data-list"></div>
@@ -246,7 +260,7 @@
       </form>
     </dialog>
 
-    <dialog id="rowDialog" class="dialog">
+    <dialog id="rowDialog" class="dialog resource-dialog">
       <form method="dialog" id="rowForm">
         <header class="dialog-header">
           <div><p class="eyebrow">Traçabilité</p><h2 id="rowDialogTitle">Ajouter</h2></div>

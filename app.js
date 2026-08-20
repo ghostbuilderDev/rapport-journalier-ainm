@@ -34,6 +34,29 @@
     .replace(/\s+/g, " ")
     .trim();
 
+  const COMPANY_OPTIONS = [
+    "BOUYGUES ENERGIES & SERVICES / TSO SIGNALISATION", "SNCF", "ATIF", "SYSTRA", "ETF", "LSDR", "ETF SERVICE", "TSO", "HP ELEC", "TSO Signalisation", "Bouygues", "TSO (LTV)", "Autre",
+  ];
+  const PERSONNEL_ROLES = {
+    "SNCF": ["RLT", "RLTx", "CCH", "CRLT", "RPTx", "RSO", "ASP", "Agent LAM", "Agent PN", "KV Caténaire", "KV SE", "KV Signalisation", "KV Voie", "RS", "RS9", "S11", "RPT", "CATS", "Mainteneur", "MOETx", "AMOETx", "CSPS", "Agent caténaire", "Agent signalisation", "Agent voie", "Autre"],
+    "Entreprise travaux": ["Conducteur travaux", "Chef de chantier", "Chef d’équipe", "Monteur signalisation", "Électricien", "Opérateur travaux", "Pelleur", "Conducteur d’engin", "Chef de manœuvre", "Élingueur", "Agent lorry", "Soudeur", "SST", "Autre"],
+    "Prestataire sécurité": ["Agent prestataire S9", "Agent protection physique", "Annonceur", "Sentinelle", "Agent sécurité", "Pelleur", "Percheur", "SST", "Autre"],
+  };
+  const EQUIPMENT_TYPES = {
+    "Rail-route / LAM": ["Pelle rail-route", "Pelle rail-route + remorque", "LAM (Lorry Automoteur)", "Nacelle rail-route", "4 axes", "Lorry", "Lorry à main", "TTx", "Élan", "Autre rail-route"],
+    "Routier / chenillard": ["Mini-pelle", "Pelle mécanique supérieure à 2,5 t", "Pelle chenillée", "Bull", "Chargeuse", "Camion", "Camion grue", "Autre engin routier / chenillard"],
+    "Manutention / levage": ["Nacelle", "Chariot télescopique", "Manitou", "Grue", "Remorque", "Chariot élévateur", "Autre matériel de levage"],
+    "Autre matériel": ["Groupe électrogène", "Compresseur", "Outillage spécialisé", "Autre"],
+  };
+
+  const selectOptions = (options, selected, placeholder = "À renseigner") => `<option value="">${escapeHtml(placeholder)}</option>${options.map((option) => `<option value="${escapeHtml(option)}" ${option === selected ? "selected" : ""}>${escapeHtml(option)}</option>`).join("")}`;
+  const editorValue = (id) => String($(`#${id}`)?.value ?? "").trim();
+  const companyName = (row) => row?.company === "Autre" ? (row.companyOther || "Autre entreprise") : (row?.company || "Entreprise à préciser");
+  const roleName = (row) => row?.role === "Autre" ? (row.roleOther || "Fonction à préciser") : (row?.role || "Fonction à préciser");
+  const enterpriseName = () => state.meta.enterprise === "Autre" ? (state.meta.enterpriseOther || "Autre entreprise") : state.meta.enterprise;
+  const isOtherEquipmentType = (type) => String(type || "").startsWith("Autre");
+  const equipmentName = (row) => isOtherEquipmentType(row?.type || row?.name) ? (row.typeOther || row.type || row.name) : (row?.type || row?.name || "Engin à préciser");
+
   const initialState = () => {
     const date = dateToday();
     const base = date.replaceAll("-", "");
@@ -47,6 +70,7 @@
         reportNo: `RJ-${base}-${String(sequence).padStart(2, "0")}`,
         orderNo: "",
         enterprise: "BOUYGUES ENERGIES & SERVICES / TSO SIGNALISATION",
+        enterpriseOther: "",
         date,
         shiftType: "nuit",
         shiftStart: "22:00",
@@ -224,6 +248,7 @@
       else element.value = value ?? "";
     });
     $("#cancelReasonField").classList.toggle("hidden", !state.meta.cancelled);
+    $("#enterpriseOtherField")?.classList.toggle("hidden", state.meta.enterprise !== "Autre");
   }
 
   function renderPricingContext() {
@@ -294,25 +319,123 @@
     }).join("");
   }
 
+  function toggleOtherCompany() {
+    $("#row_companyOtherField")?.classList.toggle("hidden", editorValue("row_company") !== "Autre");
+  }
+
+  function toggleOtherRole() {
+    $("#row_roleOtherField")?.classList.toggle("hidden", editorValue("row_role") !== "Autre");
+  }
+
+  function refreshPersonnelRoles(selected = null) {
+    const select = $("#row_role");
+    if (!select) return;
+    const current = selected ?? select.value;
+    const roles = PERSONNEL_ROLES[editorValue("row_team")] || [];
+    select.innerHTML = selectOptions(roles, current, "Choisir une fonction");
+    toggleOtherRole();
+  }
+
+  function renderPersonnelEditor(row) {
+    const team = row.team || "Entreprise travaux";
+    const company = row.company || (state.meta.enterprise === "Autre" ? "" : state.meta.enterprise);
+    const companyOther = row.companyOther || "";
+    return `<div class="resource-editor">
+      <div class="resource-banner personnel-banner"><span class="resource-symbol">P</span><div><strong>Intervenant ou équipe</strong><p>Choisir la famille, l’entreprise et la fonction : le rapport reste lisible pour tous les acteurs.</p></div></div>
+      <div class="task-extra-grid">
+        <label class="field"><span>Famille d’intervenant</span><select id="row_team">${selectOptions(["Entreprise travaux", "SNCF", "Prestataire sécurité"], team, "Choisir une famille")}</select></label>
+        <label class="field"><span>Entreprise / acteur</span><select id="row_company">${selectOptions(COMPANY_OPTIONS, company, "Choisir une entreprise")}</select></label>
+      </div>
+      <label id="row_companyOtherField" class="field ${company === "Autre" ? "" : "hidden"}"><span>Autre entreprise</span><input id="row_companyOther" value="${escapeHtml(companyOther)}" placeholder="Nom de l’entreprise" autocomplete="organization" /></label>
+      <div class="task-extra-grid">
+        <label class="field"><span>Fonction</span><select id="row_role">${selectOptions(PERSONNEL_ROLES[team] || [], row.role || "", "Choisir une fonction")}</select></label>
+        <label class="field"><span>Nombre de personnes</span><input id="row_count" type="number" min="1" step="1" inputmode="numeric" value="${escapeHtml(row.count ?? "")}" placeholder="Ex. 2" /></label>
+        <label class="field"><span>Heures par personne</span><input id="row_hours" type="number" min="0" max="24" step="0.25" inputmode="decimal" value="${escapeHtml(row.hours ?? "")}" placeholder="Ex. 5,5" /></label>
+        <label class="field"><span>Chef d’équipe / précision</span><input id="row_lead" value="${escapeHtml(row.lead ?? "")}" placeholder="Nom, équipe ou précision" /></label>
+      </div>
+      <label id="row_roleOtherField" class="field ${row.role === "Autre" ? "" : "hidden"}"><span>Autre fonction</span><input id="row_roleOther" value="${escapeHtml(row.roleOther ?? "")}" placeholder="Préciser la fonction" /></label>
+      <label class="field"><span>Observation</span><textarea id="row_observation" rows="3" placeholder="Particularité, coactivité, absence, renfort…">${escapeHtml(row.observation ?? "")}</textarea></label>
+      <div class="dialog-actions"><button id="saveRowButton" type="button" class="primary-button">Enregistrer l’intervenant</button></div>
+    </div>`;
+  }
+
+  function bindPersonnelEditor() {
+    $("#row_team")?.addEventListener("change", () => refreshPersonnelRoles());
+    $("#row_company")?.addEventListener("change", toggleOtherCompany);
+    $("#row_role")?.addEventListener("change", toggleOtherRole);
+  }
+
+  function readPersonnelEditor() {
+    return {
+      team: editorValue("row_team"), company: editorValue("row_company"), companyOther: editorValue("row_companyOther"),
+      role: editorValue("row_role"), roleOther: editorValue("row_roleOther"), count: editorValue("row_count"), hours: editorValue("row_hours"), lead: editorValue("row_lead"), observation: editorValue("row_observation"),
+    };
+  }
+
+  function inferredEquipmentFamily(row) {
+    if (row.family) return row.family;
+    const existingType = row.type || row.name || "";
+    return Object.entries(EQUIPMENT_TYPES).find(([, types]) => types.includes(existingType))?.[0] || "";
+  }
+
+  function refreshEquipmentTypes(selected = null) {
+    const select = $("#row_type");
+    if (!select) return;
+    const current = selected ?? select.value;
+    const family = editorValue("row_family");
+    select.innerHTML = selectOptions(EQUIPMENT_TYPES[family] || [], current, "Choisir un type d’engin");
+    $("#row_railRoadDetails")?.classList.toggle("hidden", family !== "Rail-route / LAM");
+    $("#row_typeOtherField")?.classList.toggle("hidden", !isOtherEquipmentType(select.value));
+  }
+
+  function renderEquipmentEditor(row) {
+    const family = inferredEquipmentFamily(row);
+    const company = row.company || (state.meta.enterprise === "Autre" ? "" : state.meta.enterprise);
+    const type = row.type || row.name || "";
+    return `<div class="resource-editor">
+      <div class="resource-banner equipment-banner"><span class="resource-symbol">E</span><div><strong>Engin ou mobile travaux</strong><p>La saisie distingue les engins rail-route / LAM des engins routiers, chenillards et matériels de levage.</p></div></div>
+      <div class="task-extra-grid">
+        <label class="field"><span>Famille d’engin</span><select id="row_family">${selectOptions(Object.keys(EQUIPMENT_TYPES), family, "Choisir une famille")}</select></label>
+        <label class="field"><span>Type d’engin</span><select id="row_type">${selectOptions(EQUIPMENT_TYPES[family] || [], type, "Choisir un type d’engin")}</select></label>
+        <label class="field"><span>Entreprise</span><select id="row_company">${selectOptions(COMPANY_OPTIONS, company, "Choisir une entreprise")}</select></label>
+        <label class="field"><span>Nombre</span><input id="row_count" type="number" min="1" step="1" inputmode="numeric" value="${escapeHtml(row.count ?? "")}" placeholder="Ex. 1" /></label>
+      </div>
+      <label id="row_companyOtherField" class="field ${company === "Autre" ? "" : "hidden"}"><span>Autre entreprise</span><input id="row_companyOther" value="${escapeHtml(row.companyOther ?? "")}" placeholder="Nom de l’entreprise" autocomplete="organization" /></label>
+      <label id="row_typeOtherField" class="field ${isOtherEquipmentType(type) ? "" : "hidden"}"><span>Préciser le type d’engin</span><input id="row_typeOther" value="${escapeHtml(row.typeOther ?? "")}" placeholder="Ex. portique, wagon outillé…" /></label>
+      <div class="task-extra-grid">
+        <label class="field"><span>Identification</span><input id="row_identification" value="${escapeHtml(row.identification ?? "")}" placeholder="Ex. Pelle RR ETF 01 / immatriculation" /></label>
+        <label class="field"><span>Voie / zone d’intervention</span><input id="row_zone" value="${escapeHtml(row.zone ?? "")}" placeholder="Ex. V1, plateforme, accès nord" /></label>
+        <label class="field"><span>PK / secteur</span><input id="row_pk" value="${escapeHtml(row.pk ?? "")}" placeholder="Ex. PK 79,240" /></label>
+        <label id="row_railRoadDetails" class="field ${family === "Rail-route / LAM" ? "" : "hidden"}"><span>Mise en voie</span><select id="row_miseEnVoie">${selectOptions(["Plateforme aménagée", "Sans plateforme aménagée", "Déjà en voie", "Non concerné"], row.miseEnVoie || "", "Choisir le mode")}</select></label>
+      </div>
+      <label class="field"><span>Observation / mesure de sécurité</span><textarea id="row_observation" rows="3" placeholder="Remorque, stabilisateurs, limite de circulation, coactivité, consigne…">${escapeHtml(row.observation ?? "")}</textarea></label>
+      <div class="dialog-actions"><button id="saveRowButton" type="button" class="primary-button">Enregistrer l’engin</button></div>
+    </div>`;
+  }
+
+  function bindEquipmentEditor() {
+    $("#row_family")?.addEventListener("change", () => refreshEquipmentTypes());
+    $("#row_company")?.addEventListener("change", toggleOtherCompany);
+    $("#row_type")?.addEventListener("change", () => $("#row_typeOtherField")?.classList.toggle("hidden", !isOtherEquipmentType(editorValue("row_type"))));
+  }
+
+  function readEquipmentEditor() {
+    const type = editorValue("row_type");
+    return {
+      family: editorValue("row_family"), type, typeOther: editorValue("row_typeOther"), name: type, company: editorValue("row_company"), companyOther: editorValue("row_companyOther"),
+      count: editorValue("row_count"), identification: editorValue("row_identification"), zone: editorValue("row_zone"), pk: editorValue("row_pk"),
+      miseEnVoie: editorValue("row_miseEnVoie"), observation: editorValue("row_observation"),
+    };
+  }
+
   const rowConfig = {
     personnel: {
-      title: "Personnel entreprise",
-      fields: [
-        ["role", "Fonction / grade", "select", ["Conducteur travaux", "Chef de chantier", "Chef d’équipe", "Monteur signalisation", "Électricien", "Opérateur travaux", "Pelleur", "Conducteur d’engin", "Chef de manœuvre", "Élingueur", "Autre"]],
-        ["count", "Nombre", "number", ""],
-        ["hours", "Heures par personne", "number", ""],
-        ["observation", "Observation", "textarea", "Entreprise, équipe, particularité"],
-      ],
-      display: (row) => `<h3>${escapeHtml(row.role || "Fonction à préciser")} · ${displayNumber(row.count, 0)} pers.</h3><p>${row.hours ? `${displayNumber(row.hours)} h/pers. · ` : ""}${escapeHtml(row.observation || "Sans observation")}</p>`,
+      title: "Personnel et intervenants", editor: renderPersonnelEditor, bind: bindPersonnelEditor, read: readPersonnelEditor,
+      display: (row) => `<h3><span class="resource-mini personnel-mini">P</span>${escapeHtml(roleName(row))} · ${displayNumber(row.count, 0)} pers.</h3><p><span class="resource-chip">${escapeHtml(row.team || "Intervenant")}</span><span>${escapeHtml(companyName(row))}</span>${row.hours ? `<span>${displayNumber(row.hours)} h/pers.</span>` : ""}${row.lead ? `<span>${escapeHtml(row.lead)}</span>` : ""}${row.observation ? `<span>${escapeHtml(row.observation)}</span>` : ""}</p>`,
     },
     equipment: {
-      title: "Engin entreprise",
-      fields: [
-        ["name", "Engin / matériel", "text", "Ex. Pelle rail-route"],
-        ["count", "Nombre", "number", ""],
-        ["observation", "Observation", "textarea", "Usage, immatriculation, incident…"],
-      ],
-      display: (row) => `<h3>${escapeHtml(row.name || "Engin à préciser")}${row.count ? ` · ${displayNumber(row.count, 0)}` : ""}</h3><p>${escapeHtml(row.observation || "Sans observation")}</p>`,
+      title: "Engin ou mobile travaux", editor: renderEquipmentEditor, bind: bindEquipmentEditor, read: readEquipmentEditor,
+      display: (row) => `<h3><span class="resource-mini equipment-mini">E</span>${escapeHtml(equipmentName(row))}${row.count ? ` · ${displayNumber(row.count, 0)}` : ""}</h3><p><span class="resource-chip">${escapeHtml(row.family || "Matériel")}</span><span>${escapeHtml(companyName(row))}</span>${row.identification ? `<span>${escapeHtml(row.identification)}</span>` : ""}${row.zone ? `<span>${escapeHtml([row.zone, row.pk].filter(Boolean).join(" · "))}</span>` : row.pk ? `<span>${escapeHtml(row.pk)}</span>` : ""}${row.miseEnVoie ? `<span>${escapeHtml(row.miseEnVoie)}</span>` : ""}${row.observation ? `<span>${escapeHtml(row.observation)}</span>` : ""}</p>`,
     },
     possession: {
       title: "Possession / consignation",
@@ -364,6 +487,7 @@
     const rows = state[key] || [];
     target.innerHTML = rows.length ? rows.map((row) => `
       <article class="data-row"><div>${config.display(row)}</div><div>
+        <button class="mini-button" type="button" data-edit-row="${key}:${row.id}">Modifier</button>
         <button class="mini-button danger" type="button" data-delete-row="${key}:${row.id}">Supprimer</button>
       </div></article>`).join("") : `<p class="empty-inline">Aucune donnée saisie.</p>`;
   }
@@ -500,19 +624,25 @@
     const config = rowConfig[key];
     rowDraft = { key, row: row ? clone(row) : { id: uid() } };
     $("#rowDialogTitle").textContent = row ? `Modifier · ${config.title}` : `Ajouter · ${config.title}`;
-    $("#rowEditorPane").innerHTML = `<div class="task-editor">${config.fields.map(([name, label, type, placeholder]) => {
-      const value = rowDraft.row[name] ?? "";
-      if (type === "textarea") return `<label class="field"><span>${escapeHtml(label)}</span><textarea id="row_${name}" rows="3" placeholder="${escapeHtml(placeholder)}">${escapeHtml(value)}</textarea></label>`;
-      if (type === "select") return `<label class="field"><span>${escapeHtml(label)}</span><select id="row_${name}"><option value="">À renseigner</option>${placeholder.map((option) => `<option value="${escapeHtml(option)}" ${value === option ? "selected" : ""}>${escapeHtml(option)}</option>`).join("")}</select></label>`;
-      return `<label class="field"><span>${escapeHtml(label)}</span><input id="row_${name}" type="${type}" ${type === "number" ? "step=0.1 inputmode=decimal" : ""} value="${escapeHtml(value)}" placeholder="${escapeHtml(placeholder)}"></label>`;
-    }).join("")}<div class="dialog-actions"><button id="saveRowButton" type="button" class="primary-button">Enregistrer</button></div></div>`;
+    if (config.editor) {
+      $("#rowEditorPane").innerHTML = config.editor(rowDraft.row);
+      config.bind?.();
+    } else {
+      $("#rowEditorPane").innerHTML = `<div class="task-editor">${config.fields.map(([name, label, type, placeholder]) => {
+        const value = rowDraft.row[name] ?? "";
+        if (type === "textarea") return `<label class="field"><span>${escapeHtml(label)}</span><textarea id="row_${name}" rows="3" placeholder="${escapeHtml(placeholder)}">${escapeHtml(value)}</textarea></label>`;
+        if (type === "select") return `<label class="field"><span>${escapeHtml(label)}</span><select id="row_${name}"><option value="">À renseigner</option>${placeholder.map((option) => `<option value="${escapeHtml(option)}" ${value === option ? "selected" : ""}>${escapeHtml(option)}</option>`).join("")}</select></label>`;
+        return `<label class="field"><span>${escapeHtml(label)}</span><input id="row_${name}" type="${type}" ${type === "number" ? "step=0.1 inputmode=decimal" : ""} value="${escapeHtml(value)}" placeholder="${escapeHtml(placeholder)}"></label>`;
+      }).join("")}<div class="dialog-actions"><button id="saveRowButton" type="button" class="primary-button">Enregistrer</button></div></div>`;
+    }
     $("#rowDialog").showModal();
   }
 
   function saveRow() {
     if (!rowDraft) return;
     const config = rowConfig[rowDraft.key];
-    config.fields.forEach(([name]) => { rowDraft.row[name] = $(`#row_${name}`).value.trim(); });
+    if (config.read) Object.assign(rowDraft.row, config.read());
+    else config.fields.forEach(([name]) => { rowDraft.row[name] = $(`#row_${name}`).value.trim(); });
     const list = state[rowDraft.key];
     const index = list.findIndex((item) => item.id === rowDraft.row.id);
     if (index >= 0) list.splice(index, 1, rowDraft.row);
@@ -557,8 +687,8 @@
       <td class="numeric">${template?.metric === "openClose" ? `Ouv. ${displayNumber(task.opening)}<br>Ferm. ${displayNumber(task.closing)}` : `${displayNumber(task.quantity)} ${escapeHtml(task.unit || template?.unit || "u")}`}</td>
       <td>${escapeHtml(task.voie || "—")}</td><td>${escapeHtml([task.pkStart, task.pkEnd].filter(Boolean).join(" → ") || "—")}</td>
       <td>${result.status === "priced" ? "Rattachée" : `À qualifier — ${escapeHtml(result.reason)}`}</td></tr>`, 5);
-    const personnelRows = renderTableRows(state.personnel, (row) => `<tr><td>${escapeHtml(row.role || "—")}</td><td class="numeric">${displayNumber(row.count, 0)}</td><td class="numeric">${row.hours ? displayNumber(row.hours) : "—"}</td><td>${escapeHtml(row.observation || "—")}</td></tr>`, 4);
-    const equipmentRows = renderTableRows(state.equipment, (row) => `<tr><td>${escapeHtml(row.name || "—")}</td><td class="numeric">${displayNumber(row.count, 0)}</td><td>${escapeHtml(row.observation || "—")}</td></tr>`, 3);
+    const personnelRows = renderTableRows(state.personnel, (row) => `<tr><td>${escapeHtml(roleName(row))}</td><td>${escapeHtml([row.team, companyName(row)].filter(Boolean).join(" · "))}</td><td class="numeric">${displayNumber(row.count, 0)}</td><td class="numeric">${row.hours ? displayNumber(row.hours) : "—"}</td><td>${escapeHtml([row.lead, row.observation].filter(Boolean).join(" · ") || "—")}</td></tr>`, 5);
+    const equipmentRows = renderTableRows(state.equipment, (row) => `<tr><td>${escapeHtml(equipmentName(row))}</td><td>${escapeHtml(companyName(row))}</td><td class="numeric">${displayNumber(row.count, 0)}</td><td>${escapeHtml([row.zone, row.pk, row.miseEnVoie].filter(Boolean).join(" · ") || "—")}</td><td>${escapeHtml([row.identification, row.observation].filter(Boolean).join(" · ") || "—")}</td></tr>`, 5);
     const possessionRows = renderTableRows(state.possessions, (row) => `<tr><td>${escapeHtml(row.voie || "—")}</td><td>${escapeHtml(`${row.plannedStart || "—"} → ${row.plannedEnd || "—"}`)}</td><td>${escapeHtml(`${row.agreedStart || "—"} → ${row.agreedEnd || "—"}`)}</td><td>${escapeHtml(`${row.actualStart || "—"} → ${row.actualEnd || "—"}`)}</td><td>${escapeHtml(row.observation || "—")}</td></tr>`, 5);
     const anomalyRows = renderTableRows(state.anomalies, (row) => `<tr><td>${escapeHtml(row.type || "—")}</td><td>${escapeHtml(row.severity || "—")}</td><td>${escapeHtml(row.detail || "—")}</td><td>${escapeHtml(row.action || "—")}</td></tr>`, 4);
     const documentsRows = renderTableRows(state.documents, (row) => `<tr><td>${escapeHtml(row.name || "—")}</td><td>${escapeHtml(row.reference || "—")}</td><td>${escapeHtml(row.observation || "—")}</td></tr>`, 3);
@@ -567,17 +697,17 @@
 
     $("#printReport").innerHTML = `
       <article class="print-page">
-        <header class="print-header"><div><span class="print-brand">SNCF</span><h1 class="print-title">${reportTitle}</h1></div>
+        <header class="print-header"><div><span class="print-brand">AINM</span><h1 class="print-title">${reportTitle}</h1></div>
           <div class="print-meta">AINM · Travaux signalisation<br>Référentiel rapport journalier<br>Édité le ${formatDate(dateToday())}</div></header>
         <section class="print-section"><h2>Identification</h2><div class="print-info-grid">
           <div><strong>Opération / chantier</strong>${escapeHtml(state.meta.operation || "—")}</div><div><strong>N° rapport</strong>${escapeHtml(state.meta.reportNo || "—")}</div><div><strong>N° commande</strong>${escapeHtml(state.meta.orderNo || "—")}</div>
-          <div><strong>Entreprise</strong>${escapeHtml(state.meta.enterprise || "—")}</div><div><strong>Date / nature</strong>${formatDate(state.meta.date)} · ${escapeHtml(state.meta.shiftType || "—")}</div><div><strong>Intervention réelle</strong>${escapeHtml(`${state.meta.shiftStart || "—"} → ${state.meta.shiftEnd || "—"}`)} · ${displayNumber(state.meta.workDuration)} h</div>
+          <div><strong>Entreprise</strong>${escapeHtml(enterpriseName() || "—")}</div><div><strong>Date / nature</strong>${formatDate(state.meta.date)} · ${escapeHtml(state.meta.shiftType || "—")}</div><div><strong>Intervention réelle</strong>${escapeHtml(`${state.meta.shiftStart || "—"} → ${state.meta.shiftEnd || "—"}`)} · ${displayNumber(state.meta.workDuration)} h</div>
           <div><strong>Météo / température</strong>${escapeHtml(state.meta.weather || "—")} · ${escapeHtml(state.meta.temperature || "—")} °C</div><div><strong>Rédacteur</strong>${escapeHtml(state.meta.reporter || "—")}</div><div><strong>Régime de séance</strong>${escapeHtml(getShiftContext().label)}</div>
         </div></section>
         ${state.meta.cancelled ? `<section class="print-section"><h2>Annulation du chantier</h2><div class="print-note">${escapeHtml(state.meta.cancelReason || "Motif non renseigné")}</div></section>` : `
         <section class="print-section"><h2>Travaux exécutés</h2><table class="print-table"><thead><tr><th>Prestation terrain</th><th class="numeric">Quantité</th><th>Voie</th><th>PK</th><th>Statut</th></tr></thead><tbody>${taskRows}</tbody></table></section>
-        <section class="print-section"><h2>Main-d’œuvre entreprise</h2><table class="print-table"><thead><tr><th>Fonction / grade</th><th class="numeric">Nb</th><th class="numeric">Heures/pers.</th><th>Observation</th></tr></thead><tbody>${personnelRows}</tbody></table></section>
-        <section class="print-section"><h2>Engins entreprise</h2><table class="print-table"><thead><tr><th>Engin / matériel</th><th class="numeric">Nb</th><th>Observation</th></tr></thead><tbody>${equipmentRows}</tbody></table></section>`}
+        <section class="print-section"><h2>Personnel et intervenants</h2><table class="print-table"><thead><tr><th>Fonction / grade</th><th>Famille / entreprise</th><th class="numeric">Nb</th><th class="numeric">Heures/pers.</th><th>Observation</th></tr></thead><tbody>${personnelRows}</tbody></table></section>
+        <section class="print-section"><h2>Engins et mobiles travaux</h2><table class="print-table"><thead><tr><th>Engin / matériel</th><th>Entreprise</th><th class="numeric">Nb</th><th>Zone / voie</th><th>Identification / observation</th></tr></thead><tbody>${equipmentRows}</tbody></table></section>`}
         <section class="print-section"><h2>Périodes d’interception – Consignations</h2><table class="print-table"><thead><tr><th>Voie</th><th>Prévues</th><th>Accordées</th><th>Réelles</th><th>Observations</th></tr></thead><tbody>${possessionRows}</tbody></table></section>
         <section class="print-section"><h2>Anomalies constatées</h2><table class="print-table"><thead><tr><th>Type</th><th>Niveau</th><th>Fait constaté</th><th>Mesure prise / suite</th></tr></thead><tbody>${anomalyRows}</tbody></table></section>
         <section class="print-section"><h2>Rapports fournis par l’entreprise</h2><table class="print-table"><thead><tr><th>Document</th><th>Référence</th><th>Observation</th></tr></thead><tbody>${documentsRows}</tbody></table></section>
@@ -586,7 +716,7 @@
         <p class="print-footer">Rapport opérationnel généré depuis l’application rapport journalier AINM. Les prix de bordereau sont traités dans l’annexe interne ci-après.</p>
       </article>
       <article class="print-page print-internal">
-        <header class="print-header"><div><span class="print-brand">SNCF</span><h1 class="print-title">ANNEXE DE VALORISATION INTERNE</h1></div><div class="print-meta">${escapeHtml(state.meta.reportNo || "—")}<br>Montants indicatifs HT</div></header>
+        <header class="print-header"><div><span class="print-brand">AINM</span><h1 class="print-title">ANNEXE DE VALORISATION INTERNE</h1></div><div class="print-meta">${escapeHtml(state.meta.reportNo || "—")}<br>Montants indicatifs HT</div></header>
         <section class="print-section"><h2>Rapprochement production / bordereau</h2><table class="print-table"><thead><tr><th>Prestation terrain</th><th>Référence PB</th><th class="numeric">Quantité</th><th class="numeric">PU HT</th><th class="numeric">Montant HT</th></tr></thead><tbody>${valuationRows}<tr><td colspan="4"><strong>Total valorisé indicatif HT</strong></td><td class="numeric"><strong>${euros(total)}</strong></td></tr></tbody></table></section>
         <section class="print-section"><h2>Contrôle</h2><div class="print-note">Les lignes « À qualifier » ont bien été saisies dans le rapport terrain, mais nécessitent un rattachement de prix par l’encadrant ou le gestionnaire de marché. Cette annexe ne remplace pas la validation de la situation de travaux.</div></section>
       </article>`;
@@ -613,6 +743,7 @@
       const handler = () => {
         const value = element.type === "checkbox" ? element.checked : element.value;
         setPath(state, element.dataset.path, value);
+        if (element.id === "enterpriseInput") $("#enterpriseOtherField")?.classList.toggle("hidden", value !== "Autre");
         save();
         refresh({ inputs: false });
       };
@@ -646,7 +777,14 @@
     $$('[data-add-row]').forEach((button) => button.addEventListener("click", () => openRowDialog(button.dataset.addRow)));
     $("#rowDialog").addEventListener("click", (event) => { if (event.target.closest("#saveRowButton")) saveRow(); });
     $$(".data-list").forEach((list) => list.addEventListener("click", (event) => {
+      const edit = event.target.closest("[data-edit-row]");
       const remove = event.target.closest("[data-delete-row]");
+      if (edit) {
+        const [key, id] = edit.dataset.editRow.split(":");
+        const row = state[key]?.find((item) => item.id === id);
+        if (row) openRowDialog(key, row);
+        return;
+      }
       if (!remove || !confirm("Supprimer cette ligne ?")) return;
       const [key, id] = remove.dataset.deleteRow.split(":");
       state[key] = state[key].filter((row) => row.id !== id);
@@ -659,7 +797,7 @@
     $("#shareButton").addEventListener("click", () => exportState(true));
     $("#newReportButton").addEventListener("click", () => {
       if (!confirm("Créer un nouveau rapport ? Le brouillon actuel restera exportable seulement s’il est sauvegardé.")) return;
-      const project = { operation: state.meta.operation, orderNo: state.meta.orderNo, enterprise: state.meta.enterprise, reporter: state.meta.reporter, moeRepresentative: state.meta.moeRepresentative, companyRepresentative: state.meta.companyRepresentative };
+      const project = { operation: state.meta.operation, orderNo: state.meta.orderNo, enterprise: state.meta.enterprise, enterpriseOther: state.meta.enterpriseOther, reporter: state.meta.reporter, moeRepresentative: state.meta.moeRepresentative, companyRepresentative: state.meta.companyRepresentative };
       state = initialState();
       Object.assign(state.meta, project);
       save("Nouveau rapport créé");

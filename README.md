@@ -5,6 +5,10 @@ Cette première version transforme les trames fournies en un rapport utilisable 
 ## Ce qui est intégré
 
 - Rapport terrain avec contexte de séance, main-d’œuvre, engins, production, interceptions / consignations, anomalies, pièces jointes déclarées, moyens SNCF et visas.
+- Charte AINM Infrapôle Paris Sud Est : logo intégré, palette bleu acier / cyan, icône PWA assortie et édition PDF harmonisée.
+- Saisie mobile structurée des intervenants : famille (entreprise travaux, SNCF, prestataire sécurité), entreprise, fonction, effectif, heures, chef d’équipe et observation.
+- Saisie mobile structurée des engins : distinction rail-route / LAM, routier / chenillard, manutention / levage et autre matériel ; identification, zone, PK et mode de mise en voie sont tracés lorsque nécessaire.
+- Entreprises reprises du Briefing Opération : SNCF, ATIF, SYSTRA, ETF, LSDR, ETF SERVICE, TSO, HP ELEC, TSO Signalisation, Bouygues et TSO (LTV), avec une option « Autre ».
 - Mise en page imprimable A4 proche des trames fournies.
 - Annexe de valorisation interne : quantité, référence de prix, prix unitaire HT et montant indicatif HT.
 - Catalogue de **1 796 lignes de prix** issu du détail estimatif AINM « version C — 27/08/2025 ».

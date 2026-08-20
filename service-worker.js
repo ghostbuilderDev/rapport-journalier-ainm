@@ -1,4 +1,4 @@
-const CACHE = "rj-ainm-v2";
+const CACHE = "rj-ainm-v3";
 const ASSETS = [
   "./",
   "index.html",
@@ -8,6 +8,7 @@ const ASSETS = [
   "data/price-catalog.js",
   "data/terrain-catalog.js",
   "icons/icon.svg",
+  "assets/ainm-infrapole-paris-sud-est.jpg",
 ];
 
 self.addEventListener("install", (event) => {
