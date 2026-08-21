@@ -193,7 +193,7 @@
     const identity = allocateReportIdentity();
     return {
       schema: 1,
-      appVersion: 8.2,
+      appVersion: 8.3,
       updatedAt: new Date().toISOString(),
       reportSerial: identity.serial,
       reportUid: identity.uid,
@@ -234,7 +234,10 @@
       photos: [],
       afterWorkSignature: { name: "", role: "", signedAt: "", dataUrl: "" },
       companySignatures: [],
-      collaboration: { revision: 1, currentEditor: "", currentRole: "", receivedAt: "", receivedFrom: "", receivedFromRole: "", handoffs: [] },
+      collaboration: {
+        revision: 1, currentEditor: "", currentRole: "", receivedAt: "", receivedFrom: "", receivedFromRole: "", handoffs: [],
+        remote: { enabled: false, endpoint: "", reportId: "", token: "", key: "", revision: 0, lastSyncedAt: "", lastError: "", conflictAt: "" },
+      },
       settings: { mappings: {}, admin: { pinHash: "", configuredAt: "", includeCommonCosts: false } },
     };
   };
@@ -263,6 +266,12 @@
     state.collaboration ||= { revision: 1, currentEditor: "", currentRole: "", receivedAt: "", receivedFrom: "", receivedFromRole: "", handoffs: [] };
     if (!Array.isArray(state.collaboration.handoffs)) state.collaboration.handoffs = [];
     state.collaboration.revision = Math.max(1, Math.floor(number(state.collaboration.revision)) || 1);
+    state.collaboration.remote ||= { enabled: false, endpoint: "", reportId: "", token: "", key: "", revision: 0, lastSyncedAt: "", lastError: "", conflictAt: "" };
+    ["endpoint", "reportId", "token", "key", "lastSyncedAt", "lastError", "conflictAt"].forEach((key) => {
+      if (typeof state.collaboration.remote[key] !== "string") state.collaboration.remote[key] = "";
+    });
+    state.collaboration.remote.enabled = Boolean(state.collaboration.remote.enabled);
+    state.collaboration.remote.revision = Math.max(0, Math.floor(number(state.collaboration.remote.revision)) || 0);
     ["location", "executionNotes", "nextWorks"].forEach((key) => { if (typeof state.meta[key] !== "string") state.meta[key] = ""; });
     if (!Array.isArray(state.meta.participatingCompanies)) {
       const legacyEnterprise = state.meta.enterprise === "Autre" ? state.meta.enterpriseOther : state.meta.enterprise;
@@ -277,7 +286,7 @@
     state.companySignatures.forEach((signature) => { signature.company = canonicalCompany(signature.company); });
     state.personnel = state.personnel.filter((row) => number(row.count) > 0);
     state.sncfMeans = state.sncfMeans.filter((row) => number(row.count) > 0);
-    state.appVersion = Math.max(8.2, Number(state.appVersion) || 0);
+    state.appVersion = Math.max(8.3, Number(state.appVersion) || 0);
     ["personnel", "sncfMeans"].forEach((key) => {
       state[key].forEach((row) => { row.role = canonicalSncfRole(row.role); });
     });
@@ -301,6 +310,10 @@
   let companySignatureCanvasReady = false;
   let companySignatureResizeBound = false;
   let companyVisaDraft = null;
+  let remoteSyncTimer = null;
+  let remoteSyncInFlight = false;
+  let remoteSaveGuard = false;
+  let remoteReceiveInProgress = false;
   let adminLoginOpen = false;
   let adminUnlocked = (() => {
     try { return sessionStorage.getItem(adminSessionKey) === "1"; } catch (_) { return false; }
@@ -360,6 +373,7 @@
       target.textContent = label;
       window.setTimeout(() => { target.textContent = "Brouillon local"; }, 1200);
     }
+    if (!remoteSaveGuard) scheduleRemoteSync();
     return true;
   }
 
@@ -1258,13 +1272,16 @@
     const ratio = Number(canvas.dataset.ratio || 1);
     const width = canvas.width / ratio;
     const height = canvas.height / ratio;
+    const drawVersion = String((Number(canvas.dataset.drawVersion) || 0) + 1);
+    canvas.dataset.drawVersion = drawVersion;
     context.save();
-    context.setTransform(ratio, 0, 0, ratio, 0, 0);
-    context.clearRect(0, 0, width, height);
+    context.setTransform(1, 0, 0, 1, 0, 0);
+    context.clearRect(0, 0, canvas.width, canvas.height);
     context.restore();
     if (!dataUrl) return;
     const image = new Image();
     image.onload = () => {
+      if (canvas.dataset.drawVersion !== drawVersion) return;
       context.save();
       context.setTransform(ratio, 0, 0, ratio, 0, 0);
       context.drawImage(image, 0, 0, width, height);
@@ -1289,7 +1306,11 @@
   function setupSignatureCanvas() {
     const canvas = $("#afterWorkSignatureCanvas");
     if (!canvas || signatureCanvasReady) return;
+    let drawing = false;
+    let pointerId = null;
+    let lastPoint = null;
     const resize = () => {
+      if (drawing) return;
       const rect = canvas.getBoundingClientRect();
       const ratio = Math.max(1, window.devicePixelRatio || 1);
       canvas.width = Math.max(300, Math.floor(rect.width || 300) * ratio);
@@ -1297,11 +1318,12 @@
       canvas.dataset.ratio = String(ratio);
       drawSignatureData(state.afterWorkSignature?.dataUrl || "");
     };
-    let drawing = false;
-    let lastPoint = null;
     const point = (event) => {
       const rect = canvas.getBoundingClientRect();
-      return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+      return {
+        x: Math.max(0, Math.min(rect.width || 300, event.clientX - rect.left)),
+        y: Math.max(0, Math.min(rect.height || 148, event.clientY - rect.top)),
+      };
     };
     const context = () => {
       const drawingContext = canvas.getContext("2d");
@@ -1314,9 +1336,11 @@
       return drawingContext;
     };
     canvas.addEventListener("pointerdown", (event) => {
+      if (event.button !== undefined && event.button !== 0) return;
       drawing = true;
+      pointerId = event.pointerId;
       lastPoint = point(event);
-      canvas.setPointerCapture?.(event.pointerId);
+      try { canvas.setPointerCapture?.(event.pointerId); } catch (_) { /* Certains WebViews ne capturent pas le pointeur. */ }
       const drawingContext = context();
       drawingContext.beginPath();
       drawingContext.moveTo(lastPoint.x, lastPoint.y);
@@ -1326,7 +1350,7 @@
       event.preventDefault();
     });
     canvas.addEventListener("pointermove", (event) => {
-      if (!drawing) return;
+      if (!drawing || (pointerId !== null && event.pointerId !== pointerId)) return;
       const next = point(event);
       const drawingContext = context();
       drawingContext.beginPath();
@@ -1336,9 +1360,13 @@
       lastPoint = next;
       event.preventDefault();
     });
-    const finish = () => {
+    const finish = (event) => {
       if (!drawing) return;
+      if (event && pointerId !== null && event.pointerId !== pointerId) return;
       drawing = false;
+      const finishedPointer = pointerId;
+      pointerId = null;
+      try { if (finishedPointer !== null && canvas.hasPointerCapture?.(finishedPointer)) canvas.releasePointerCapture(finishedPointer); } catch (_) { /* Sans incidence. */ }
       state.afterWorkSignature.dataUrl = canvas.toDataURL("image/png");
       state.afterWorkSignature.signedAt = new Date().toISOString();
       save("Visa après travaux signé");
@@ -1347,6 +1375,8 @@
     };
     canvas.addEventListener("pointerup", finish);
     canvas.addEventListener("pointercancel", finish);
+    canvas.addEventListener("lostpointercapture", finish);
+    canvas.style.touchAction = "none";
     signatureCanvasReady = true;
     resize();
     window.addEventListener("resize", resize);
@@ -1359,13 +1389,16 @@
     const ratio = Number(canvas.dataset.ratio || 1);
     const width = canvas.width / ratio;
     const height = canvas.height / ratio;
+    const drawVersion = String((Number(canvas.dataset.drawVersion) || 0) + 1);
+    canvas.dataset.drawVersion = drawVersion;
     context.save();
-    context.setTransform(ratio, 0, 0, ratio, 0, 0);
-    context.clearRect(0, 0, width, height);
+    context.setTransform(1, 0, 0, 1, 0, 0);
+    context.clearRect(0, 0, canvas.width, canvas.height);
     context.restore();
     if (!companyVisaDraft?.dataUrl) return;
     const image = new Image();
     image.onload = () => {
+      if (canvas.dataset.drawVersion !== drawVersion) return;
       context.save();
       context.setTransform(ratio, 0, 0, ratio, 0, 0);
       context.drawImage(image, 0, 0, width, height);
@@ -1377,6 +1410,7 @@
   function resizeCompanySignatureCanvas() {
     const canvas = $("#companySignatureCanvas");
     if (!canvas || !companySignatureCanvasReady) return;
+    if (canvas.dataset.drawing === "true") return;
     const rect = canvas.getBoundingClientRect();
     const ratio = Math.max(1, window.devicePixelRatio || 1);
     canvas.width = Math.max(300, Math.floor(rect.width || 300) * ratio);
@@ -1393,10 +1427,14 @@
       return;
     }
     let drawing = false;
+    let pointerId = null;
     let lastPoint = null;
     const point = (event) => {
       const rect = canvas.getBoundingClientRect();
-      return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+      return {
+        x: Math.max(0, Math.min(rect.width || 300, event.clientX - rect.left)),
+        y: Math.max(0, Math.min(rect.height || 148, event.clientY - rect.top)),
+      };
     };
     const context = () => {
       const drawingContext = canvas.getContext("2d");
@@ -1409,9 +1447,12 @@
       return drawingContext;
     };
     canvas.addEventListener("pointerdown", (event) => {
+      if (event.button !== undefined && event.button !== 0) return;
       drawing = true;
+      canvas.dataset.drawing = "true";
+      pointerId = event.pointerId;
       lastPoint = point(event);
-      canvas.setPointerCapture?.(event.pointerId);
+      try { canvas.setPointerCapture?.(event.pointerId); } catch (_) { /* Certains WebViews ne capturent pas le pointeur. */ }
       const drawingContext = context();
       drawingContext.beginPath();
       drawingContext.moveTo(lastPoint.x, lastPoint.y);
@@ -1421,7 +1462,7 @@
       event.preventDefault();
     });
     canvas.addEventListener("pointermove", (event) => {
-      if (!drawing) return;
+      if (!drawing || (pointerId !== null && event.pointerId !== pointerId)) return;
       const next = point(event);
       const drawingContext = context();
       drawingContext.beginPath();
@@ -1431,9 +1472,15 @@
       lastPoint = next;
       event.preventDefault();
     });
-    const finish = () => {
+    const finish = (event) => {
       if (!drawing) return;
+      if (event && pointerId !== null && event.pointerId !== pointerId) return;
       drawing = false;
+      canvas.dataset.drawing = "false";
+      const finishedPointer = pointerId;
+      pointerId = null;
+      try { if (finishedPointer !== null && canvas.hasPointerCapture?.(finishedPointer)) canvas.releasePointerCapture(finishedPointer); } catch (_) { /* Sans incidence. */ }
+      if (!companyVisaDraft) return;
       companyVisaDraft.dataUrl = canvas.toDataURL("image/png");
       companyVisaDraft.signedAt = new Date().toISOString();
       const status = $("#companyVisaSignatureStatus");
@@ -1441,8 +1488,11 @@
     };
     canvas.addEventListener("pointerup", finish);
     canvas.addEventListener("pointercancel", finish);
+    canvas.addEventListener("lostpointercapture", finish);
+    canvas.style.touchAction = "none";
     companySignatureCanvasReady = true;
     resizeCompanySignatureCanvas();
+    window.requestAnimationFrame(resizeCompanySignatureCanvas);
     if (!companySignatureResizeBound) {
       window.addEventListener("resize", resizeCompanySignatureCanvas);
       companySignatureResizeBound = true;
@@ -1483,6 +1533,10 @@
       showToast("Renseigner le nom du responsable avant d’enregistrer le visa.", "warning");
       return;
     }
+    if (!companyVisaDraft.dataUrl) {
+      showToast("Signer dans la zone avant d’enregistrer le visa.", "warning");
+      return;
+    }
     const index = state.companySignatures.findIndex((signature) => signature.id === companyVisaDraft.id);
     if (index >= 0) state.companySignatures.splice(index, 1, companyVisaDraft);
     else state.companySignatures.push(companyVisaDraft);
@@ -1518,6 +1572,7 @@
     const target = $("#handoffSummary");
     if (!target) return;
     const collaboration = state.collaboration || {};
+    const remote = collaboration.remote || {};
     const latest = (collaboration.handoffs || [])[0];
     const revision = Math.max(1, number(collaboration.revision) || 1);
     const received = collaboration.receivedAt
@@ -1526,7 +1581,12 @@
     const latestText = latest
       ? `Dernier envoi : ${[latest.editor, latest.role].filter(Boolean).join(" · ") || "rédacteur à préciser"}${latest.recipient ? ` → ${latest.recipient}` : ""} · révision ${latest.revision || revision} · ${formatDateTime(latest.sentAt)}.`
       : "Aucune passation envoyée pour le moment.";
-    target.innerHTML = `<strong>${escapeHtml(state.meta.reportNo || "Rapport en cours")} · révision ${escapeHtml(revision)}</strong><span>${escapeHtml(latestText)}</span><small>${escapeHtml(received)}</small>`;
+    const relay = hasRemoteSession(remote)
+      ? remote.conflictAt
+        ? `Conflit détecté le ${formatDateTime(remote.conflictAt)} : actualiser depuis le serveur avant toute nouvelle transmission.`
+        : `Relais distant actif · version serveur ${Math.max(0, number(remote.revision))}${remote.lastSyncedAt ? ` · synchronisée le ${formatDateTime(remote.lastSyncedAt)}` : " · en attente de première synchronisation"}.`
+      : "Relais distant non configuré : renseigner son adresse lors de la première transmission.";
+    target.innerHTML = `<strong>${escapeHtml(state.meta.reportNo || "Rapport en cours")} · révision ${escapeHtml(revision)}</strong><span>${escapeHtml(relay)}</span><span>${escapeHtml(latestText)}</span><small>${escapeHtml(received)}</small>`;
   }
 
   function renderReview() {
@@ -2187,12 +2247,348 @@
     return { downloaded: true, filename };
   }
 
+  const REMOTE_FRAGMENT_KEY = "ainm-rj-remote";
+  const REMOTE_MAX_PLAINTEXT_BYTES = 18 * 1024 * 1024;
+
+  function normaliseRelayEndpoint(value) {
+    try {
+      const url = new URL(String(value || "").trim());
+      const localHttp = url.protocol === "http:" && ["localhost", "127.0.0.1"].includes(url.hostname);
+      if (url.protocol !== "https:" && !localHttp) return "";
+      return `${url.origin}${url.pathname.replace(/\/+$/, "")}`;
+    } catch (_) {
+      return "";
+    }
+  }
+
+  function hasRemoteSession(remote = state.collaboration?.remote) {
+    return Boolean(remote?.enabled
+      && normaliseRelayEndpoint(remote.endpoint)
+      && /^[A-Za-z0-9_-]{16,80}$/.test(remote.reportId || "")
+      && /^[A-Za-z0-9_-]{20,120}$/.test(remote.token || "")
+      && /^[A-Za-z0-9_-]{20,120}$/.test(remote.key || ""));
+  }
+
+  function bytesToBase64Url(input) {
+    const bytes = input instanceof Uint8Array ? input : new Uint8Array(input);
+    let binary = "";
+    for (let index = 0; index < bytes.length; index += 0x8000) {
+      binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000));
+    }
+    return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+  }
+
+  function base64UrlToBytes(value) {
+    const normalized = String(value || "").replace(/-/g, "+").replace(/_/g, "/");
+    const binary = atob(`${normalized}${"=".repeat((4 - (normalized.length % 4)) % 4)}`);
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+    return bytes;
+  }
+
+  function createRemoteSecret(length = 32) {
+    if (!globalThis.crypto?.getRandomValues) throw new Error("Le navigateur ne propose pas le chiffrement requis pour la passation distante.");
+    const bytes = new Uint8Array(length);
+    globalThis.crypto.getRandomValues(bytes);
+    return bytesToBase64Url(bytes);
+  }
+
+  async function remoteCryptoKey(encoded, usages) {
+    if (!globalThis.crypto?.subtle) throw new Error("Le chiffrement n’est pas disponible dans ce navigateur.");
+    const raw = base64UrlToBytes(encoded);
+    if (raw.byteLength !== 32) throw new Error("La clé de passation est invalide.");
+    return globalThis.crypto.subtle.importKey("raw", raw, { name: "AES-GCM" }, false, usages);
+  }
+
+  function remoteSnapshot() {
+    const snapshot = clone(state);
+    delete snapshot.settings;
+    snapshot.tasks = (snapshot.tasks || []).map(({ billingCr, ...task }) => task);
+    snapshot.collaboration ||= {};
+    snapshot.collaboration.remote = {
+      enabled: true,
+      revision: Math.max(0, number(state.collaboration?.remote?.revision)),
+      lastSyncedAt: state.collaboration?.remote?.lastSyncedAt || "",
+    };
+    return snapshot;
+  }
+
+  async function encryptRemoteSnapshot(snapshot, key) {
+    const plain = new TextEncoder().encode(JSON.stringify(snapshot));
+    if (plain.byteLength > REMOTE_MAX_PLAINTEXT_BYTES) {
+      throw new Error("Le rapport est trop volumineux pour la passation distante. Réduire le nombre ou le poids des photos avant de transmettre.");
+    }
+    const iv = new Uint8Array(12);
+    globalThis.crypto.getRandomValues(iv);
+    const encrypted = await globalThis.crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, plain);
+    return { schema: "AINM-RJ-REMOTE-1", algorithm: "A256GCM", iv: bytesToBase64Url(iv), cipherText: bytesToBase64Url(new Uint8Array(encrypted)) };
+  }
+
+  async function decryptRemoteSnapshot(envelope, key) {
+    if (!envelope || envelope.schema !== "AINM-RJ-REMOTE-1" || !envelope.iv || !envelope.cipherText) throw new Error("Le contenu reçu n’est pas une passation AINM compatible.");
+    const decrypted = await globalThis.crypto.subtle.decrypt({ name: "AES-GCM", iv: base64UrlToBytes(envelope.iv) }, key, base64UrlToBytes(envelope.cipherText));
+    const report = JSON.parse(new TextDecoder().decode(decrypted));
+    if (report?.schema !== 1) throw new Error("Le contenu reçu n’est pas un rapport journalier valide.");
+    return report;
+  }
+
+  async function relayRequest(remote, method, body = null) {
+    const endpoint = normaliseRelayEndpoint(remote?.endpoint);
+    if (!endpoint) throw new Error("Adresse du serveur de passation invalide.");
+    const response = await fetch(`${endpoint}/reports/${encodeURIComponent(remote.reportId)}`, {
+      method,
+      cache: "no-store",
+      headers: { "Content-Type": "application/json", "X-AINM-Report-Token": remote.token },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const error = new Error(payload?.message || payload?.error || `Le serveur a répondu ${response.status}.`);
+      error.status = response.status;
+      error.payload = payload;
+      throw error;
+    }
+    return payload;
+  }
+
+  function persistRemoteState(label) {
+    remoteSaveGuard = true;
+    const saved = save(label);
+    remoteSaveGuard = false;
+    renderHandoffPanel();
+    return saved;
+  }
+
+  function scheduleRemoteSync() {
+    const remote = state.collaboration?.remote;
+    if (!hasRemoteSession(remote) || remote.conflictAt || remoteSyncInFlight) return;
+    window.clearTimeout(remoteSyncTimer);
+    remoteSyncTimer = window.setTimeout(() => { void syncRemoteReport(); }, 2600);
+  }
+
+  async function syncRemoteReport({ announce = false } = {}) {
+    const remote = state.collaboration?.remote;
+    if (!hasRemoteSession(remote)) return { skipped: true };
+    if (remote.conflictAt) {
+      if (announce) showToast("Actualiser la version serveur avant une nouvelle transmission.", "warning");
+      return { conflict: true };
+    }
+    if (remoteSyncInFlight) return { pending: true };
+    if (navigator.onLine === false) {
+      remote.lastError = "Téléphone hors ligne";
+      persistRemoteState("Brouillon local · hors ligne");
+      if (announce) showToast("Téléphone hors ligne : le brouillon reste enregistré localement.", "warning");
+      return { offline: true };
+    }
+    remoteSyncInFlight = true;
+    window.clearTimeout(remoteSyncTimer);
+    try {
+      const session = clone(remote);
+      const key = await remoteCryptoKey(session.key, ["encrypt"]);
+      const payload = await encryptRemoteSnapshot(remoteSnapshot(), key);
+      const result = await relayRequest(session, "PUT", { baseRevision: Math.max(0, number(session.revision)), payload });
+      const current = state.collaboration?.remote;
+      if (current && current.reportId === session.reportId) {
+        current.revision = Math.max(1, number(result.revision));
+        current.lastSyncedAt = result.updatedAt || new Date().toISOString();
+        current.lastError = "";
+        current.conflictAt = "";
+        persistRemoteState(announce ? "Rapport synchronisé sur le serveur" : "Brouillon synchronisé");
+      }
+      if (announce) showToast("Rapport synchronisé : le lien peut être envoyé au suivant.", "success");
+      return { synced: true, revision: result.revision };
+    } catch (error) {
+      if (error?.status === 409) {
+        remote.conflictAt = new Date().toISOString();
+        remote.lastError = "Une version plus récente est disponible sur le serveur.";
+        persistRemoteState("Conflit de passation détecté");
+        showToast("Une version plus récente est sur le serveur. Actualiser avant de continuer.", "warning");
+        return { conflict: true };
+      }
+      remote.lastError = error?.message || "Synchronisation impossible";
+      persistRemoteState("Brouillon local · synchronisation à reprendre");
+      if (announce) showToast(`Transmission impossible : ${remote.lastError}`, "warning");
+      return { error };
+    } finally {
+      remoteSyncInFlight = false;
+    }
+  }
+
+  function createRemoteSession(endpoint) {
+    const remote = {
+      enabled: true,
+      endpoint: normaliseRelayEndpoint(endpoint),
+      reportId: createRemoteSecret(18),
+      token: createRemoteSecret(32),
+      key: createRemoteSecret(32),
+      revision: 0,
+      lastSyncedAt: "",
+      lastError: "",
+      conflictAt: "",
+    };
+    state.collaboration.remote = remote;
+    return remote;
+  }
+
+  function buildRemoteLink(remote = state.collaboration?.remote) {
+    if (!hasRemoteSession(remote)) throw new Error("La passation distante n’est pas encore configurée.");
+    const capability = { v: 1, e: normaliseRelayEndpoint(remote.endpoint), i: remote.reportId, t: remote.token, k: remote.key };
+    const encoded = bytesToBase64Url(new TextEncoder().encode(JSON.stringify(capability)));
+    return `${location.href.split("#")[0]}#${REMOTE_FRAGMENT_KEY}=${encodeURIComponent(encoded)}`;
+  }
+
+  function remoteSessionFromLink(link) {
+    const raw = String(link || "").trim();
+    let fragment = raw;
+    try {
+      if (!raw.startsWith("#")) fragment = new URL(raw, location.href).hash;
+    } catch (_) {
+      throw new Error("Le lien de passation est invalide.");
+    }
+    const encoded = new URLSearchParams(fragment.replace(/^#/, "")).get(REMOTE_FRAGMENT_KEY);
+    if (!encoded) throw new Error("Ce lien ne contient pas de passation distante AINM.");
+    let capability;
+    try { capability = JSON.parse(new TextDecoder().decode(base64UrlToBytes(decodeURIComponent(encoded)))); } catch (_) { throw new Error("Le lien de passation est illisible."); }
+    const remote = {
+      enabled: true,
+      endpoint: normaliseRelayEndpoint(capability?.e),
+      reportId: String(capability?.i || ""),
+      token: String(capability?.t || ""),
+      key: String(capability?.k || ""),
+      revision: 0,
+      lastSyncedAt: "",
+      lastError: "",
+      conflictAt: "",
+    };
+    if (!hasRemoteSession(remote)) throw new Error("Le lien de passation est incomplet ou invalide.");
+    return remote;
+  }
+
+  function displayHandoffLink(link) {
+    const output = $("#handoffLinkOutput");
+    if (!output) return;
+    output.value = link;
+    output.classList.remove("hidden");
+  }
+
+  async function shareRemoteLink(link) {
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: "Passation · rapport journalier AINM", text: `Ouvrir le rapport ${state.meta.reportNo || "AINM"} puis compléter la partie demandée.`, url: link });
+        return { shared: true };
+      }
+    } catch (error) {
+      if (error?.name === "AbortError") return { cancelled: true };
+    }
+    try {
+      await navigator.clipboard?.writeText(link);
+      return { copied: true };
+    } catch (_) {
+      return { ready: true };
+    }
+  }
+
+  function applyRemoteReport(incoming, session, serverRevision, updatedAt) {
+    const currentSettings = clone(state.settings || {});
+    const sourceCollaboration = incoming.collaboration || {};
+    state = incoming;
+    delete state.transfer;
+    state.settings = currentSettings;
+    ensureSettings();
+    ensureState();
+    state.collaboration.remote = {
+      ...session,
+      enabled: true,
+      revision: Math.max(1, number(serverRevision)),
+      lastSyncedAt: updatedAt || new Date().toISOString(),
+      lastError: "",
+      conflictAt: "",
+    };
+    state.collaboration.receivedFrom = sourceCollaboration.currentEditor || "";
+    state.collaboration.receivedFromRole = sourceCollaboration.currentRole || "";
+    state.collaboration.currentEditor = "";
+    state.collaboration.currentRole = "";
+    state.collaboration.receivedAt = new Date().toISOString();
+    adminUnlocked = false;
+    adminLoginOpen = false;
+    try { sessionStorage.removeItem(adminSessionKey); } catch (_) { /* Session locale indisponible. */ }
+    persistRemoteState(`Passation distante reçue · révision ${state.collaboration.revision}`);
+    refresh({ inputs: true });
+  }
+
+  async function receiveRemoteLink(link, { promptForReplacement = true } = {}) {
+    if (remoteReceiveInProgress) return;
+    remoteReceiveInProgress = true;
+    const receiveButton = $("#receiveRemoteLinkButton");
+    if (receiveButton) receiveButton.disabled = true;
+    try {
+      const session = remoteSessionFromLink(link);
+      const result = await relayRequest(session, "GET");
+      const key = await remoteCryptoKey(session.key, ["decrypt"]);
+      const incoming = await decryptRemoteSnapshot(result.payload, key);
+      const incomingRevision = Math.max(1, number(incoming.collaboration?.revision) || 1);
+      const currentRevision = Math.max(1, number(state.collaboration?.revision) || 1);
+      const changesAnotherReport = incoming.reportUid && state.reportUid && incoming.reportUid !== state.reportUid && hasMeaningfulReportContent(state);
+      const olderThanCurrent = incoming.reportUid && incoming.reportUid === state.reportUid && incomingRevision < currentRevision;
+      if (promptForReplacement && (changesAnotherReport || olderThanCurrent)) {
+        const message = changesAnotherReport
+          ? "Cette passation concerne un autre rapport et remplacera le brouillon actuellement ouvert sur ce téléphone. Continuer ?"
+          : `La passation reçue est en révision ${incomingRevision}, alors que ce téléphone contient déjà la révision ${currentRevision}. Continuer remplacerait le brouillon local.`;
+        const accepted = await askConfirm({ title: "Recevoir la passation distante", message, confirmLabel: "Recevoir", danger: true });
+        if (!accepted) return;
+      }
+      applyRemoteReport(incoming, session, result.revision, result.updatedAt);
+      $("#remoteReceiveDialog")?.close();
+      showToast("Rapport reçu du serveur : vous pouvez compléter votre partie.", "success");
+    } catch (error) {
+      const message = error?.status === 404 ? "Cette passation n’est pas encore disponible sur le serveur." : (error?.message || "Réception distante impossible.");
+      const status = $("#remoteReceiveStatus");
+      if (status) status.textContent = message;
+      showToast(message, "warning");
+    } finally {
+      remoteReceiveInProgress = false;
+      if (receiveButton) receiveButton.disabled = false;
+    }
+  }
+
+  function openRemoteReceiveDialog() {
+    const input = $("#remoteReceiveLinkInput");
+    const status = $("#remoteReceiveStatus");
+    if (input) input.value = "";
+    if (status) status.textContent = "Coller le lien reçu. Son contenu reste chiffré pendant le transit.";
+    $("#remoteReceiveDialog")?.showModal();
+  }
+
+  async function refreshRemoteReport() {
+    const remote = state.collaboration?.remote;
+    if (!hasRemoteSession(remote)) {
+      showToast("Aucun serveur de passation n’est configuré sur ce téléphone.", "warning");
+      return;
+    }
+    const accepted = await askConfirm({ title: "Actualiser depuis le serveur", message: "La dernière version du serveur remplacera le brouillon ouvert sur ce téléphone. Les modifications locales non synchronisées seront conservées seulement dans le brouillon local actuel.", confirmLabel: "Actualiser" });
+    if (!accepted) return;
+    await receiveRemoteLink(buildRemoteLink(remote), { promptForReplacement: false });
+  }
+
+  async function consumeRemoteLinkFromLocation() {
+    if (!location.hash.includes(`${REMOTE_FRAGMENT_KEY}=`)) return;
+    const link = location.href;
+    try { history.replaceState(null, "", `${location.pathname}${location.search}`); } catch (_) { /* Sans incidence. */ }
+    await receiveRemoteLink(link);
+  }
+
   function openHandoffDialog() {
     const receivedOnThisDevice = Boolean(state.collaboration?.receivedAt);
+    const remote = state.collaboration?.remote || {};
     $("#handoffEditorName").value = receivedOnThisDevice ? "" : (state.meta.reporter || state.collaboration?.currentEditor || "");
     $("#handoffEditorRole").value = receivedOnThisDevice ? "" : (state.collaboration?.currentRole || "");
     $("#handoffRecipient").value = "";
-    $("#handoffStatus").textContent = `${state.meta.reportNo || "Rapport"} · révision ${state.collaboration?.revision || 1}. Le fichier contient la saisie et les photos ; le destinataire choisit ensuite « Recevoir une passation » dans l’application.`;
+    $("#handoffRelayEndpoint").value = remote.endpoint || "";
+    const output = $("#handoffLinkOutput");
+    if (output) { output.value = ""; output.classList.add("hidden"); }
+    $("#handoffStatus").textContent = hasRemoteSession(remote)
+      ? `${state.meta.reportNo || "Rapport"} · version serveur ${remote.revision || 0}. Le lien sécurisé peut être envoyé à distance au prochain intervenant.`
+      : "Saisir l’adresse du serveur de passation une seule fois sur ce premier téléphone. Elle sera ensuite portée par le lien sécurisé.";
     $("#handoffDialog").showModal();
   }
 
@@ -2200,40 +2596,51 @@
     const editor = editorValue("handoffEditorName");
     const role = editorValue("handoffEditorRole");
     const recipient = editorValue("handoffRecipient");
+    const endpoint = normaliseRelayEndpoint(editorValue("handoffRelayEndpoint") || state.collaboration?.remote?.endpoint);
     if (!editor || !recipient) {
       showToast("Renseigner votre nom et la personne ou l’étape suivante avant de transmettre.", "warning");
       return;
     }
-    const previousCollaboration = clone(state.collaboration || {});
+    if (!endpoint) {
+      showToast("Renseigner l’adresse HTTPS du serveur de passation.", "warning");
+      return;
+    }
+    const currentRemote = state.collaboration?.remote;
+    if (!hasRemoteSession(currentRemote) || normaliseRelayEndpoint(currentRemote.endpoint) !== endpoint) {
+      if (hasRemoteSession(currentRemote) && normaliseRelayEndpoint(currentRemote.endpoint) !== endpoint) {
+        const accepted = await askConfirm({ title: "Changer de serveur de passation", message: "Le rapport sera copié vers un nouveau serveur. Le précédent lien ne recevra plus les mises à jour suivantes.", confirmLabel: "Changer le serveur", danger: true });
+        if (!accepted) return;
+      }
+      try {
+        createRemoteSession(endpoint);
+      } catch (error) {
+        showToast(error?.message || "Le chiffrement requis pour la passation distante n’est pas disponible.", "warning");
+        return;
+      }
+    }
+    const remote = state.collaboration.remote;
     state.collaboration.currentEditor = editor;
     state.collaboration.currentRole = role;
     state.collaboration.receivedAt = "";
     state.collaboration.receivedFrom = "";
     state.collaboration.receivedFromRole = "";
     state.collaboration.revision = Math.max(1, number(state.collaboration.revision)) + 1;
-    state.collaboration.handoffs.unshift({ id: uid(), sentAt: new Date().toISOString(), editor, role, recipient, revision: state.collaboration.revision });
+    state.collaboration.handoffs.unshift({ id: uid(), sentAt: new Date().toISOString(), editor, role, recipient, revision: state.collaboration.revision, mode: "distant" });
     state.collaboration.handoffs = state.collaboration.handoffs.slice(0, 20);
-    // Sauvegarde immédiate : si Android suspend l'application pendant le partage,
-    // la révision préparée reste cohérente avec le fichier transmis.
-    if (!save(`Passation préparée · révision ${state.collaboration.revision}`)) {
-      state.collaboration = previousCollaboration;
-      return;
-    }
+    if (!persistRemoteState(`Passation distante préparée · révision ${state.collaboration.revision}`)) return;
     const sendButton = $("#sendHandoffButton");
     if (sendButton) sendButton.disabled = true;
-    const outcome = await exportState(true, { handoff: true });
+    const outcome = await syncRemoteReport({ announce: true });
     if (sendButton) sendButton.disabled = false;
-    if (outcome.cancelled) {
-      state.collaboration = previousCollaboration;
-      save("Passation annulée");
-      $("#handoffStatus").textContent = "Passation annulée : la révision n’a pas été modifiée.";
-      return;
-    }
+    if (!outcome.synced) return;
+    const link = buildRemoteLink(remote);
+    displayHandoffLink(link);
+    const shared = await shareRemoteLink(link);
+    $("#handoffStatus").textContent = shared.shared
+      ? "Lien envoyé : le destinataire ouvre l’application, reçoit le même rapport puis le complète."
+      : "Lien prêt à être envoyé. S’il ne s’ouvre pas automatiquement, le destinataire le colle dans « Ouvrir un lien reçu » de l’application.";
     renderHandoffPanel();
-    $("#handoffDialog").close();
-    showToast(outcome.shared
-      ? "Passation partagée : le destinataire l’importe dans l’application."
-      : "Fichier de passation téléchargé : le partager puis l’importer sur l’autre téléphone.", "success");
+    showToast(shared.shared ? "Passation distante envoyée." : "Lien de passation prêt à copier et envoyer.", "success");
   }
 
   function startNewReport(source = state, { reuseResources = false } = {}) {
@@ -2512,6 +2919,17 @@
       renderAfterWorkSignature();
       renderPrintReport();
     });
+    $("#saveAfterWorkSignatureButton")?.addEventListener("click", () => {
+      if (!state.afterWorkSignature.dataUrl) {
+        showToast("Signer dans la zone avant de valider le visa après travaux.", "warning");
+        return;
+      }
+      state.afterWorkSignature.signedAt ||= new Date().toISOString();
+      save("Visa après travaux validé");
+      renderAfterWorkSignature();
+      renderPrintReport();
+      showToast("Signature après travaux enregistrée.", "success");
+    });
     $("#clearAfterWorkSignatureButton").addEventListener("click", async () => {
       if (state.afterWorkSignature.dataUrl) {
         const accepted = await askConfirm({ title: "Effacer la signature", message: "Effacer la signature après travaux ?", confirmLabel: "Effacer", danger: true });
@@ -2545,8 +2963,10 @@
     $("#printButton").addEventListener("click", () => { renderPrintReport(); window.print(); });
     $("#handoffButton")?.addEventListener("click", openHandoffDialog);
     $("#handoffMenuButton")?.addEventListener("click", () => { $("#moreDialog").close(); openHandoffDialog(); });
-    $("#sendHandoffButton")?.addEventListener("click", sendHandoff);
-    $("#importHandoffButton")?.addEventListener("click", () => $("#importInput").click());
+    $("#sendHandoffButton")?.addEventListener("click", () => { void sendHandoff(); });
+    $("#remoteRefreshButton")?.addEventListener("click", () => { void refreshRemoteReport(); });
+    $("#importHandoffButton")?.addEventListener("click", openRemoteReceiveDialog);
+    $("#receiveRemoteLinkButton")?.addEventListener("click", () => { void receiveRemoteLink(editorValue("remoteReceiveLinkInput")); });
     $("#exportButton").addEventListener("click", () => { void exportState(false); });
     $("#shareButton").addEventListener("click", () => { void exportState(true); });
     $("#openAdminButton").addEventListener("click", openAdminAccess);
@@ -2664,6 +3084,7 @@
     setupSignatureCanvas();
     refresh();
     registerServiceWorker();
+    void consumeRemoteLinkFromLocation();
   }
 
   boot();

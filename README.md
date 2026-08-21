@@ -1,4 +1,4 @@
-# Rapport journalier AINM — PWA terrain V8.2
+# Rapport journalier AINM — PWA terrain V8.3
 
 Application hors ligne pour les rapports journaliers de travaux signalisation AINM.
 
@@ -15,9 +15,10 @@ Application hors ligne pour les rapports journaliers de travaux signalisation AI
 - Chaque ligne d’interception/consignation peut recevoir une **photo ARF début** et une **photo ARF fin**, prise à l’appareil ou choisie dans les fichiers. Les anomalies qualité-sécurité disposent du même choix.
 - Les prestations, rapports fournis et fiches peuvent recevoir des **photos jointes** depuis l’appareil ou les fichiers. Elles sont annexées au PDF.
 - Chaque entreprise ajoutée possède une fiche de **responsable** dès le contexte de séance : nom et fonction. Les signatures tactiles sont réalisées uniquement dans la dernière étape et sont placées en bas du PDF V5, après les tableaux et les photos.
+- Les zones de signature sont renforcées pour Android : tracé tactile/stylet, capture du pointeur, protection contre le défilement, conservation après rotation d'écran, effacement et validation explicite. Un visa entreprise ne peut plus être enregistré sans signature.
 - Le PDF V5 reprend aussi les matériaux, autocontrôles, faits marquants et travaux restants. L’**annexe comptable V5** reste à la fin du PDF administrateur seulement.
 - Les tableaux d’effectifs entreprises et SNCF sont désormais réellement pilotables sur le terrain : grands compteurs − / +, ajout d’une fonction, modification détaillée et retrait d’une fonction ou d’une ligne.
-- La sauvegarde locale est automatique. La fonction **Transmettre au suivant** exporte le brouillon avec le même numéro, une révision, l’auteur et les photos ; le fichier est ensuite partagé par Android, messagerie, Bluetooth ou e-mail. Le destinataire le reçoit directement depuis la zone Passation.
+- La sauvegarde locale est automatique. La fonction **Transmettre à distance** synchronise le même rapport chiffré avec un relais, puis envoie un lien sécurisé par messagerie. Le destinataire récupère le même numéro, les photos, les visas et la dernière révision, où qu’il se trouve.
 
 ## Règle de numérotation
 
@@ -32,16 +33,17 @@ Chaque nouveau rapport reçoit un numéro non modifiable. Le compteur avance loc
 5. Ajouter les photos avant/après, celles des prestations et les anomalies ; renseigner puis faire signer les responsables à la fin de la saisie.
 6. Choisir **Imprimer le rapport PDF**. L’annexe de valorisation V5 est visible seulement après ouverture de l’espace administrateur.
 
-## Passation entre téléphones
+## Passation distante
 
-La PWA fonctionne hors ligne : elle ne réalise donc pas une synchronisation simultanée par Internet. Pour faire compléter le même rapport par un RPTx, un Adjoint S11 ou un RSO :
+Le relais inclus permet de faire circuler le même rapport à plusieurs kilomètres, sans Bluetooth ni contact direct :
 
-1. Ouvrir **Transmettre au suivant**, renseigner son nom, son rôle et la personne ou partie suivante à compléter.
-2. Partager le fichier JSON généré. Il contient les photos et reste sans données de valorisation.
-3. Sur l’autre téléphone, ouvrir l’application puis toucher **Recevoir une passation**.
-4. Le destinataire complète et retransmet une nouvelle passation. L’application conserve le même numéro, augmente la révision et avertit si une révision plus ancienne risque d’écraser une saisie plus récente.
+1. Déployer une fois le relais indiqué dans [`server/README.md`](server/README.md), puis copier son adresse HTTPS.
+2. Sur le premier téléphone, ouvrir **Contrôle → Transmettre à distance**, renseigner son nom, son rôle, la partie suivante à compléter et l'adresse du relais.
+3. Toucher **Synchroniser et transmettre** ; le téléphone chiffre le rapport, l'enregistre sur le relais puis propose l'envoi d'un lien par WhatsApp, SMS ou e-mail.
+4. Le suivant ouvre le lien dans la PWA ou le colle dans **Ouvrir un lien reçu**. Il récupère toutes les saisies déjà faites et complète sa partie.
+5. Il retransmet ensuite le même lien de capacité après synchronisation. Une révision serveur évite l'écrasement silencieux si deux personnes modifient le rapport en même temps.
 
-Une synchronisation multi-utilisateur en temps réel nécessiterait ensuite un stockage central SNCF (intranet, SharePoint ou API) et une authentification nominative.
+Le relais ne reçoit pas les prix administrateur : la PWA enlève les réglages et les lignes de valorisation avant chiffrement. Pour un usage de production SNCF, l'hébergement et les règles de conservation doivent être validés par le SI/RSSI SNCF ; le même client peut être raccordé à un relais interne compatible.
 
 ## Déploiement GitHub Pages / Termux
 
@@ -49,17 +51,14 @@ Décompresser le contenu de cette archive dans le dépôt puis exécuter :
 
 ```sh
 cd ~/projets
-unzip -o ~/storage/downloads/rapport-journalier-ainm-pwa-v8.2-passation-terrain.zip
+unzip -o ~/storage/downloads/rapport-journalier-ainm-pwa-v8.3-signature-passation-distante.zip
 cd ~/projets/rapport-journalier-ainm-pwa
-rm -f output/pdf/rapport-journalier-ainm-trame-v6.pdf
-rm -f output/pdf/rapport-journalier-ainm-trame-adaptative-v7.pdf
-rm -f tools/generate_trame_v7_pdf.py
 git add -A
-git commit -m "Mise à jour V8.2 : passation et effectifs"
+git commit -m "Mise à jour V8.3 : signatures et passation distante"
 git push
 ```
 
-Attendre une à deux minutes, puis recharger l’URL GitHub Pages ou fermer/réouvrir la PWA. Le cache du service worker est passé à `rj-ainm-v8-2` pour récupérer cette version.
+Attendre une à deux minutes, puis recharger l’URL GitHub Pages ou fermer/réouvrir la PWA. Le cache du service worker est passé à `rj-ainm-v8-3` pour récupérer cette version.
 
 ## Limites connues
 

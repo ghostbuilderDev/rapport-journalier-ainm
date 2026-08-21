@@ -1,0 +1,16 @@
+name = "ainm-report-relay"
+main = "src/index.js"
+compatibility_date = "2026-08-22"
+
+# L'application GitHub Pages actuelle. Changer cette valeur seulement si le domaine de la PWA change.
+[vars]
+ALLOWED_ORIGIN = "https://ghostbuilderdev.github.io"
+REPORT_TTL_DAYS = "14"
+
+[[durable_objects.bindings]]
+name = "REPORT_ROOM"
+class_name = "ReportRoom"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["ReportRoom"]

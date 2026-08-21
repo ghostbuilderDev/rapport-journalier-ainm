@@ -168,8 +168,9 @@ h2 { margin-bottom: 0; font-size: 1.15rem; line-height: 1.2; }
 .after-work-signature .eyebrow { margin-bottom: 4px; color: var(--sncf); opacity: 1; }
 .signature-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }
 .signature-canvas-wrap { overflow: hidden; border: 1px dashed #92bfce; border-radius: 11px; background: #fff; }
-#afterWorkSignatureCanvas { display: block; width: 100%; height: 148px; touch-action: none; cursor: crosshair; }
+#afterWorkSignatureCanvas, #companySignatureCanvas { display: block; width: 100%; height: 148px; touch-action: none; -webkit-user-select: none; user-select: none; cursor: crosshair; }
 .signature-canvas-wrap .muted { padding: 6px 9px 9px; font-size: .75rem; }
+.signature-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .valuation-details { margin-top: 19px; border-top: 1px solid var(--line); padding-top: 15px; }
 .valuation-details summary { color: var(--sncf); font-weight: 800; cursor: pointer; }
 .valuation-table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: .79rem; }
@@ -568,6 +569,8 @@ h2 { margin-bottom: 0; font-size: 1.15rem; line-height: 1.2; }
 .handoff-summary strong { color: #1f5263; font-size: .83rem; }
 .handoff-summary small { color: #72858b; font-size: .71rem; }
 .handoff-panel-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.handoff-link-field { display: grid; gap: 5px; }
+.handoff-link-field textarea { width: 100%; min-height: 74px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .72rem; line-height: 1.35; }
 .data-list-caption { margin: -1px 0 2px; color: #62767e; font-size: .72rem; line-height: 1.35; }
 
 @media (max-width: 720px) {

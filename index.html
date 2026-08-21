@@ -261,10 +261,10 @@
             <span id="reviewStatus" class="status-chip warning">Brouillon</span>
           </div>
           <div id="reviewChecks" class="review-checks"></div>
-          <section class="handoff-panel" aria-label="Passation entre téléphones">
-            <div class="handoff-panel-heading"><p class="eyebrow">Passation de nuit</p><h3>Transmettre le même rapport</h3><p class="muted">La passation conserve le numéro du rapport et inclut les photos. Le destinataire importe le fichier puis poursuit la saisie.</p></div>
+          <section class="handoff-panel" aria-label="Passation distante du rapport">
+            <div class="handoff-panel-heading"><p class="eyebrow">Passation distante</p><h3>Transmettre le même rapport</h3><p class="muted">Le rapport, les signatures et les photos sont chiffrés puis transmis par lien sécurisé. Le destinataire ouvre ce lien, complète sa partie et transmet au suivant.</p></div>
             <div id="handoffSummary" class="handoff-summary"></div>
-            <div class="handoff-panel-actions"><button id="handoffButton" class="secondary-button" type="button">Transmettre au suivant</button><button id="importHandoffButton" class="text-button" type="button">Recevoir une passation</button></div>
+            <div class="handoff-panel-actions"><button id="handoffButton" class="secondary-button" type="button">Transmettre à distance</button><button id="remoteRefreshButton" class="text-button" type="button">Actualiser depuis le serveur</button><button id="importHandoffButton" class="text-button" type="button">Ouvrir un lien reçu</button></div>
           </section>
           <section class="company-visa-section" aria-label="Visas des entreprises intervenantes">
             <div class="section-heading">
@@ -279,7 +279,7 @@
               <label class="field"><span>Fonction / entreprise</span><input id="afterWorkSignerRole" placeholder="Ex. Chef de chantier – TSO" /></label>
             </div>
             <div class="signature-canvas-wrap"><canvas id="afterWorkSignatureCanvas" aria-label="Zone de signature après travaux"></canvas><p id="afterWorkSignatureStatus" class="muted">Signer au doigt dans la zone ci-dessus.</p></div>
-            <button id="clearAfterWorkSignatureButton" class="text-button" type="button">Effacer la signature</button>
+            <div class="signature-actions"><button id="saveAfterWorkSignatureButton" class="secondary-button" type="button">Valider la signature</button><button id="clearAfterWorkSignatureButton" class="text-button" type="button">Effacer la signature</button></div>
           </section>
           <div class="review-actions">
             <button id="printButton" class="primary-button" type="button">Imprimer le rapport PDF</button>
@@ -358,8 +358,8 @@
         </header>
         <div class="menu-stack">
           <button id="configurePricesButton" class="menu-button admin-finance hidden" type="button">Paramétrer les prix du chantier</button>
-          <button id="handoffMenuButton" class="menu-button" type="button">Transmettre au suivant</button>
-          <button id="importButton" class="menu-button" type="button">Recevoir une passation / saisie</button>
+          <button id="handoffMenuButton" class="menu-button" type="button">Transmettre à distance</button>
+          <button id="importButton" class="menu-button" type="button">Importer une sauvegarde locale</button>
           <button id="saveSnapshotButton" class="menu-button" type="button">Sauvegarder un instantané</button>
           <button id="duplicateLastNightMenuButton" class="menu-button" type="button">Reprendre la dernière nuit</button>
         </div>
@@ -390,18 +390,35 @@
     <dialog id="handoffDialog" class="dialog resource-dialog">
       <form method="dialog" id="handoffForm">
         <header class="dialog-header">
-          <div><p class="eyebrow">Passation entre téléphones</p><h2>Transmettre la saisie</h2></div>
+          <div><p class="eyebrow">Passation distante</p><h2>Transmettre la saisie</h2></div>
           <button class="icon-button" value="cancel" aria-label="Fermer" type="submit">×</button>
         </header>
         <div class="resource-editor">
-          <p class="handoff-note">Le brouillon garde le même numéro de rapport et la révision avance d’un cran. Il est partagé par le moyen habituel du téléphone (partage Android, messagerie, Bluetooth ou e-mail), puis importé dans l’application par le destinataire.</p>
+          <p class="handoff-note">Le rapport conserve son numéro et sa révision. Il est chiffré sur le téléphone, synchronisé avec le serveur puis envoyé au suivant sous forme de lien : la distance ne change rien.</p>
           <div class="resource-primary-grid">
             <label class="field"><span>Votre nom</span><input id="handoffEditorName" autocomplete="name" placeholder="Ex. M. Dupont" /></label>
             <label class="field"><span>Votre rôle</span><input id="handoffEditorRole" placeholder="Ex. RPTx, Adjoint S11, RSO" /></label>
             <label class="field field-wide"><span>Personne suivante / partie à compléter</span><input id="handoffRecipient" placeholder="Ex. Adjoint S11 — compléter la consignation" /></label>
+            <label class="field field-wide"><span>Adresse du serveur de passation</span><input id="handoffRelayEndpoint" type="url" inputmode="url" autocomplete="url" placeholder="https://votre-relai.workers.dev" /></label>
           </div>
           <div id="handoffStatus" class="info-banner"></div>
-          <div class="dialog-actions"><button id="sendHandoffButton" type="button" class="primary-button">Exporter et partager la passation</button></div>
+          <label class="field handoff-link-field"><span>Lien de passation</span><textarea id="handoffLinkOutput" class="hidden" rows="3" readonly aria-label="Lien de passation à envoyer"></textarea></label>
+          <div class="dialog-actions"><button id="sendHandoffButton" type="button" class="primary-button">Synchroniser et transmettre</button></div>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="remoteReceiveDialog" class="dialog resource-dialog">
+      <form method="dialog" id="remoteReceiveForm">
+        <header class="dialog-header">
+          <div><p class="eyebrow">Passation distante</p><h2>Ouvrir un lien reçu</h2></div>
+          <button class="icon-button" value="cancel" aria-label="Fermer" type="submit">×</button>
+        </header>
+        <div class="resource-editor">
+          <p class="handoff-note">Coller ici le lien envoyé par le précédent intervenant. Le rapport est récupéré à distance sans perdre les saisies déjà réalisées.</p>
+          <label class="field"><span>Lien de passation</span><textarea id="remoteReceiveLinkInput" rows="5" placeholder="Coller le lien reçu ici"></textarea></label>
+          <div id="remoteReceiveStatus" class="info-banner"></div>
+          <div class="dialog-actions"><button id="receiveRemoteLinkButton" type="button" class="primary-button">Recevoir le rapport</button></div>
         </div>
       </form>
     </dialog>
