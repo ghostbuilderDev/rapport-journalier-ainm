@@ -10,6 +10,9 @@
   const reportHistoryKey = "ainm-rj-pwa-report-history-v2";
   const REPORT_HISTORY_LIMIT = 30;
   const MAX_PHOTOS = 12;
+  const MAX_TASK_PHOTOS = 4;
+  const MAX_DOCUMENT_PHOTOS = 4;
+  const LEGACY_COMBINED_COMPANY = "BOUYGUES ENERGIES & SERVICES / TSO SIGNALISATION";
   const billingEvidence = window.RJ_BILLING_EVIDENCE || { series300Profiles: {}, manualRecords: [], billedTimeArticleBases: [] };
   const basePriceCatalog = Array.isArray(window.RJ_PRICE_CATALOG) ? window.RJ_PRICE_CATALOG : [];
   const priceCatalog = [...basePriceCatalog, ...(Array.isArray(billingEvidence.manualRecords) ? billingEvidence.manualRecords : [])];
@@ -53,26 +56,26 @@
   };
 
   const COMPANY_OPTIONS = [
-    "BOUYGUES ENERGIES & SERVICES / TSO SIGNALISATION", "SNCF", "ATIF", "SYSTRA", "ETF", "ETF Services", "ETF SERVICE", "Sentinelles du Rail", "LSDR", "TSO", "TSO Signalisation", "TSO (LTV)", "Bouygues", "HP ELEC", "GEQ", "CEM", "Autre",
+    "Bouygues Energies & Services", "TSO Signalisation", "ETF", "ETF Services", "Sentinelles du Rail", "LSDR", "SNCF", "ATIF", "SYSTRA", "TSO", "TSO (LTV)", "HP ELEC", "Autre",
   ];
   const PERSONNEL_ROLES = {
     "SNCF": ["RPTx", "CCH", "Adjoint S11", "Adjoint S6", "RSO", "Agent d’activité", "Agent prestataire", "KV caténaire", "KVSE", "Surveillant caténaire", "Surveillant travaux SE", "Surveillant voie", "Agent signalisation", "Agent voie", "Agent RSO", "ASP / annonceur", "MOETx", "AMOETx", "CSPS", "Autre"],
-    "Entreprise travaux": ["Conducteur travaux", "Chef de chantier", "Chef d’équipe", "Opérateur travaux", "Intérimaire", "Monteur signalisation", "Électricien", "Pelleur", "Conducteur d’engin", "Chef de manœuvre", "Élingueur", "Agent lorry", "Soudeur", "SST", "Autre"],
-    "Prestataire sécurité": ["Agent prestataire", "Sentinelle", "Annonceur", "Agent sécurité", "Agent protection physique", "Pelleur", "Percheur", "SST", "Autre"],
+    "Entreprise travaux": ["Conducteur travaux", "Chef de chantier", "Chef d’équipe", "Opérateur travaux", "Intérimaire", "Monteur signalisation", "Électricien", "Pelleur", "Conducteur d’engin", "Chef de manœuvre", "Élingueur", "Soudeur", "SST", "Autre"],
+    "Prestataire sécurité": ["Agent prestataire", "Sentinelle", "Annonceur", "Agent sécurité", "Agent protection physique", "Agent lorry", "Pelleur", "Percheur", "SST", "Autre"],
   };
   const EQUIPMENT_TYPES = {
     "Rail-route / LAM": ["Pelle rail-route", "Pelle rail-route + remorque", "LAM (Lorry Automoteur)", "Nacelle rail-route", "4 axes", "Lorry", "Lorry à main", "TTx", "Élan", "Autre rail-route"],
-    "Routier / chenillard": ["Mini-pelle", "Pelle mécanique supérieure à 2,5 t", "Pelle chenillée", "Bull", "Chargeuse", "Camion", "Camion grue", "Autre engin routier / chenillard"],
+    "Routier / chenillard": ["4x4 / véhicule léger", "Mini-pelle", "Pelle mécanique supérieure à 2,5 t", "Pelle chenillée", "Bull", "Chargeuse", "Camion", "Camion grue", "Autre engin routier / chenillard"],
     "Manutention / levage": ["Nacelle", "Chariot télescopique", "Manitou", "Grue", "Remorque", "Chariot élévateur", "Autre matériel de levage"],
     "Autre matériel": ["Groupe électrogène", "Compresseur", "Outillage spécialisé", "Autre"],
   };
   const PERSONNEL_PRESETS = [
     ["Entreprise travaux", "Conducteur travaux"], ["Entreprise travaux", "Chef de chantier"], ["Entreprise travaux", "Chef d’équipe"], ["Entreprise travaux", "Opérateur travaux"], ["Entreprise travaux", "Intérimaire"],
-    ["Prestataire sécurité", "Agent prestataire"], ["Prestataire sécurité", "Sentinelle"],
+    ["Prestataire sécurité", "Agent prestataire"], ["Prestataire sécurité", "Sentinelle"], ["Prestataire sécurité", "Agent lorry"],
   ];
   const EQUIPMENT_PRESETS = [
     ["Rail-route / LAM", "Pelle rail-route"], ["Rail-route / LAM", "LAM (Lorry Automoteur)"], ["Rail-route / LAM", "Nacelle rail-route"], ["Rail-route / LAM", "Lorry"],
-    ["Routier / chenillard", "Mini-pelle"], ["Routier / chenillard", "Pelle chenillée"], ["Manutention / levage", "Camion grue"], ["Autre matériel", "Groupe électrogène"],
+    ["Routier / chenillard", "4x4 / véhicule léger"], ["Routier / chenillard", "Mini-pelle"], ["Routier / chenillard", "Pelle chenillée"], ["Manutention / levage", "Camion grue"], ["Autre matériel", "Groupe électrogène"],
   ];
   const MATERIAL_TYPES = ["Câble", "Fourreau", "Caniveau", "Béton / mortier", "Fixation / connectique", "Armoire / coffret", "Équipement signalisation", "Matériel déposé", "Consommable", "Autre"];
   const MATERIAL_UNITS = ["u", "ml", "m²", "m³", "kg", "t", "L", "bobine", "lot"];
@@ -80,8 +83,8 @@
   const PHOTO_CONTEXT_OPTIONS = ["Avancement", "Anomalie", "Autocontrôle", "Sécurité", "Matériel", "Avant travaux", "Après travaux", "Autre"];
   const SNCF_MEANS_OPTIONS = ["RPTx", "CCH", "Adjoint S11", "Adjoint S6", "Agent d’activité", "Agent prestataire", "KV caténaire", "KVSE", "Surveillant caténaire", "Surveillant travaux SE", "Surveillant voie", "Agent RSO", "Agent signalisation", "Agent voie", "Agent SE", "Annonceur / ASP", "Agent lorry", "Autre"];
   const SNCF_MEANS_PRESETS = ["RPTx", "Adjoint S11", "Adjoint S6", "KV caténaire", "KVSE", "Surveillant travaux SE", "Surveillant voie", "Agent RSO"];
-  const QUICK_COMPANY_ROLES = ["Conducteur travaux", "Chef de chantier", "Chef d’équipe", "Opérateur travaux", "Intérimaire"];
-  const QUICK_SAFETY_ROLES = ["Agent prestataire", "Sentinelle", "Annonceur", "Agent sécurité"];
+  const QUICK_COMPANY_ROLES = ["Chef de chantier", "Chef d’équipe", "Opérateur travaux", "Intérimaire"];
+  const QUICK_SAFETY_ROLES = ["Agent prestataire", "Sentinelle", "Annonceur", "Agent lorry"];
   const QUICK_TEMPLATE_IDS = new Set([
     "pose-caniveau-pm-mm", "pose-caniveau-gm-tgm", "deroulage-240", "deroulage-95",
     "pose-intervalle-decharge", "depose-intervalle-decharge", "pose-ci-equilibrage", "depose-ci-equilibrage",
@@ -89,9 +92,18 @@
 
   const selectOptions = (options, selected, placeholder = "À renseigner") => `<option value="">${escapeHtml(placeholder)}</option>${options.map((option) => `<option value="${escapeHtml(option)}" ${option === selected ? "selected" : ""}>${escapeHtml(option)}</option>`).join("")}`;
   const editorValue = (id) => String($(`#${id}`)?.value ?? "").trim();
-  const companyName = (row) => row?.company === "Autre" ? (row.companyOther || "Autre entreprise") : (row?.company || "Entreprise à préciser");
+  const canonicalCompany = (value) => {
+    const raw = String(value || "").trim();
+    const normalized = normalise(raw);
+    if (normalized === normalise(LEGACY_COMBINED_COMPANY)) return "TSO Signalisation";
+    if (normalized === "bouygues energies services" || normalized === "bouygues energie et services" || normalized === "bouygues") return "Bouygues Energies & Services";
+    if (normalized === "tso signalisation") return "TSO Signalisation";
+    if (normalized === "etf service") return "ETF Services";
+    return raw;
+  };
+  const companyName = (row) => row?.company === "Autre" ? (row.companyOther || "Autre entreprise") : (canonicalCompany(row?.company) || "Entreprise à préciser");
   const roleName = (row) => row?.role === "Autre" ? (row.roleOther || "Fonction à préciser") : (row?.role || "Fonction à préciser");
-  const participatingCompanyNames = () => [...new Set((state.meta?.participatingCompanies || []).map((value) => String(value || "").trim()).filter(Boolean))];
+  const participatingCompanyNames = () => [...new Set((state.meta?.participatingCompanies || []).map(canonicalCompany).filter(Boolean))];
   const enterpriseName = () => participatingCompanyNames()[0] || (state.meta.enterprise === "Autre" ? (state.meta.enterpriseOther || "Autre entreprise") : state.meta.enterprise);
   const companiesForSelect = () => [...new Set([...participatingCompanyNames(), ...COMPANY_OPTIONS])];
   const companySelectOptions = (selected, placeholder = "Choisir une entreprise") => selectOptions(companiesForSelect(), selected, placeholder);
@@ -181,7 +193,7 @@
     const identity = allocateReportIdentity();
     return {
       schema: 1,
-      appVersion: 8,
+      appVersion: 8.1,
       updatedAt: new Date().toISOString(),
       reportSerial: identity.serial,
       reportUid: identity.uid,
@@ -189,9 +201,9 @@
         operation: "RCT",
         reportNo: identity.reportNo,
         orderNo: "",
-        enterprise: "BOUYGUES ENERGIES & SERVICES / TSO SIGNALISATION",
+        enterprise: "TSO Signalisation",
         enterpriseOther: "",
-        participatingCompanies: ["BOUYGUES ENERGIES & SERVICES / TSO SIGNALISATION"],
+        participatingCompanies: ["TSO Signalisation"],
         date,
         shiftType: "nuit",
         shiftStart: "22:00",
@@ -256,13 +268,20 @@
       const legacyEnterprise = state.meta.enterprise === "Autre" ? state.meta.enterpriseOther : state.meta.enterprise;
       state.meta.participatingCompanies = legacyEnterprise ? [legacyEnterprise] : [];
     }
-    state.meta.participatingCompanies = [...new Set(state.meta.participatingCompanies.map((value) => String(value || "").trim()).filter(Boolean))];
-    if (!state.meta.participatingCompanies.length && state.meta.enterprise) state.meta.participatingCompanies.push(state.meta.enterprise);
-    state.meta.enterprise = state.meta.participatingCompanies[0] || state.meta.enterprise || "";
-    state.appVersion = Math.max(8, Number(state.appVersion) || 0);
+    state.meta.participatingCompanies = [...new Set(state.meta.participatingCompanies.map(canonicalCompany).filter(Boolean))];
+    if (!state.meta.participatingCompanies.length && state.meta.enterprise) state.meta.participatingCompanies.push(canonicalCompany(state.meta.enterprise));
+    state.meta.enterprise = canonicalCompany(state.meta.participatingCompanies[0] || state.meta.enterprise || "");
+    ["personnel", "equipment"].forEach((key) => state[key].forEach((row) => {
+      if (row.company !== "Autre") row.company = canonicalCompany(row.company);
+    }));
+    state.companySignatures.forEach((signature) => { signature.company = canonicalCompany(signature.company); });
+    state.personnel = state.personnel.filter((row) => number(row.count) > 0);
+    state.sncfMeans = state.sncfMeans.filter((row) => number(row.count) > 0);
+    state.appVersion = Math.max(8.1, Number(state.appVersion) || 0);
     ["personnel", "sncfMeans"].forEach((key) => {
       state[key].forEach((row) => { row.role = canonicalSncfRole(row.role); });
     });
+    ensureCompanySignatureRecords();
     if (!state.reportSerial || !state.reportUid) {
       const identity = allocateReportIdentity();
       state.reportSerial = identity.serial;
@@ -569,9 +588,23 @@
     renderParticipantCompanies();
   }
 
+  function ensureCompanySignatureRecords() {
+    const companies = participatingCompanyNames();
+    const activeCompanies = new Set(companies);
+    state.companySignatures = (state.companySignatures || []).filter((signature) => activeCompanies.has(canonicalCompany(signature.company)));
+    state.companySignatures.forEach((signature) => { signature.company = canonicalCompany(signature.company); });
+    companies.forEach((company) => {
+      if (state.companySignatures.some((signature) => signature.company === company)) return;
+      state.companySignatures.push({
+        id: uid(), company, name: company === enterpriseName() ? (state.meta.companyRepresentative || "") : "", role: "", signedAt: "", dataUrl: "",
+      });
+    });
+  }
+
   function syncPrimaryEnterprise() {
     state.meta.participatingCompanies = participatingCompanyNames();
     state.meta.enterprise = state.meta.participatingCompanies[0] || "";
+    ensureCompanySignatureRecords();
   }
 
   function renderParticipantCompanies() {
@@ -579,31 +612,66 @@
     if (!target) return;
     const selected = new Set(participatingCompanyNames());
     const listed = COMPANY_OPTIONS.filter((company) => company !== "Autre");
-    const known = listed.map((company) => `<button type="button" class="company-choice ${selected.has(company) ? "selected" : ""}" data-participant-company="${escapeHtml(company)}" aria-pressed="${selected.has(company)}">${selected.has(company) ? "✓ " : ""}${escapeHtml(company)}</button>`).join("");
-    const custom = [...selected].filter((company) => !COMPANY_OPTIONS.includes(company)).map((company) => `<button type="button" class="company-choice selected custom-company" data-participant-company="${escapeHtml(company)}" aria-pressed="true">✓ ${escapeHtml(company)}</button>`).join("");
-    target.innerHTML = known + custom;
+    const select = $("#participantCompanySelect");
+    const addButton = $("#addParticipantCompanySelectButton");
+    const remaining = listed.filter((company) => !selected.has(company));
+    if (select) {
+      select.innerHTML = selectOptions(remaining, "", remaining.length ? "Choisir une entreprise" : "Toutes les entreprises sont ajoutées");
+      select.disabled = !remaining.length;
+    }
+    if (addButton) addButton.disabled = !remaining.length;
+    target.innerHTML = selected.size
+      ? [...selected].map((company) => `<span class="company-selected ${COMPANY_OPTIONS.includes(company) ? "" : "custom-company"}"><span>${escapeHtml(company)}</span><button type="button" aria-label="Retirer ${escapeHtml(company)}" data-remove-participant-company="${escapeHtml(company)}">×</button></span>`).join("")
+      : `<p class="empty-inline">Ajouter au moins une entreprise intervenante.</p>`;
+    renderCompanySignerSetup();
   }
 
-  function toggleParticipantCompany(company) {
+  function addParticipantCompany(company) {
+    const value = canonicalCompany(company);
+    if (!value) return;
     const selected = participatingCompanyNames();
-    const index = selected.indexOf(company);
+    if (selected.includes(value)) {
+      showToast("Cette entreprise est déjà ajoutée à la séance.", "warning");
+      return;
+    }
+    selected.push(value);
+    state.meta.participatingCompanies = selected;
+    syncPrimaryEnterprise();
+    save("Entreprise intervenante ajoutée");
+    refresh({ inputs: true });
+  }
+
+  function removeParticipantCompany(company) {
+    const selected = participatingCompanyNames();
+    const index = selected.indexOf(canonicalCompany(company));
     if (index >= 0) {
       if (selected.length === 1) {
         showToast("Conserver au moins une entreprise intervenante.", "warning");
         return;
       }
       selected.splice(index, 1);
-    } else selected.push(company);
+    }
     state.meta.participatingCompanies = selected;
     syncPrimaryEnterprise();
     save("Entreprises intervenantes mises à jour");
     refresh({ inputs: true });
   }
 
+  function renderCompanySignerSetup() {
+    const target = $("#companySignerSetup");
+    if (!target) return;
+    ensureCompanySignatureRecords();
+    const companies = participatingCompanyNames();
+    target.innerHTML = companies.length ? `<div class="company-signer-grid">${companies.map((company) => {
+      const signature = state.companySignatures.find((item) => item.company === company);
+      return `<article class="company-signer-card"><strong>${escapeHtml(company)}</strong><label><span>Responsable</span><input data-company-signer-field="name" data-company-signer-id="${escapeHtml(signature.id)}" value="${escapeHtml(signature.name || "")}" autocomplete="name" placeholder="Nom et prénom" /></label><label><span>Fonction</span><input data-company-signer-field="role" data-company-signer-id="${escapeHtml(signature.id)}" value="${escapeHtml(signature.role || "")}" placeholder="Chef de chantier, chef d’équipe…" /></label><button class="mini-button ${signature.dataUrl ? "signed" : ""}" type="button" data-sign-company="${escapeHtml(signature.id)}">${signature.dataUrl ? "Modifier la signature" : "Signer"}</button></article>`;
+    }).join("")}</div>` : `<p class="empty-inline">Ajouter une entreprise pour renseigner son responsable.</p>`;
+  }
+
   function renderPricingContext() {
     const context = getShiftContext();
     const banner = $("#pricingContext");
-    if (!isAdminView() || handoff) {
+    if (!isAdminView()) {
       banner.classList.add("hidden");
       return;
     }
@@ -644,19 +712,14 @@
     empty.classList.toggle("hidden", state.tasks.length > 0);
     list.innerHTML = state.tasks.map((task) => {
       const template = templateById.get(task.templateId);
-      const result = resolveTask(task);
       const place = [task.voie && `Voie ${task.voie}`, task.pkStart && `PK ${task.pkStart}`, task.pkEnd && `→ ${task.pkEnd}`].filter(Boolean).join(" · ");
-      const pricing = isAdminView()
-        ? (result.status === "priced" ? `${euros(result.amount)} HT estimés${result.notice ? " · contrôle recommandé" : ""}` : result.reason)
-        : "Prestation enregistrée";
       return `
         <article class="task-card">
           <div class="task-main">
             <div class="task-topline">
               <h3 class="task-title">${escapeHtml(task.label || template?.reportLabel || "Prestation")}</h3>
-              ${taskStatusMarkup(result)}
             </div>
-            <p class="task-meta"><span class="task-quantity">${taskText(task, template)}</span>${place ? `<span>${escapeHtml(place)}</span>` : ""}<span>${escapeHtml(pricing)}</span></p>
+            <p class="task-meta"><span class="task-quantity">${taskText(task, template)}</span>${place ? `<span>${escapeHtml(place)}</span>` : ""}${task.photos?.length ? `<span class="resource-chip">${task.photos.length} photo(s) jointe(s)</span>` : ""}</p>
             ${task.note ? `<p class="task-meta"><span>Observation : ${escapeHtml(task.note)}</span></p>` : ""}
           </div>
           <div class="task-actions">
@@ -734,6 +797,34 @@
       const count = state.sncfMeans.filter((row) => canonicalSncfRole(row.role) === role).reduce((total, row) => total + number(row.count), 0);
       return `<div class="roster-role"><span>${escapeHtml(role)}</span><div class="counter-control"><button type="button" aria-label="Retirer ${escapeHtml(role)}" data-quick-sncf-role="${escapeHtml(role)}" data-counter-delta="-1">−</button><strong>${displayNumber(count, 0)}</strong><button type="button" aria-label="Ajouter ${escapeHtml(role)}" data-quick-sncf-role="${escapeHtml(role)}" data-counter-delta="1">+</button></div></div>`;
     }).join("")}</div></section>`;
+  }
+
+  function renderQuickEquipmentAdder() {
+    const target = $("#quickEquipmentAdder");
+    if (!target) return;
+    const companies = participatingCompanyNames();
+    const defaultCompany = companies[0] || "";
+    const family = Object.keys(EQUIPMENT_TYPES)[0];
+    target.innerHTML = `<section class="quick-equipment-panel"><div><strong>Ajout rapide</strong><span>Une ligne est créée pour chaque engin.</span></div><div class="quick-equipment-fields"><label><span>Famille</span><select id="quickEquipmentFamily">${selectOptions(Object.keys(EQUIPMENT_TYPES), family, "Famille")}</select></label><label><span>Engin</span><select id="quickEquipmentType">${selectOptions(EQUIPMENT_TYPES[family], "", "Choisir un engin")}</select></label><label><span>Entreprise</span><select id="quickEquipmentCompany">${companySelectOptions(defaultCompany)}</select></label><button id="quickAddEquipmentButton" type="button" class="secondary-button">＋ Ajouter l’engin</button></div></section>`;
+  }
+
+  function refreshQuickEquipmentTypes() {
+    const family = editorValue("quickEquipmentFamily");
+    const select = $("#quickEquipmentType");
+    if (select) select.innerHTML = selectOptions(EQUIPMENT_TYPES[family] || [], "", "Choisir un engin");
+  }
+
+  function addQuickEquipment() {
+    const family = editorValue("quickEquipmentFamily");
+    const type = editorValue("quickEquipmentType");
+    const company = editorValue("quickEquipmentCompany");
+    if (!family || !type || !company) {
+      showToast("Choisir la famille, l’engin et l’entreprise avant d’ajouter.", "warning");
+      return;
+    }
+    state.equipment.push({ id: uid(), family, type, name: type, typeOther: "", company, companyOther: "", count: 1, identification: "", zone: "", pk: "", miseEnVoie: "", observation: "" });
+    save("Engin ajouté");
+    refresh();
   }
 
   function countStepper(id, value = "") {
@@ -858,10 +949,10 @@
     const photoPreview = (photo, label) => photo?.dataUrl ? `<img class="inline-photo-preview" src="${escapeHtml(photo.dataUrl)}" alt="${escapeHtml(label)}" />` : "";
     return `<div class="resource-editor">
       <h3 class="resource-editor-title">Interception ou consignation</h3>
-      <div class="resource-primary-grid possession-primary"><label class="field"><span>Type</span><select id="row_kind">${selectOptions(["ITC / interception", "Consignation", "ITC + consignation"], row.kind || "", "Choisir un type")}</select></label><label class="field"><span>Voie</span><input id="row_voie" value="${escapeHtml(row.voie ?? "")}" placeholder="Ex. V1" /></label><label class="field"><span>Zone / secteur</span><input id="row_zone" value="${escapeHtml(row.zone ?? "")}" placeholder="Ex. PK 80+050 à 80+340" /></label><label class="field"><span>Réf. ITC / ARF / AAN</span><input id="row_reference" value="${escapeHtml(row.reference ?? "")}" placeholder="Référence si disponible" /></label></div>
+      <div class="resource-primary-grid possession-primary"><label class="field"><span>Type</span><select id="row_kind">${selectOptions(["ITC / interception", "Consignation", "ITC + consignation"], row.kind || "", "Choisir un type")}</select></label><label class="field"><span>Voie</span><input id="row_voie" value="${escapeHtml(row.voie ?? "")}" placeholder="Ex. V1" /></label><label class="field"><span>Zone / secteur</span><input id="row_zone" value="${escapeHtml(row.zone ?? "")}" placeholder="Ex. PK 80+050 à 80+340" /></label></div>
       <section class="time-matrix" aria-label="Tableau des horaires"><div class="time-matrix-head"><span>Étape</span><span>Début</span><span>Fin</span></div><label><strong>Prévue</strong><input id="row_plannedStart" type="time" value="${escapeHtml(row.plannedStart ?? start)}" /><input id="row_plannedEnd" type="time" value="${escapeHtml(row.plannedEnd ?? end)}" /></label><label><strong>Accordée</strong><input id="row_agreedStart" type="time" value="${escapeHtml(row.agreedStart ?? start)}" /><input id="row_agreedEnd" type="time" value="${escapeHtml(row.agreedEnd ?? end)}" /></label><label><strong>ARF / réelle</strong><input id="row_actualStart" type="time" value="${escapeHtml(row.actualStart ?? start)}" /><input id="row_actualEnd" type="time" value="${escapeHtml(row.actualEnd ?? end)}" /></label><label><strong>Intervention</strong><input id="row_interventionStart" type="time" value="${escapeHtml(row.interventionStart ?? "")}" /><input id="row_interventionEnd" type="time" value="${escapeHtml(row.interventionEnd ?? "")}" /></label></section>
-      <section class="arf-photo-capture"><div><strong>Photos ARF</strong><p>Joindre le document de début et de fin directement à cette ligne.</p></div><div class="arf-photo-grid"><label class="field"><span>ARF début</span>${photoPreview(row.arfStartPhoto, "Photo ARF début")}<input id="row_arfStartPhoto" type="file" accept="image/*" capture="environment" /></label><label class="field"><span>ARF fin</span>${photoPreview(row.arfEndPhoto, "Photo ARF fin")}<input id="row_arfEndPhoto" type="file" accept="image/*" capture="environment" /></label></div></section>
-      <label class="field"><span>Observation</span><textarea id="row_observation" rows="3" placeholder="Motif de décalage, information ARF / AAN, consigne…">${escapeHtml(row.observation ?? "")}</textarea></label>
+      <section class="arf-photo-capture"><div><strong>Photos ARF</strong><p>Joindre le document de début et de fin directement à cette ligne.</p></div><div class="arf-photo-grid"><section class="photo-capture-item"><strong>ARF début</strong>${photoPreview(row.arfStartPhoto, "Photo ARF début")}${imageAttachmentControls("row_arfStartCamera", "row_arfStartFile", { multiple: false })}</section><section class="photo-capture-item"><strong>ARF fin</strong>${photoPreview(row.arfEndPhoto, "Photo ARF fin")}${imageAttachmentControls("row_arfEndCamera", "row_arfEndFile", { multiple: false })}</section></div></section>
+      <label class="field"><span>Observation</span><textarea id="row_observation" rows="3" placeholder="Motif de décalage ou consigne utile…">${escapeHtml(row.observation ?? "")}</textarea></label>
       <div class="dialog-actions"><button id="saveRowButton" type="button" class="primary-button">Enregistrer les horaires</button></div>
     </div>`;
   }
@@ -874,7 +965,7 @@
       plannedStart: editorValue("row_plannedStart"), plannedEnd: editorValue("row_plannedEnd"),
       agreedStart: editorValue("row_agreedStart"), agreedEnd: editorValue("row_agreedEnd"),
       interventionStart: editorValue("row_interventionStart"), interventionEnd: editorValue("row_interventionEnd"),
-      reference: editorValue("row_reference"), zone: editorValue("row_zone"),
+      reference: "", zone: editorValue("row_zone"),
       observation: editorValue("row_observation"),
     };
   }
@@ -891,7 +982,7 @@
       </div>
       <label class="field"><span>Fait constaté</span><textarea id="row_detail" rows="4" placeholder="Décrire factuellement l’anomalie, l’écart ou l’événement.">${escapeHtml(row.detail ?? "")}</textarea></label>
       <label class="field"><span>Mesure prise / suite</span><textarea id="row_action" rows="4" placeholder="Action immédiate, mesure conservatoire ou prochaine étape.">${escapeHtml(row.action ?? "")}</textarea></label>
-      <label class="field"><span>Photo associée</span>${photoPreview}<input id="row_anomalyPhoto" type="file" accept="image/*" capture="environment" /></label>
+      <section class="attachment-section"><strong>Photos associées</strong>${photoPreview}${imageAttachmentControls("row_anomalyCamera", "row_anomalyFile", { multiple: false })}</section>
       <details class="optional-details"><summary>Responsable et échéance</summary><div class="task-extra-grid"><label class="field"><span>Responsable</span><input id="row_responsible" value="${escapeHtml(row.responsible ?? "")}" placeholder="Nom ou entreprise responsable" /></label><label class="field"><span>Échéance</span><input id="row_dueDate" type="date" value="${escapeHtml(row.dueDate ?? "")}" /></label></div></details>
       <div class="dialog-actions"><button id="saveRowButton" type="button" class="primary-button">Enregistrer le point de suivi</button></div>
     </div>`;
@@ -964,6 +1055,7 @@
     return `<div class="resource-editor">
       <div class="resource-banner document-banner"><span class="resource-symbol">D</span><div><strong>Document, fiche ou rapport</strong><p>Tracer uniquement la pièce utile à l’archivage et sa référence. Elle apparaîtra dans la section dédiée du PDF.</p></div></div>
       <div class="resource-primary-grid document-primary"><label class="field"><span>Document / fiche</span><input id="row_name" value="${escapeHtml(row.name ?? "")}" placeholder="Ex. Fiche de libération" /></label><label class="field"><span>Référence</span><input id="row_reference" value="${escapeHtml(row.reference ?? "")}" placeholder="N° ou lien" /></label><label class="field field-wide"><span>Observation / réserve</span><input id="row_observation" value="${escapeHtml(row.observation ?? "")}" placeholder="Contenu ou réserve éventuelle" /></label></div>
+      <section class="attachment-section"><strong>Photo ou pièce image</strong><p>Prendre une photo ou choisir une image depuis les fichiers du téléphone.</p>${renderImageAttachmentPreviews(row.attachments || [], "data-remove-document-attachment")}${imageAttachmentControls("row_documentCamera", "row_documentFile")}</section>
       <div class="dialog-actions"><button id="saveRowButton" type="button" class="primary-button">Enregistrer le document</button></div>
     </div>`;
   }
@@ -983,7 +1075,7 @@
     },
     possession: {
       title: "Interception / consignation", editor: renderPossessionEditor, bind: bindPossessionEditor, read: readPossessionEditor,
-      display: (row) => `<h3>${escapeHtml(row.kind || "Interception / consignation")} · Voie ${escapeHtml(row.voie || "à préciser")}</h3><p>${row.reference ? `<span class="resource-chip">${escapeHtml(row.reference)}</span>` : ""}<span>ARF / réel ${escapeHtml(row.actualStart || "—")} → ${escapeHtml(row.actualEnd || "—")}</span>${row.arfStartPhoto || row.arfEndPhoto ? `<span class="resource-chip">Photos ARF jointes</span>` : ""}${row.observation ? `<span>${escapeHtml(row.observation)}</span>` : ""}</p>`,
+      display: (row) => `<h3>${escapeHtml(row.kind || "Interception / consignation")} · Voie ${escapeHtml(row.voie || "à préciser")}</h3><p><span>ARF / réel ${escapeHtml(row.actualStart || "—")} → ${escapeHtml(row.actualEnd || "—")}</span>${row.arfStartPhoto || row.arfEndPhoto ? `<span class="resource-chip">Photos ARF jointes</span>` : ""}${row.observation ? `<span>${escapeHtml(row.observation)}</span>` : ""}</p>`,
     },
     anomaly: {
       title: "Événement / anomalie", editor: renderAnomalyEditor, read: readAnomalyEditor,
@@ -991,7 +1083,7 @@
     },
     document: {
       title: "Rapport fourni", editor: renderDocumentEditor, read: readDocumentEditor,
-      display: (row) => `<h3>${escapeHtml(row.name || "Document à préciser")}${row.reference ? ` · ${escapeHtml(row.reference)}` : ""}</h3><p>${escapeHtml(row.observation || "")}</p>`,
+      display: (row) => `<h3>${escapeHtml(row.name || "Document à préciser")}${row.reference ? ` · ${escapeHtml(row.reference)}` : ""}</h3><p>${row.attachments?.length ? `<span class="resource-chip">${row.attachments.length} photo(s) jointe(s)</span>` : ""}${escapeHtml(row.observation || "")}</p>`,
     },
     sncfMeans: {
       title: "Moyen SNCF", editor: renderSncfMeansEditor, bind: bindSncfMeansEditor, read: readSncfMeansEditor,
@@ -1012,7 +1104,7 @@
     const config = rowConfig[key];
     const rows = state[key] || [];
     if (key === "possession") {
-      target.innerHTML = rows.length ? `<div class="possession-table-wrap"><table class="possession-table"><thead><tr><th>Type / voie</th><th>Prévue</th><th>Accordée</th><th>ARF / réelle</th><th>Intervention</th><th>ARF</th><th></th></tr></thead><tbody>${rows.map((row) => `<tr><td><strong>${escapeHtml(row.kind || "Interception / consignation")}</strong><br>${escapeHtml([row.voie && `Voie ${row.voie}`, row.zone].filter(Boolean).join(" · ") || "—")}${row.reference ? `<br><small>${escapeHtml(row.reference)}</small>` : ""}</td><td>${escapeHtml(`${row.plannedStart || "—"} → ${row.plannedEnd || "—"}`)}</td><td>${escapeHtml(`${row.agreedStart || "—"} → ${row.agreedEnd || "—"}`)}</td><td>${escapeHtml(`${row.actualStart || "—"} → ${row.actualEnd || "—"}`)}</td><td>${escapeHtml(`${row.interventionStart || "—"} → ${row.interventionEnd || "—"}`)}</td><td>${row.arfStartPhoto ? "Début ✓" : "Début —"}<br>${row.arfEndPhoto ? "Fin ✓" : "Fin —"}</td><td class="table-actions"><button class="mini-button" type="button" data-edit-row="possession:${row.id}">Modifier</button><button class="mini-button danger" type="button" data-delete-row="possession:${row.id}">Supprimer</button></td></tr>`).join("")}</tbody></table></div>` : `<p class="empty-inline">Aucune interception ou consignation saisie.</p>`;
+      target.innerHTML = rows.length ? `<div class="possession-table-wrap"><table class="possession-table"><thead><tr><th>Type / voie</th><th>Prévue</th><th>Accordée</th><th>ARF / réelle</th><th>Intervention</th><th>ARF</th><th></th></tr></thead><tbody>${rows.map((row) => `<tr><td><strong>${escapeHtml(row.kind || "Interception / consignation")}</strong><br>${escapeHtml([row.voie && `Voie ${row.voie}`, row.zone].filter(Boolean).join(" · ") || "—")}</td><td>${escapeHtml(`${row.plannedStart || "—"} → ${row.plannedEnd || "—"}`)}</td><td>${escapeHtml(`${row.agreedStart || "—"} → ${row.agreedEnd || "—"}`)}</td><td>${escapeHtml(`${row.actualStart || "—"} → ${row.actualEnd || "—"}`)}</td><td>${escapeHtml(`${row.interventionStart || "—"} → ${row.interventionEnd || "—"}`)}</td><td>${row.arfStartPhoto ? "Début ✓" : "Début —"}<br>${row.arfEndPhoto ? "Fin ✓" : "Fin —"}</td><td class="table-actions"><button class="mini-button" type="button" data-edit-row="possession:${row.id}">Modifier</button><button class="mini-button danger" type="button" data-delete-row="possession:${row.id}">Supprimer</button></td></tr>`).join("")}</tbody></table></div>` : `<p class="empty-inline">Aucune interception ou consignation saisie.</p>`;
       return;
     }
     target.innerHTML = rows.length ? rows.map((row) => `
@@ -1027,7 +1119,7 @@
     if (!target) return;
     const photos = state.photos || [];
     if (!photos.length) {
-      target.innerHTML = `<p class="empty-inline">Aucune photo ajoutée. Utiliser « Avant » ou « Après » pour ouvrir l’appareil photo.</p>`;
+      target.innerHTML = `<p class="empty-inline">Aucune photo ajoutée. Utiliser les boutons Avant / Après pour prendre une photo ou choisir un fichier.</p>`;
       return;
     }
     target.innerHTML = ["avant", "apres"].map((phase) => {
@@ -1065,6 +1157,32 @@
     canvas.height = height;
     canvas.getContext("2d").drawImage(image, 0, 0, width, height);
     return canvas.toDataURL("image/jpeg", 0.64);
+  }
+
+  function imageAttachmentControls(cameraId, fileId, { multiple = true } = {}) {
+    const suffix = multiple ? " multiple" : "";
+    return `<div class="attachment-actions"><label class="mini-button attachment-button">📷 Prendre une photo<input id="${escapeHtml(cameraId)}" type="file" accept="image/*" capture="environment"${suffix} hidden /></label><label class="mini-button attachment-button">▣ Choisir dans les fichiers<input id="${escapeHtml(fileId)}" type="file" accept="image/*"${suffix} hidden /></label></div>`;
+  }
+
+  function renderImageAttachmentPreviews(photos = [], removeAttribute = "") {
+    if (!photos.length) return "";
+    return `<div class="inline-photo-grid">${photos.map((photo) => `<figure><img class="inline-photo-preview" src="${escapeHtml(photo.dataUrl)}" alt="${escapeHtml(photo.label || "Photo jointe")}" />${removeAttribute ? `<button class="mini-button danger" type="button" ${removeAttribute}="${escapeHtml(photo.id)}">Supprimer</button>` : ""}</figure>`).join("")}</div>`;
+  }
+
+  async function appendImageAttachments(target, property, inputIds, limit, label) {
+    target[property] ||= [];
+    const remaining = Math.max(0, limit - target[property].length);
+    const files = inputIds.flatMap((inputId) => [...($(`#${inputId}`)?.files || [])]).slice(0, remaining);
+    const added = [];
+    for (const file of files) {
+      try {
+        added.push({ id: uid(), label, capturedAt: new Date().toISOString(), dataUrl: await compactPhoto(file) });
+      } catch (_) {
+        showToast(`La photo « ${file.name || "sans nom"} » n’a pas pu être ajoutée.`, "warning");
+      }
+    }
+    target[property].push(...added);
+    return added.length;
   }
 
   async function addPhotos(files) {
@@ -1292,31 +1410,31 @@
   function renderCompanyVisas() {
     const target = $("#companyVisaList");
     if (!target) return;
+    ensureCompanySignatureRecords();
     const companies = participatingCompanyNames();
-    const signatures = state.companySignatures || [];
     if (!companies.length) {
       target.innerHTML = `<p class="empty-inline">Sélectionner les entreprises intervenantes avant d’ajouter les visas.</p>`;
       return;
     }
     target.innerHTML = companies.map((company) => {
-      const entries = signatures.filter((signature) => signature.company === company);
-      const cards = entries.length ? entries.map((signature) => `<article class="company-visa-card"><div><strong>${escapeHtml(signature.name || "Nom à renseigner")}</strong><span>${escapeHtml(signature.role || "Fonction à renseigner")}</span><small>${signature.signedAt ? `Signé le ${escapeHtml(formatDateTime(signature.signedAt))}` : "Visa à compléter"}</small></div>${signature.dataUrl ? `<img src="${escapeHtml(signature.dataUrl)}" alt="Visa de ${escapeHtml(signature.name || company)}" />` : ""}<div class="visa-actions"><button type="button" class="mini-button" data-edit-company-visa="${escapeHtml(signature.id)}">Modifier</button><button type="button" class="mini-button danger" data-delete-company-visa="${escapeHtml(signature.id)}">Supprimer</button></div></article>`).join("") : `<p class="empty-inline">Aucun visa saisi.</p>`;
-      return `<section class="company-visa-company"><header><strong>${escapeHtml(company)}</strong><button type="button" class="mini-button" data-add-company-visa="${escapeHtml(company)}">＋ Visa</button></header>${cards}</section>`;
+      const signature = state.companySignatures.find((item) => item.company === company);
+      return `<section class="company-visa-company"><header><strong>${escapeHtml(company)}</strong><button type="button" class="mini-button ${signature.dataUrl ? "signed" : ""}" data-edit-company-visa="${escapeHtml(signature.id)}">${signature.dataUrl ? "Modifier" : "Signer"}</button></header><article class="company-visa-card"><div><strong>${escapeHtml(signature.name || "Nom du responsable à renseigner")}</strong><span>${escapeHtml(signature.role || "Fonction à renseigner")}</span><small>${signature.signedAt ? `Signé le ${escapeHtml(formatDateTime(signature.signedAt))}` : "Visa à compléter"}</small></div>${signature.dataUrl ? `<img src="${escapeHtml(signature.dataUrl)}" alt="Visa de ${escapeHtml(signature.name || company)}" />` : ""}</article></section>`;
     }).join("");
   }
 
   function openCompanyVisaDialog(company = "", visa = null) {
-    companyVisaDraft = visa ? clone(visa) : { id: uid(), company: company || enterpriseName() || "", name: "", role: "", signedAt: "", dataUrl: "" };
+    const selectedCompany = canonicalCompany(company || visa?.company || enterpriseName() || "");
+    companyVisaDraft = visa ? clone(visa) : { id: uid(), company: selectedCompany, name: "", role: "", signedAt: "", dataUrl: "" };
+    companyVisaDraft.company = selectedCompany;
     companySignatureCanvasReady = false;
-    $("#companyVisaDialogTitle").textContent = visa ? "Modifier le visa" : "Ajouter un visa";
-    $("#companyVisaEditor").innerHTML = `<div class="resource-editor"><div class="resource-primary-grid"><label class="field field-wide"><span>Entreprise intervenante</span><select id="companyVisaCompany">${companySelectOptions(companyVisaDraft.company)}</select></label><label class="field"><span>Nom et prénom</span><input id="companyVisaName" value="${escapeHtml(companyVisaDraft.name || "")}" autocomplete="name" placeholder="Nom du responsable" /></label><label class="field"><span>Fonction</span><input id="companyVisaRole" value="${escapeHtml(companyVisaDraft.role || "")}" placeholder="Chef de chantier, chef d’équipe…" /></label></div><div class="signature-canvas-wrap"><canvas id="companySignatureCanvas" aria-label="Zone de signature du responsable entreprise"></canvas><p id="companyVisaSignatureStatus" class="muted">${companyVisaDraft.signedAt ? `Signée le ${escapeHtml(formatDateTime(companyVisaDraft.signedAt))}.` : "Signer au doigt dans la zone ci-dessus."}</p></div><button id="clearCompanyVisaSignatureButton" class="text-button" type="button">Effacer la signature</button><div class="dialog-actions"><button id="saveCompanyVisaButton" type="button" class="primary-button">Enregistrer le visa</button></div></div>`;
+    $("#companyVisaDialogTitle").textContent = "Visa du responsable";
+    $("#companyVisaEditor").innerHTML = `<div class="resource-editor"><div class="company-visa-company-name">${escapeHtml(companyVisaDraft.company)}</div><div class="resource-primary-grid"><label class="field"><span>Nom et prénom</span><input id="companyVisaName" value="${escapeHtml(companyVisaDraft.name || "")}" autocomplete="name" placeholder="Nom du responsable" /></label><label class="field"><span>Fonction</span><input id="companyVisaRole" value="${escapeHtml(companyVisaDraft.role || "")}" placeholder="Chef de chantier, chef d’équipe…" /></label></div><div class="signature-canvas-wrap"><canvas id="companySignatureCanvas" aria-label="Zone de signature du responsable entreprise"></canvas><p id="companyVisaSignatureStatus" class="muted">${companyVisaDraft.signedAt ? `Signée le ${escapeHtml(formatDateTime(companyVisaDraft.signedAt))}.` : "Signer au doigt dans la zone ci-dessus."}</p></div><button id="clearCompanyVisaSignatureButton" class="text-button" type="button">Effacer la signature</button><div class="dialog-actions"><button id="saveCompanyVisaButton" type="button" class="primary-button">Enregistrer le visa</button></div></div>`;
     $("#companyVisaDialog").showModal();
     window.setTimeout(setupCompanySignatureCanvas, 0);
   }
 
   function saveCompanyVisa() {
     if (!companyVisaDraft) return;
-    companyVisaDraft.company = editorValue("companyVisaCompany");
     companyVisaDraft.name = editorValue("companyVisaName");
     companyVisaDraft.role = editorValue("companyVisaRole");
     const index = state.companySignatures.findIndex((signature) => signature.id === companyVisaDraft.id);
@@ -1325,6 +1443,7 @@
     save("Visa entreprise enregistré");
     $("#companyVisaDialog").close();
     companyVisaDraft = null;
+    renderCompanySignerSetup();
     renderCompanyVisas();
     renderPrintReport();
   }
@@ -1457,6 +1576,7 @@
     ["personnel", "equipment", "possession", "anomaly", "document", "sncfMeans", "material", "selfCheck"].forEach(renderDataList);
     renderQuickPersonnelRoster();
     renderQuickSncfRoster();
+    renderQuickEquipmentAdder();
     renderPhotos();
     renderAfterWorkSignature();
     renderCompanyVisas();
@@ -1499,21 +1619,13 @@
     const task = existing || {
       id: uid(), templateId: template.id, label: template.reportLabel, unit: template.unit, quantity: "", voie: "", pkStart: "", pkEnd: "", note: "", opening: "", closing: "",
     };
+    task.photos ||= [];
     taskDraft = task;
     const isCustom = template.id === "saisie-libre";
     const customFields = template.metric === "openClose" ? `
       <label class="field"><span>Longueur ouverte (ml)</span><input id="taskOpening" type="number" min="0" step="0.1" inputmode="decimal" value="${escapeHtml(task.opening)}"></label>
       <label class="field"><span>Longueur refermée (ml)</span><input id="taskClosing" type="number" min="0" step="0.1" inputmode="decimal" value="${escapeHtml(task.closing)}"></label>` : `
       <label class="field"><span>${escapeHtml(template.quantityLabel)}</span><input id="taskQuantity" type="number" min="0" step="0.1" inputmode="decimal" value="${escapeHtml(task.quantity)}" autofocus></label>`;
-    const route = template.priceRoute?.type;
-    const routeConfig = template.priceRoute || {};
-    const note = isAdminView()
-      ? (["mapped", "time-mapped"].includes(route)
-        ? (routeConfig.mappingNote || "Le rattachement par défaut est déjà appliqué ; l’encadrant peut le modifier dans les réglages d’exception.")
-        : route === "manual"
-          ? (routeConfig.reason || "La production sera présente dans le rapport ; le rattachement au prix devra être fait par l’encadrant.")
-          : "Le rattachement au référentiel sera contrôlé dans l’espace administrateur.")
-      : "La prestation est enregistrée au rapport avec son libellé terrain. Le contrôle administratif est réalisé séparément.";
     $("#taskCatalogPane").classList.add("hidden");
     const pane = $("#taskEditorPane");
     pane.classList.remove("hidden");
@@ -1523,12 +1635,12 @@
         ${isCustom ? `<label class="field"><span>Libellé terrain</span><input id="taskLabel" value="${escapeHtml(task.label === template.reportLabel ? "" : task.label)}" placeholder="Décrire simplement la prestation"></label>` : ""}
         <div class="task-extra-grid">${customFields}</div>
         <details class="optional-details"><summary>Ajouter une localisation / observation</summary><div class="task-extra-grid"><label class="field"><span>Voie</span><input id="taskVoie" value="${escapeHtml(task.voie)}" placeholder="Ex. V1"></label><label class="field"><span>PK début</span><input id="taskPkStart" value="${escapeHtml(task.pkStart)}" placeholder="Ex. 80+050"></label><label class="field"><span>PK fin</span><input id="taskPkEnd" value="${escapeHtml(task.pkEnd)}" placeholder="Ex. 80+200"></label></div><label class="field"><span>Observation / précision</span><textarea id="taskNote" rows="3" placeholder="Localisation, type précis, difficulté, matériel…">${escapeHtml(task.note)}</textarea></label></details>
-        <p class="dialog-note">${escapeHtml(note)}</p>
+        <section class="attachment-section"><strong>Photos de la prestation</strong><p>Ces photos seront ajoutées aux annexes du rapport.</p>${renderImageAttachmentPreviews(task.photos, "data-remove-task-photo")}${imageAttachmentControls("taskCameraPhotos", "taskFilePhotos")}</section>
         <div class="dialog-actions"><button id="backToTaskCatalog" type="button" class="secondary-button">Retour</button><button id="saveTaskButton" type="button" class="primary-button">Enregistrer la prestation</button></div>
       </div>`;
   }
 
-  function saveTask() {
+  async function saveTask() {
     if (!taskDraft) return;
     const template = templateById.get(taskDraft.templateId);
     taskDraft.label = template.id === "saisie-libre" ? ($("#taskLabel").value.trim() || template.reportLabel) : template.reportLabel;
@@ -1540,6 +1652,7 @@
     taskDraft.pkStart = $("#taskPkStart").value.trim();
     taskDraft.pkEnd = $("#taskPkEnd").value.trim();
     taskDraft.note = $("#taskNote").value.trim();
+    await appendImageAttachments(taskDraft, "photos", ["taskCameraPhotos", "taskFilePhotos"], MAX_TASK_PHOTOS, "Photo de prestation");
     const existingIndex = state.tasks.findIndex((task) => task.id === taskDraft.id);
     if (existingIndex >= 0) state.tasks.splice(existingIndex, 1, taskDraft);
     else state.tasks.push(taskDraft);
@@ -1572,8 +1685,8 @@
     const config = rowConfig[rowDraft.key];
     if (config.read) Object.assign(rowDraft.row, config.read());
     else config.fields.forEach(([name]) => { rowDraft.row[name] = $(`#row_${name}`).value.trim(); });
-    const capture = async (inputId, property, label) => {
-      const file = $(`#${inputId}`)?.files?.[0];
+    const capture = async (inputIds, property, label) => {
+      const file = inputIds.flatMap((inputId) => [...($(`#${inputId}`)?.files || [])])[0];
       if (!file) return;
       try {
         rowDraft.row[property] = { id: uid(), label, capturedAt: new Date().toISOString(), dataUrl: await compactPhoto(file) };
@@ -1582,10 +1695,11 @@
       }
     };
     if (rowDraft.key === "possession") {
-      await capture("row_arfStartPhoto", "arfStartPhoto", "ARF début");
-      await capture("row_arfEndPhoto", "arfEndPhoto", "ARF fin");
+      await capture(["row_arfStartCamera", "row_arfStartFile"], "arfStartPhoto", "ARF début");
+      await capture(["row_arfEndCamera", "row_arfEndFile"], "arfEndPhoto", "ARF fin");
     }
-    if (rowDraft.key === "anomaly") await capture("row_anomalyPhoto", "photo", "Anomalie");
+    if (rowDraft.key === "anomaly") await capture(["row_anomalyCamera", "row_anomalyFile"], "photo", "Anomalie");
+    if (rowDraft.key === "document") await appendImageAttachments(rowDraft.row, "attachments", ["row_documentCamera", "row_documentFile"], MAX_DOCUMENT_PHOTOS, "Pièce jointe document");
     const list = state[rowDraft.key];
     const index = list.findIndex((item) => item.id === rowDraft.row.id);
     if (index >= 0) list.splice(index, 1, rowDraft.row);
@@ -1632,16 +1746,18 @@
     const reportTitle = state.meta.cancelled ? "RAPPORT JOURNALIER — CHANTIER ANNULÉ" : "RAPPORT JOURNALIER";
     const durationText = state.meta.workDuration ? `${displayNumber(state.meta.workDuration)} h` : "—";
     const taskRows = renderTableRows(resolved, ({ task, template, result }) => `
-      <tr><td>${escapeHtml(task.label || template?.reportLabel || "Prestation")}${task.note ? `<br><small>${escapeHtml(task.note)}</small>` : ""}</td>
+      <tr><td>${escapeHtml(task.label || template?.reportLabel || "Prestation")}${task.note ? `<br><small>${escapeHtml(task.note)}</small>` : ""}${task.photos?.length ? `<br><small>${task.photos.length} photo(s) jointe(s)</small>` : ""}</td>
       <td class="numeric">${template?.metric === "openClose" ? `Ouv. ${displayNumber(task.opening)}<br>Ferm. ${displayNumber(task.closing)}` : `${displayNumber(task.quantity)} ${escapeHtml(task.unit || template?.unit || "u")}`}</td>
       <td>${escapeHtml(task.voie || "—")}</td><td>${escapeHtml([task.pkStart, task.pkEnd].filter(Boolean).join(" → ") || "—")}</td>
       <td>Saisie terrain</td></tr>`, 5);
     const personnelRows = renderTableRows(state.personnel, (row) => `<tr><td>${escapeHtml(roleName(row))}</td><td>${escapeHtml([row.team, companyName(row)].filter(Boolean).join(" · "))}</td><td class="numeric">${displayNumber(row.count, 0)}</td><td>${escapeHtml([row.lead, row.observation].filter(Boolean).join(" · ") || "—")}</td></tr>`, 4);
     const equipmentRows = renderTableRows(state.equipment, (row) => `<tr><td>${escapeHtml(equipmentName(row))}</td><td>${escapeHtml(companyName(row))}</td><td class="numeric">${displayNumber(row.count, 0)}</td><td>${escapeHtml([row.zone, row.pk, row.miseEnVoie].filter(Boolean).join(" · ") || "—")}</td><td>${escapeHtml([row.identification, row.observation].filter(Boolean).join(" · ") || "—")}</td></tr>`, 5);
-    const possessionRows = renderTableRows(state.possessions, (row) => `<tr><td>${escapeHtml([row.kind, row.voie && `Voie ${row.voie}`, row.zone].filter(Boolean).join(" · ") || "—")}</td><td>${escapeHtml(`${row.plannedStart || "—"} → ${row.plannedEnd || "—"}`)}</td><td>${escapeHtml(`${row.agreedStart || "—"} → ${row.agreedEnd || "—"}`)}</td><td>${escapeHtml(`${row.actualStart || "—"} → ${row.actualEnd || "—"}`)}</td><td>${escapeHtml(`${row.interventionStart || "—"} → ${row.interventionEnd || "—"}`)}${row.reference ? `<br><small>${escapeHtml(row.reference)}</small>` : ""}${row.observation ? `<br><small>${escapeHtml(row.observation)}</small>` : ""}</td></tr>`, 5);
+    const possessionRows = renderTableRows(state.possessions, (row) => `<tr><td>${escapeHtml([row.kind, row.voie && `Voie ${row.voie}`, row.zone].filter(Boolean).join(" · ") || "—")}</td><td>${escapeHtml(`${row.plannedStart || "—"} → ${row.plannedEnd || "—"}`)}</td><td>${escapeHtml(`${row.agreedStart || "—"} → ${row.agreedEnd || "—"}`)}</td><td>${escapeHtml(`${row.actualStart || "—"} → ${row.actualEnd || "—"}`)}</td><td>${escapeHtml(`${row.interventionStart || "—"} → ${row.interventionEnd || "—"}`)}${row.observation ? `<br><small>${escapeHtml(row.observation)}</small>` : ""}</td></tr>`, 5);
     const anomalyRows = renderTableRows(state.anomalies, (row) => `<tr><td>${escapeHtml(row.type || "—")}</td><td>${escapeHtml(row.severity || "—")}</td><td>${escapeHtml(row.detail || "—")}${row.photo ? "<br><small>Photo jointe</small>" : ""}</td><td>${escapeHtml(row.action || "—")}</td></tr>`, 4);
-    const documentsRows = renderTableRows(state.documents, (row) => `<tr><td>${escapeHtml(row.name || "—")}</td><td>${escapeHtml(row.reference || "—")}</td><td>${escapeHtml(row.observation || "—")}</td></tr>`, 3);
+    const documentsRows = renderTableRows(state.documents, (row) => `<tr><td>${escapeHtml(row.name || "—")}</td><td>${escapeHtml(row.reference || "—")}</td><td>${row.attachments?.length ? `${row.attachments.length} photo(s)` : "—"}</td><td>${escapeHtml(row.observation || "—")}</td></tr>`, 4);
     const sncfRows = renderTableRows(state.sncfMeans, (row) => `<tr><td>${escapeHtml(row.role || "—")}</td><td class="numeric">${displayNumber(row.count, 0)}</td><td>${escapeHtml(row.observation || "—")}</td></tr>`, 3);
+    const materialRows = renderTableRows(state.materials, (row) => `<tr><td>${escapeHtml(row.name || row.type || "—")}</td><td class="numeric">${row.quantity ? `${escapeHtml(displayNumber(row.quantity))} ${escapeHtml(row.unit || "")}` : "—"}</td><td>${escapeHtml(row.zone || "—")}</td><td>${escapeHtml(row.reference || "—")}</td><td>${escapeHtml(row.observation || "—")}</td></tr>`, 5);
+    const selfCheckRows = renderTableRows(state.selfChecks, (row) => `<tr><td>${escapeHtml(row.type || "—")}</td><td>${escapeHtml(row.status || "—")}</td><td>${escapeHtml(row.zone || "—")}</td><td>${escapeHtml(row.reference || "—")}</td><td>${escapeHtml([row.responsible, row.checkedAt].filter(Boolean).join(" · ") || "—")}</td><td>${escapeHtml(row.observation || "—")}</td></tr>`, 6);
     const valuationRows = [
       ...resolved.map(({ task, template, result }) => `<tr><td>${escapeHtml(task.label || template?.reportLabel || "Prestation")}</td><td>${result.record ? escapeHtml(result.record.article) : "Hors catalogue"}</td><td class="numeric">${displayNumber(result.quantity)} ${escapeHtml(task.unit || template?.unit || "u")}</td><td class="numeric">${result.status === "priced" ? euros(result.unitPrice) : "—"}</td><td class="numeric">${result.status === "priced" ? euros(result.amount) : "—"}</td></tr>`),
       ...breakdown.commonCosts.map((row) => `<tr><td>${escapeHtml(row.label)}<br><small>Base de calcul : ${euros(row.base)}</small></td><td>${escapeHtml(row.article)}</td><td class="numeric">Base ${euros(row.base)}</td><td class="numeric">${displayNumber(row.rate * 100)} %</td><td class="numeric">${euros(row.amount)}</td></tr>`),
@@ -1654,11 +1770,13 @@
       return `<section class="print-section"><h2>Photos ${label}</h2><div class="print-photo-grid">${rows.map((photo) => `<figure class="print-photo"><img src="${escapeHtml(photo.dataUrl)}" alt="${escapeHtml(label)}"><figcaption><strong>${formatDateTime(photo.capturedAt)}</strong>${photo.caption ? `<br>${escapeHtml(photo.caption)}` : ""}</figcaption></figure>`).join("")}</div></section>`;
     }).join("");
     const arfPhotos = state.possessions.flatMap((row) => [
-      row.arfStartPhoto?.dataUrl ? { ...row.arfStartPhoto, label: `ARF début · ${[row.voie && `Voie ${row.voie}`, row.reference].filter(Boolean).join(" · ")}` } : null,
-      row.arfEndPhoto?.dataUrl ? { ...row.arfEndPhoto, label: `ARF fin · ${[row.voie && `Voie ${row.voie}`, row.reference].filter(Boolean).join(" · ")}` } : null,
+      row.arfStartPhoto?.dataUrl ? { ...row.arfStartPhoto, label: `ARF début${row.voie ? ` · Voie ${row.voie}` : ""}` } : null,
+      row.arfEndPhoto?.dataUrl ? { ...row.arfEndPhoto, label: `ARF fin${row.voie ? ` · Voie ${row.voie}` : ""}` } : null,
     ].filter(Boolean));
     const anomalyPhotos = state.anomalies.filter((row) => row.photo?.dataUrl).map((row) => ({ ...row.photo, label: `Anomalie · ${row.type || "—"}${row.zone ? ` · ${row.zone}` : ""}` }));
-    const trackedPhotoSection = [...arfPhotos, ...anomalyPhotos].length ? `<section class="print-section"><h2>Photos ARF et qualité sécurité</h2><div class="print-photo-grid">${[...arfPhotos, ...anomalyPhotos].map((photo) => `<figure class="print-photo"><img src="${escapeHtml(photo.dataUrl)}" alt="${escapeHtml(photo.label)}"><figcaption><strong>${escapeHtml(photo.label)}</strong><br>${formatDateTime(photo.capturedAt)}</figcaption></figure>`).join("")}</div></section>` : "";
+    const taskPhotos = state.tasks.flatMap((task) => (task.photos || []).map((photo) => ({ ...photo, label: `Prestation · ${task.label || "—"}${task.voie ? ` · Voie ${task.voie}` : ""}` })));
+    const documentPhotos = state.documents.flatMap((document) => (document.attachments || []).map((photo) => ({ ...photo, label: `Document · ${document.name || "—"}${document.reference ? ` · ${document.reference}` : ""}` })));
+    const trackedPhotoSection = [...arfPhotos, ...anomalyPhotos, ...taskPhotos, ...documentPhotos].length ? `<section class="print-section"><h2>Photos ARF, prestations et pièces jointes</h2><div class="print-photo-grid">${[...arfPhotos, ...anomalyPhotos, ...taskPhotos, ...documentPhotos].map((photo) => `<figure class="print-photo"><img src="${escapeHtml(photo.dataUrl)}" alt="${escapeHtml(photo.label)}"><figcaption><strong>${escapeHtml(photo.label)}</strong><br>${formatDateTime(photo.capturedAt)}</figcaption></figure>`).join("")}</div></section>` : "";
     const signature = state.afterWorkSignature || {};
     const signatureMarkup = signature.dataUrl
       ? `<img class="print-signature-image" src="${escapeHtml(signature.dataUrl)}" alt="Signature après travaux">`
@@ -1678,10 +1796,13 @@
         <section class="print-section"><h2>Travaux exécutés</h2><table class="print-table"><thead><tr><th>Prestation terrain</th><th class="numeric">Quantité</th><th>Voie</th><th>PK</th><th>Statut</th></tr></thead><tbody>${taskRows}</tbody></table></section>
         <section class="print-section"><h2>Personnel des entreprises</h2><table class="print-table"><thead><tr><th>Fonction / grade</th><th>Famille / entreprise</th><th class="numeric">Nb</th><th>Complément / observation</th></tr></thead><tbody>${personnelRows}</tbody></table></section>
         <section class="print-section"><h2>Engins et mobiles travaux</h2><table class="print-table"><thead><tr><th>Engin / matériel</th><th>Entreprise</th><th class="numeric">Nb</th><th>Zone / voie</th><th>Identification / observation</th></tr></thead><tbody>${equipmentRows}</tbody></table></section>`}
-        <section class="print-section"><h2>Interceptions et consignations</h2><table class="print-table"><thead><tr><th>Type / voie / zone</th><th>Prévues</th><th>Accordées</th><th>ARF / réelles</th><th>Intervention / référence</th></tr></thead><tbody>${possessionRows}</tbody></table></section>
+        <section class="print-section"><h2>Interceptions et consignations</h2><table class="print-table"><thead><tr><th>Type / voie / zone</th><th>Prévues</th><th>Accordées</th><th>ARF / réelles</th><th>Intervention</th></tr></thead><tbody>${possessionRows}</tbody></table></section>
         <section class="print-section"><h2>Anomalies constatées</h2><table class="print-table"><thead><tr><th>Type</th><th>Niveau</th><th>Fait constaté</th><th>Mesure prise / suite</th></tr></thead><tbody>${anomalyRows}</tbody></table></section>
-        <section class="print-section"><h2>Rapports fournis par l’entreprise</h2><table class="print-table"><thead><tr><th>Document</th><th>Référence</th><th>Observation</th></tr></thead><tbody>${documentsRows}</tbody></table></section>
+        <section class="print-section"><h2>Rapports fournis par l’entreprise</h2><table class="print-table"><thead><tr><th>Document</th><th>Référence</th><th>Pièces image</th><th>Observation</th></tr></thead><tbody>${documentsRows}</tbody></table></section>
         <section class="print-section"><h2>Personnel SNCF affecté</h2><table class="print-table"><thead><tr><th>Fonction</th><th class="numeric">Nb</th><th>Mission / observation</th></tr></thead><tbody>${sncfRows}</tbody></table></section>
+        <section class="print-section"><h2>Matériaux, fournitures et déposes</h2><table class="print-table"><thead><tr><th>Élément</th><th class="numeric">Quantité</th><th>Voie / zone</th><th>Référence</th><th>Observation</th></tr></thead><tbody>${materialRows}</tbody></table></section>
+        <section class="print-section"><h2>Autocontrôles et contrôles</h2><table class="print-table"><thead><tr><th>Contrôle</th><th>Résultat</th><th>Zone</th><th>Référence</th><th>Réalisé par</th><th>Observation</th></tr></thead><tbody>${selfCheckRows}</tbody></table></section>
+        ${(state.meta.executionNotes || state.meta.nextWorks) ? `<section class="print-section"><h2>Synthèse et suite de l’opération</h2><div class="print-info-grid"><div><strong>Faits marquants / aléas / décisions</strong>${escapeHtml(state.meta.executionNotes || "—")}</div><div><strong>Travaux restant à réaliser / prochaine séance</strong>${escapeHtml(state.meta.nextWorks || "—")}</div></div></section>` : ""}
         ${photoSection}
         ${trackedPhotoSection}
         <section class="print-signatures"><div class="signature-box"><strong>Lieu / date</strong>${escapeHtml(formatDate(state.meta.date))}</div><div class="signature-box"><strong>Visa représentant MOETx SNCF</strong>${escapeHtml(state.meta.moeRepresentative || "Nom / prénom à renseigner")}</div>${companyVisaMarkup}<div class="signature-box signature-after-work"><strong>Visa après travaux</strong>${escapeHtml([signature.name, signature.role].filter(Boolean).join(" · ") || "Nom / fonction à renseigner")}${signature.signedAt ? `<small>Signée le ${escapeHtml(formatDateTime(signature.signedAt))}</small>` : ""}${signatureMarkup}</div></section>
@@ -2073,18 +2194,32 @@
     });
 
     $("#participantCompanyPicker")?.addEventListener("click", (event) => {
-      const button = event.target.closest("[data-participant-company]");
-      if (button) toggleParticipantCompany(button.dataset.participantCompany);
+      const button = event.target.closest("[data-remove-participant-company]");
+      if (button) removeParticipantCompany(button.dataset.removeParticipantCompany);
     });
+    $("#addParticipantCompanySelectButton")?.addEventListener("click", () => addParticipantCompany(editorValue("participantCompanySelect")));
     $("#addParticipantCompanyButton")?.addEventListener("click", () => {
       const input = $("#participantCompanyCustomInput");
       const company = input?.value.trim();
       if (!company) { showToast("Saisir le nom de l’entreprise ou du prestataire.", "warning"); return; }
-      if (!participatingCompanyNames().includes(company)) state.meta.participatingCompanies.push(company);
-      syncPrimaryEnterprise();
       input.value = "";
-      save("Entreprise intervenante ajoutée");
-      refresh({ inputs: true });
+      addParticipantCompany(company);
+    });
+    $("#companySignerSetup")?.addEventListener("input", (event) => {
+      const input = event.target.closest("[data-company-signer-field]");
+      if (!input) return;
+      const signature = state.companySignatures.find((item) => item.id === input.dataset.companySignerId);
+      if (!signature) return;
+      signature[input.dataset.companySignerField] = input.value;
+      save("Responsable entreprise enregistré");
+      renderCompanyVisas();
+      renderPrintReport();
+    });
+    $("#companySignerSetup")?.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-sign-company]");
+      if (!button) return;
+      const signature = state.companySignatures.find((item) => item.id === button.dataset.signCompany);
+      if (signature) openCompanyVisaDialog(signature.company, signature);
     });
 
     $$("[data-scroll-target]").forEach((button) => button.addEventListener("click", () => $(`#${button.dataset.scrollTarget}`).scrollIntoView({ behavior: "smooth", block: "start" })));
@@ -2100,6 +2235,12 @@
       if (filter) { catalogCategory = filter.dataset.catalogCategory; renderTaskCatalog(); return; }
       const select = event.target.closest("[data-select-template]");
       if (select) renderTaskEditor(templateById.get(select.dataset.selectTemplate));
+      const removePhoto = event.target.closest("[data-remove-task-photo]");
+      if (removePhoto && taskDraft) {
+        taskDraft.photos = (taskDraft.photos || []).filter((photo) => photo.id !== removePhoto.dataset.removeTaskPhoto);
+        renderTaskEditor(templateById.get(taskDraft.templateId), taskDraft);
+        return;
+      }
       if (event.target.closest("#backToTaskCatalog")) { taskDraft = null; $("#taskEditorPane").classList.add("hidden"); $("#taskCatalogPane").classList.remove("hidden"); renderTaskCatalog(); }
       if (event.target.closest("#saveTaskButton")) saveTask();
     });
@@ -2137,6 +2278,12 @@
         if (input) input.value = Math.max(1, Math.floor(number(input.value)) + number(counter.dataset.counterDelta));
         return;
       }
+      const removeAttachment = event.target.closest("[data-remove-document-attachment]");
+      if (removeAttachment && rowDraft?.key === "document") {
+        rowDraft.row.attachments = (rowDraft.row.attachments || []).filter((attachment) => attachment.id !== removeAttachment.dataset.removeDocumentAttachment);
+        $("#rowEditorPane").innerHTML = rowConfig.document.editor(rowDraft.row);
+        return;
+      }
       if (event.target.closest("#saveRowButton")) saveRow();
     });
     $("#quickPersonnelRoster")?.addEventListener("click", (event) => {
@@ -2152,6 +2299,12 @@
       if (!button) return;
       const role = button.dataset.quickSncfRole;
       adjustRoleCounter("sncfMeans", { role }, { role, observation: "" }, number(button.dataset.counterDelta));
+    });
+    $("#quickEquipmentAdder")?.addEventListener("change", (event) => {
+      if (event.target.id === "quickEquipmentFamily") refreshQuickEquipmentTypes();
+    });
+    $("#quickEquipmentAdder")?.addEventListener("click", (event) => {
+      if (event.target.closest("#quickAddEquipmentButton")) addQuickEquipment();
     });
     $$(".data-list").forEach((list) => list.addEventListener("click", async (event) => {
       const edit = event.target.closest("[data-edit-row]");
@@ -2175,12 +2328,13 @@
       const button = event.target.closest("[data-add-photo-phase]");
       if (!button) return;
       selectedPhotoPhase = button.dataset.addPhotoPhase;
-      $("#photoInput").click();
+      const input = button.dataset.photoSource === "files" ? $("#photoFileInput") : $("#photoCameraInput");
+      input?.click();
     });
-    $("#photoInput").addEventListener("change", async (event) => {
+    ["#photoCameraInput", "#photoFileInput"].forEach((selector) => $(selector)?.addEventListener("change", async (event) => {
       await addPhotos(event.target.files);
       event.target.value = "";
-    });
+    }));
     $("#photoList").addEventListener("click", async (event) => {
       const remove = event.target.closest("[data-delete-photo]");
       if (!remove) return;
@@ -2224,24 +2378,12 @@
       renderPrintReport();
     });
 
-    $("#addCompanyVisaButton")?.addEventListener("click", () => openCompanyVisaDialog(enterpriseName()));
     $("#companyVisaList")?.addEventListener("click", async (event) => {
-      const add = event.target.closest("[data-add-company-visa]");
-      if (add) { openCompanyVisaDialog(add.dataset.addCompanyVisa); return; }
       const edit = event.target.closest("[data-edit-company-visa]");
       if (edit) {
         const visa = state.companySignatures.find((signature) => signature.id === edit.dataset.editCompanyVisa);
         if (visa) openCompanyVisaDialog(visa.company, visa);
-        return;
       }
-      const remove = event.target.closest("[data-delete-company-visa]");
-      if (!remove) return;
-      const accepted = await askConfirm({ title: "Supprimer le visa", message: "Supprimer ce visa entreprise du rapport ?", confirmLabel: "Supprimer", danger: true });
-      if (!accepted) return;
-      state.companySignatures = state.companySignatures.filter((signature) => signature.id !== remove.dataset.deleteCompanyVisa);
-      save("Visa entreprise supprimé");
-      renderCompanyVisas();
-      renderPrintReport();
     });
     $("#companyVisaDialog")?.addEventListener("click", (event) => {
       if (event.target.closest("#saveCompanyVisaButton")) { saveCompanyVisa(); return; }

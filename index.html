@@ -66,11 +66,19 @@
             </label>
             <section class="field field-wide participant-companies-field" aria-label="Entreprises intervenantes">
               <span>Entreprises intervenantes</span>
-              <div id="participantCompanyPicker" class="company-multiselect"></div>
+              <div class="company-selector">
+                <select id="participantCompanySelect" aria-label="Choisir une entreprise intervenante"></select>
+                <button id="addParticipantCompanySelectButton" class="secondary-button" type="button">Ajouter</button>
+              </div>
+              <div id="participantCompanyPicker" class="company-selected-list"></div>
               <div class="company-adder">
                 <input id="participantCompanyCustomInput" autocomplete="organization" placeholder="Ajouter une autre entreprise ou un prestataire" />
                 <button id="addParticipantCompanyButton" class="secondary-button" type="button">Ajouter</button>
               </div>
+            </section>
+            <section class="field-wide company-signer-setup" aria-label="Responsables entreprises">
+              <span>Responsables d’entreprise et visa</span>
+              <div id="companySignerSetup"></div>
             </section>
             <label class="field">
               <span>Date</span>
@@ -133,8 +141,7 @@
           <div class="section-heading">
             <div>
               <p class="eyebrow">2 · Production</p>
-              <h2>Ce qui a été réellement fait</h2>
-              <p class="muted">Les agents choisissent un libellé simple. Le prix reste en arrière-plan.</p>
+              <h2>Production</h2>
             </div>
             <button id="openTaskCatalog" class="primary-button" type="button">＋ Ajouter une prestation</button>
           </div>
@@ -162,6 +169,7 @@
               <div><p class="eyebrow">Ressources</p><h2>Engins et mobiles travaux</h2></div>
               <button class="text-button" data-add-row="equipment" type="button">＋ Ajouter</button>
             </div>
+            <div id="quickEquipmentAdder" class="quick-equipment-adder"></div>
             <div id="equipmentList" class="data-list"></div>
           </section>
 
@@ -201,7 +209,12 @@
           <section class="section-card compact-card wide-on-tablet" id="photoSection">
             <div class="section-heading">
               <div><p class="eyebrow">Photos</p><h2>Avant / après nuit</h2><p class="muted">Photos datées et classées directement dans le rapport.</p></div>
-              <div class="photo-actions"><button class="text-button" type="button" data-add-photo-phase="avant">＋ Avant</button><button class="text-button" type="button" data-add-photo-phase="apres">＋ Après</button></div>
+              <div class="photo-actions">
+                <button class="text-button" type="button" data-add-photo-phase="avant" data-photo-source="camera">📷 Avant</button>
+                <button class="text-button" type="button" data-add-photo-phase="avant" data-photo-source="files">▣ Avant</button>
+                <button class="text-button" type="button" data-add-photo-phase="apres" data-photo-source="camera">📷 Après</button>
+                <button class="text-button" type="button" data-add-photo-phase="apres" data-photo-source="files">▣ Après</button>
+              </div>
             </div>
             <div id="photoList" class="photo-list"></div>
           </section>
@@ -258,8 +271,7 @@
           </section>
           <section class="company-visa-section" aria-label="Visas des entreprises intervenantes">
             <div class="section-heading">
-              <div><p class="eyebrow">Visas entreprises</p><h3>Responsables présents à l’opération</h3><p class="muted">Un ou plusieurs visas par entreprise intervenante.</p></div>
-              <button id="addCompanyVisaButton" class="text-button" type="button">＋ Ajouter un visa</button>
+              <div><p class="eyebrow">Visas entreprises</p><h3>Responsables présents à l’opération</h3><p class="muted">Un responsable est renseigné et signe pour chaque entreprise intervenante.</p></div>
             </div>
             <div id="companyVisaList" class="company-visa-list"></div>
           </section>
@@ -408,7 +420,8 @@
     </dialog>
 
     <input id="importInput" type="file" accept="application/json" hidden />
-    <input id="photoInput" type="file" accept="image/*" capture="environment" multiple hidden />
+    <input id="photoCameraInput" type="file" accept="image/*" capture="environment" multiple hidden />
+    <input id="photoFileInput" type="file" accept="image/*" multiple hidden />
     <script src="data/price-catalog.js"></script>
     <script src="data/terrain-catalog.js"></script>
     <script src="data/billing-evidence.js"></script>
