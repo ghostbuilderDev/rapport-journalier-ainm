@@ -9,7 +9,7 @@
   const reportDeviceKey = "ainm-rj-pwa-report-device-v2";
   const reportHistoryKey = "ainm-rj-pwa-report-history-v2";
   const REPORT_HISTORY_LIMIT = 30;
-  const MAX_PHOTOS = 6;
+  const MAX_PHOTOS = 12;
   const billingEvidence = window.RJ_BILLING_EVIDENCE || { series300Profiles: {}, manualRecords: [], billedTimeArticleBases: [] };
   const basePriceCatalog = Array.isArray(window.RJ_PRICE_CATALOG) ? window.RJ_PRICE_CATALOG : [];
   const priceCatalog = [...basePriceCatalog, ...(Array.isArray(billingEvidence.manualRecords) ? billingEvidence.manualRecords : [])];
@@ -64,6 +64,20 @@
     "Manutention / levage": ["Nacelle", "Chariot télescopique", "Manitou", "Grue", "Remorque", "Chariot élévateur", "Autre matériel de levage"],
     "Autre matériel": ["Groupe électrogène", "Compresseur", "Outillage spécialisé", "Autre"],
   };
+  const PERSONNEL_PRESETS = [
+    ["Entreprise travaux", "Chef de chantier"], ["Entreprise travaux", "Chef d’équipe"], ["Entreprise travaux", "Monteur signalisation"], ["Entreprise travaux", "Opérateur travaux"],
+    ["SNCF", "RPTx"], ["SNCF", "KV caténaire"], ["SNCF", "KVSE"], ["SNCF", "Agent RSO"],
+  ];
+  const EQUIPMENT_PRESETS = [
+    ["Rail-route / LAM", "Pelle rail-route"], ["Rail-route / LAM", "LAM (Lorry Automoteur)"], ["Rail-route / LAM", "Nacelle rail-route"], ["Rail-route / LAM", "Lorry"],
+    ["Routier / chenillard", "Mini-pelle"], ["Routier / chenillard", "Pelle chenillée"], ["Manutention / levage", "Camion grue"], ["Autre matériel", "Groupe électrogène"],
+  ];
+  const MATERIAL_TYPES = ["Câble", "Fourreau", "Caniveau", "Béton / mortier", "Fixation / connectique", "Armoire / coffret", "Équipement signalisation", "Matériel déposé", "Consommable", "Autre"];
+  const MATERIAL_UNITS = ["u", "ml", "m²", "m³", "kg", "t", "L", "bobine", "lot"];
+  const SELFCHECK_TYPES = ["Contrôle visuel", "Contrôle de serrage", "Contrôle câblage", "Contrôle continuité / isolement", "Contrôle dimensionnel", "Contrôle sécurité", "Essai fonctionnel", "Autre"];
+  const PHOTO_CONTEXT_OPTIONS = ["Avancement", "Anomalie", "Autocontrôle", "Sécurité", "Matériel", "Avant travaux", "Après travaux", "Autre"];
+  const SNCF_MEANS_OPTIONS = ["RPTx", "CCH", "Adjoint SO / S11", "Agent d’activité", "KV caténaire", "Surveillant caténaire", "Surveillant RSE", "KVSE", "Agent RSO", "Agent caténaire", "Agent voie", "Agent SE", "Annonceur / ASP", "RPAC", "Agent PL", "Agent caténaire consignation", "Agent SE mesures S6", "Agent lorry", "Autre"];
+  const SNCF_MEANS_PRESETS = ["RPTx", "CCH", "KV caténaire", "KVSE", "Agent RSO", "Agent caténaire", "Agent voie", "Annonceur / ASP"];
   const QUICK_TEMPLATE_IDS = new Set([
     "pose-caniveau-pm-mm", "pose-caniveau-gm-tgm", "deroulage-240", "deroulage-95",
     "pose-intervalle-decharge", "depose-intervalle-decharge", "pose-ci-equilibrage", "depose-ci-equilibrage",
@@ -160,7 +174,7 @@
     const identity = allocateReportIdentity();
     return {
       schema: 1,
-      appVersion: 6,
+      appVersion: 7,
       updatedAt: new Date().toISOString(),
       reportSerial: identity.serial,
       reportUid: identity.uid,
@@ -181,6 +195,9 @@
         moeRepresentative: "",
         companyRepresentative: "",
         objective: "",
+        location: "",
+        executionNotes: "",
+        nextWorks: "",
         publicHoliday: false,
         cancelled: false,
         cancelReason: "",
@@ -192,6 +209,8 @@
       anomalies: [],
       documents: [],
       sncfMeans: [],
+      materials: [],
+      selfChecks: [],
       photos: [],
       afterWorkSignature: { name: "", role: "", signedAt: "", dataUrl: "" },
       settings: { mappings: {}, admin: { pinHash: "", configuredAt: "", includeCommonCosts: false } },
@@ -216,9 +235,10 @@
   ensureSettings();
   const ensureState = () => {
     state.meta ||= {};
-    ["tasks", "personnel", "equipment", "possessions", "anomalies", "documents", "sncfMeans", "photos"].forEach((key) => { if (!Array.isArray(state[key])) state[key] = []; });
+    ["tasks", "personnel", "equipment", "possessions", "anomalies", "documents", "sncfMeans", "materials", "selfChecks", "photos"].forEach((key) => { if (!Array.isArray(state[key])) state[key] = []; });
     state.afterWorkSignature ||= { name: "", role: "", signedAt: "", dataUrl: "" };
-    state.appVersion = Math.max(6, Number(state.appVersion) || 0);
+    ["location", "executionNotes", "nextWorks"].forEach((key) => { if (typeof state.meta[key] !== "string") state.meta[key] = ""; });
+    state.appVersion = Math.max(7, Number(state.appVersion) || 0);
     ["personnel", "sncfMeans"].forEach((key) => {
       state[key].forEach((row) => { row.role = canonicalSncfRole(row.role); });
     });
@@ -625,18 +645,17 @@
     const company = row.company || (state.meta.enterprise === "Autre" ? "" : state.meta.enterprise);
     const companyOther = row.companyOther || "";
     return `<div class="resource-editor">
-      <div class="resource-banner personnel-banner"><span class="resource-symbol">P</span><div><strong>Intervenant ou équipe</strong><p>Choisir la famille, l’entreprise et la fonction : le rapport reste lisible pour tous les acteurs.</p></div></div>
-      <div class="task-extra-grid">
-        <label class="field"><span>Famille d’intervenant</span><select id="row_team">${selectOptions(["Entreprise travaux", "SNCF", "Prestataire sécurité"], team, "Choisir une famille")}</select></label>
+      <div class="resource-banner personnel-banner"><span class="resource-symbol">P</span><div><strong>Intervenant ou équipe</strong><p>Commencer par un raccourci, puis compléter seulement ce qui distingue l’équipe sur cette séance.</p></div></div>
+      <section class="resource-shortcuts" aria-label="Raccourcis personnel"><span>Raccourcis fréquents</span><div>${PERSONNEL_PRESETS.map(([presetTeam, presetRole], index) => `<button type="button" class="resource-preset ${team === presetTeam && row.role === presetRole ? "active" : ""}" data-personnel-preset="${index}">${escapeHtml(presetRole)}</button>`).join("")}</div></section>
+      <div class="resource-primary-grid">
+        <label class="field"><span>Famille</span><select id="row_team">${selectOptions(["Entreprise travaux", "SNCF", "Prestataire sécurité"], team, "Choisir une famille")}</select></label>
+        <label class="field"><span>Fonction</span><select id="row_role">${selectOptions(PERSONNEL_ROLES[team] || [], row.role || "", "Choisir une fonction")}</select></label>
         <label class="field"><span>Entreprise / acteur</span><select id="row_company">${selectOptions(COMPANY_OPTIONS, company, "Choisir une entreprise")}</select></label>
+        <label class="field field-count"><span>Effectif</span><input id="row_count" type="number" min="1" step="1" inputmode="numeric" value="${escapeHtml(row.count ?? "")}" placeholder="Nb" /></label>
       </div>
       <label id="row_companyOtherField" class="field ${company === "Autre" ? "" : "hidden"}"><span>Autre entreprise</span><input id="row_companyOther" value="${escapeHtml(companyOther)}" placeholder="Nom de l’entreprise" autocomplete="organization" /></label>
-      <div class="task-extra-grid">
-        <label class="field"><span>Fonction</span><select id="row_role">${selectOptions(PERSONNEL_ROLES[team] || [], row.role || "", "Choisir une fonction")}</select></label>
-        <label class="field"><span>Nombre de personnes</span><input id="row_count" type="number" min="1" step="1" inputmode="numeric" value="${escapeHtml(row.count ?? "")}" placeholder="Ex. 2" /></label>
-      </div>
       <label id="row_roleOtherField" class="field ${row.role === "Autre" ? "" : "hidden"}"><span>Autre fonction</span><input id="row_roleOther" value="${escapeHtml(row.roleOther ?? "")}" placeholder="Préciser la fonction" /></label>
-      <details class="optional-details"><summary>Compléments d’équipe</summary><div class="task-extra-grid"><label class="field"><span>Heures par personne</span><input id="row_hours" type="number" min="0" max="24" step="0.25" inputmode="decimal" value="${escapeHtml(row.hours ?? state.meta.workDuration ?? "")}" placeholder="Reprend la durée de séance si renseignée" /></label><label class="field"><span>Chef d’équipe / précision</span><input id="row_lead" value="${escapeHtml(row.lead ?? "")}" placeholder="Nom, équipe ou précision" /></label></div><label class="field"><span>Observation</span><textarea id="row_observation" rows="3" placeholder="Particularité, coactivité, absence, renfort…">${escapeHtml(row.observation ?? "")}</textarea></label></details>
+      <details class="optional-details"><summary>Compléments d’équipe</summary><div class="task-extra-grid"><label class="field"><span>Heures / personne</span><input id="row_hours" type="number" min="0" max="24" step="0.25" inputmode="decimal" value="${escapeHtml(row.hours ?? state.meta.workDuration ?? "")}" placeholder="Durée de séance" /></label><label class="field"><span>Chef d’équipe / précision</span><input id="row_lead" value="${escapeHtml(row.lead ?? "")}" placeholder="Nom, équipe ou précision" /></label></div><label class="field"><span>Observation</span><textarea id="row_observation" rows="3" placeholder="Particularité, coactivité, absence, renfort…">${escapeHtml(row.observation ?? "")}</textarea></label></details>
       <div class="dialog-actions"><button id="saveRowButton" type="button" class="primary-button">Enregistrer l’intervenant</button></div>
     </div>`;
   }
@@ -645,6 +664,19 @@
     $("#row_team")?.addEventListener("change", () => refreshPersonnelRoles());
     $("#row_company")?.addEventListener("change", toggleOtherCompany);
     $("#row_role")?.addEventListener("change", toggleOtherRole);
+    const pane = $("#rowEditorPane");
+    if (pane?.dataset.personnelShortcutsBound) return;
+    pane?.addEventListener("click", (event) => {
+      const shortcut = event.target.closest("[data-personnel-preset]");
+      if (!shortcut) return;
+      const [team, role] = PERSONNEL_PRESETS[Number(shortcut.dataset.personnelPreset)] || [];
+      if (!team || !role) return;
+      $("#row_team").value = team;
+      refreshPersonnelRoles(role);
+      $("#row_role").value = role;
+      $$("[data-personnel-preset]").forEach((button) => button.classList.toggle("active", button === shortcut));
+    });
+    if (pane) pane.dataset.personnelShortcutsBound = "1";
   }
 
   function readPersonnelEditor() {
@@ -675,12 +707,13 @@
     const company = row.company || (state.meta.enterprise === "Autre" ? "" : state.meta.enterprise);
     const type = row.type || row.name || "";
     return `<div class="resource-editor">
-      <div class="resource-banner equipment-banner"><span class="resource-symbol">E</span><div><strong>Engin ou mobile travaux</strong><p>La saisie distingue les engins rail-route / LAM des engins routiers, chenillards et matériels de levage.</p></div></div>
-      <div class="task-extra-grid">
-        <label class="field"><span>Famille d’engin</span><select id="row_family">${selectOptions(Object.keys(EQUIPMENT_TYPES), family, "Choisir une famille")}</select></label>
+      <div class="resource-banner equipment-banner"><span class="resource-symbol">E</span><div><strong>Engin ou mobile travaux</strong><p>Choisir d’abord l’engin utilisé : les informations de mise en voie et de sécurité restent disponibles si nécessaires.</p></div></div>
+      <section class="resource-shortcuts equipment-shortcuts" aria-label="Raccourcis engins"><span>Engins fréquents</span><div>${EQUIPMENT_PRESETS.map(([presetFamily, presetType], index) => `<button type="button" class="resource-preset ${family === presetFamily && type === presetType ? "active" : ""}" data-equipment-preset="${index}">${escapeHtml(presetType.replace(" (Lorry Automoteur)", ""))}</button>`).join("")}</div></section>
+      <div class="resource-primary-grid">
+        <label class="field"><span>Famille</span><select id="row_family">${selectOptions(Object.keys(EQUIPMENT_TYPES), family, "Choisir une famille")}</select></label>
         <label class="field"><span>Type d’engin</span><select id="row_type">${selectOptions(EQUIPMENT_TYPES[family] || [], type, "Choisir un type d’engin")}</select></label>
         <label class="field"><span>Entreprise</span><select id="row_company">${selectOptions(COMPANY_OPTIONS, company, "Choisir une entreprise")}</select></label>
-        <label class="field"><span>Nombre</span><input id="row_count" type="number" min="1" step="1" inputmode="numeric" value="${escapeHtml(row.count ?? "")}" placeholder="Ex. 1" /></label>
+        <label class="field field-count"><span>Nombre</span><input id="row_count" type="number" min="1" step="1" inputmode="numeric" value="${escapeHtml(row.count ?? "")}" placeholder="Nb" /></label>
       </div>
       <label id="row_companyOtherField" class="field ${company === "Autre" ? "" : "hidden"}"><span>Autre entreprise</span><input id="row_companyOther" value="${escapeHtml(row.companyOther ?? "")}" placeholder="Nom de l’entreprise" autocomplete="organization" /></label>
       <label id="row_typeOtherField" class="field ${isOtherEquipmentType(type) ? "" : "hidden"}"><span>Préciser le type d’engin</span><input id="row_typeOther" value="${escapeHtml(row.typeOther ?? "")}" placeholder="Ex. portique, wagon outillé…" /></label>
@@ -693,6 +726,19 @@
     $("#row_family")?.addEventListener("change", () => refreshEquipmentTypes());
     $("#row_company")?.addEventListener("change", toggleOtherCompany);
     $("#row_type")?.addEventListener("change", () => $("#row_typeOtherField")?.classList.toggle("hidden", !isOtherEquipmentType(editorValue("row_type"))));
+    const pane = $("#rowEditorPane");
+    if (pane?.dataset.equipmentShortcutsBound) return;
+    pane?.addEventListener("click", (event) => {
+      const shortcut = event.target.closest("[data-equipment-preset]");
+      if (!shortcut) return;
+      const [family, type] = EQUIPMENT_PRESETS[Number(shortcut.dataset.equipmentPreset)] || [];
+      if (!family || !type) return;
+      $("#row_family").value = family;
+      refreshEquipmentTypes(type);
+      $("#row_type").value = type;
+      $$("[data-equipment-preset]").forEach((button) => button.classList.toggle("active", button === shortcut));
+    });
+    if (pane) pane.dataset.equipmentShortcutsBound = "1";
   }
 
   function readEquipmentEditor() {
@@ -716,10 +762,10 @@
     const start = row.actualStart || row.agreedStart || row.plannedStart || state.meta.shiftStart || "";
     const end = row.actualEnd || row.agreedEnd || row.plannedEnd || state.meta.shiftEnd || "";
     return `<div class="resource-editor">
-      <div class="resource-banner"><span class="resource-symbol">T</span><div><strong>Possession / consignation</strong><p>En saisie habituelle, indiquer seulement la voie et les horaires réels. Les autres horaires peuvent être repris automatiquement.</p></div></div>
-      <div class="task-extra-grid"><label class="field"><span>Voie</span><input id="row_voie" value="${escapeHtml(row.voie ?? "")}" placeholder="Ex. V1" /></label><label class="field"><span>Début réel</span><input id="row_actualStart" type="time" value="${escapeHtml(start)}" /></label><label class="field"><span>Fin réelle</span><input id="row_actualEnd" type="time" value="${escapeHtml(end)}" /></label></div>
+      <div class="resource-banner"><span class="resource-symbol">T</span><div><strong>Possession / consignation</strong><p>Le minimum opérationnel tient en une ligne : voie, horaires réels et référence. Les écarts se déclarent seulement si nécessaire.</p></div></div>
+      <div class="resource-primary-grid possession-primary"><label class="field"><span>Voie</span><input id="row_voie" value="${escapeHtml(row.voie ?? "")}" placeholder="Ex. V1" /></label><label class="field"><span>Début réel</span><input id="row_actualStart" type="time" value="${escapeHtml(start)}" /></label><label class="field"><span>Fin réelle</span><input id="row_actualEnd" type="time" value="${escapeHtml(end)}" /></label><label class="field"><span>ARF / AAN / référence</span><input id="row_reference" value="${escapeHtml(row.reference ?? "")}" placeholder="Référence si disponible" /></label></div>
       <label class="check-row"><input id="row_useSameTimes" type="checkbox" ${shared ? "checked" : ""} /> Prévue, accordée et réelle identiques</label>
-      <details id="rowPossessionAdvanced" class="optional-details ${shared ? "hidden" : ""}" ${shared ? "" : "open"}><summary>Préciser les horaires prévus / accordés</summary><div class="task-extra-grid"><label class="field"><span>Prévue — début</span><input id="row_plannedStart" type="time" value="${escapeHtml(row.plannedStart ?? start)}" /></label><label class="field"><span>Prévue — fin</span><input id="row_plannedEnd" type="time" value="${escapeHtml(row.plannedEnd ?? end)}" /></label><label class="field"><span>Accordée — début</span><input id="row_agreedStart" type="time" value="${escapeHtml(row.agreedStart ?? start)}" /></label><label class="field"><span>Accordée — fin</span><input id="row_agreedEnd" type="time" value="${escapeHtml(row.agreedEnd ?? end)}" /></label></div></details>
+      <details id="rowPossessionAdvanced" class="optional-details ${shared ? "hidden" : ""}" ${shared ? "" : "open"}><summary>Déclarer un écart ou la fenêtre d’intervention</summary><div class="task-extra-grid"><label class="field"><span>Prévue — début</span><input id="row_plannedStart" type="time" value="${escapeHtml(row.plannedStart ?? start)}" /></label><label class="field"><span>Prévue — fin</span><input id="row_plannedEnd" type="time" value="${escapeHtml(row.plannedEnd ?? end)}" /></label><label class="field"><span>Accordée — début</span><input id="row_agreedStart" type="time" value="${escapeHtml(row.agreedStart ?? start)}" /></label><label class="field"><span>Accordée — fin</span><input id="row_agreedEnd" type="time" value="${escapeHtml(row.agreedEnd ?? end)}" /></label><label class="field"><span>Intervention — début</span><input id="row_interventionStart" type="time" value="${escapeHtml(row.interventionStart ?? "")}" /></label><label class="field"><span>Intervention — fin</span><input id="row_interventionEnd" type="time" value="${escapeHtml(row.interventionEnd ?? "")}" /></label></div><label class="field"><span>Zone / secteur</span><input id="row_zone" value="${escapeHtml(row.zone ?? "")}" placeholder="Ex. V1 – PK 80+050 à 80+340" /></label></details>
       <label class="field"><span>Observation</span><textarea id="row_observation" rows="3" placeholder="ARF, AAN, motif de décalage…">${escapeHtml(row.observation ?? "")}</textarea></label>
       <div class="dialog-actions"><button id="saveRowButton" type="button" class="primary-button">Enregistrer la possession</button></div>
     </div>`;
@@ -744,8 +790,102 @@
       plannedEnd: shared ? actualEnd : editorValue("row_plannedEnd"),
       agreedStart: shared ? actualStart : editorValue("row_agreedStart"),
       agreedEnd: shared ? actualEnd : editorValue("row_agreedEnd"),
+      interventionStart: shared ? actualStart : editorValue("row_interventionStart"),
+      interventionEnd: shared ? actualEnd : editorValue("row_interventionEnd"),
+      reference: editorValue("row_reference"), zone: editorValue("row_zone"),
       observation: editorValue("row_observation"),
     };
+  }
+
+  function renderAnomalyEditor(row) {
+    return `<div class="resource-editor">
+      <div class="resource-banner anomaly-banner"><span class="resource-symbol">!</span><div><strong>Événement, anomalie ou réserve</strong><p>Décrire le fait, localiser la zone et indiquer clairement la mesure prise. Les points à lever sont repris dans le dossier d’archivage.</p></div></div>
+      <div class="resource-primary-grid">
+        <label class="field"><span>Nature</span><select id="row_type">${selectOptions(["Technique", "Sécurité", "Environnement", "Organisation", "Qualité"], row.type || "", "Choisir une nature")}</select></label>
+        <label class="field"><span>Niveau</span><select id="row_severity">${selectOptions(["Information", "À surveiller", "Bloquant"], row.severity || "", "Choisir un niveau")}</select></label>
+        <label class="field"><span>Statut</span><select id="row_status">${selectOptions(["À suivre", "En cours", "Terminé"], row.status || "", "Choisir un statut")}</select></label>
+        <label class="field"><span>Voie / PK / zone</span><input id="row_zone" value="${escapeHtml(row.zone ?? "")}" placeholder="Ex. V1 – PK 80+120" /></label>
+      </div>
+      <label class="field"><span>Fait constaté</span><textarea id="row_detail" rows="4" placeholder="Décrire factuellement l’anomalie, l’écart ou l’événement.">${escapeHtml(row.detail ?? "")}</textarea></label>
+      <label class="field"><span>Mesure prise / suite</span><textarea id="row_action" rows="4" placeholder="Action immédiate, mesure conservatoire ou prochaine étape.">${escapeHtml(row.action ?? "")}</textarea></label>
+      <details class="optional-details"><summary>Responsable et échéance</summary><div class="task-extra-grid"><label class="field"><span>Responsable</span><input id="row_responsible" value="${escapeHtml(row.responsible ?? "")}" placeholder="Nom ou entreprise responsable" /></label><label class="field"><span>Échéance</span><input id="row_dueDate" type="date" value="${escapeHtml(row.dueDate ?? "")}" /></label></div></details>
+      <div class="dialog-actions"><button id="saveRowButton" type="button" class="primary-button">Enregistrer le point de suivi</button></div>
+    </div>`;
+  }
+
+  function readAnomalyEditor() {
+    return {
+      type: editorValue("row_type"), severity: editorValue("row_severity"), status: editorValue("row_status"), zone: editorValue("row_zone"),
+      detail: editorValue("row_detail"), action: editorValue("row_action"), responsible: editorValue("row_responsible"), dueDate: editorValue("row_dueDate"),
+    };
+  }
+
+  function renderMaterialEditor(row) {
+    return `<div class="resource-editor">
+      <div class="resource-banner material-banner"><span class="resource-symbol">M</span><div><strong>Matériau, fourniture ou dépose</strong><p>Une ligne par élément significatif : la consommation et les déposes sont intégrées au rapport d’archivage.</p></div></div>
+      <div class="resource-primary-grid"><label class="field"><span>Famille</span><select id="row_type">${selectOptions(MATERIAL_TYPES, row.type || "", "Choisir une famille")}</select></label><label class="field"><span>Libellé / référence</span><input id="row_name" value="${escapeHtml(row.name ?? "")}" placeholder="Ex. Câble 240 mm² aluminium" /></label><label class="field field-count"><span>Quantité</span><input id="row_quantity" type="number" min="0" step="0.01" inputmode="decimal" value="${escapeHtml(row.quantity ?? "")}" placeholder="Qté" /></label><label class="field"><span>Unité</span><select id="row_unit">${selectOptions(MATERIAL_UNITS, row.unit || "", "Unité")}</select></label></div>
+      <div class="task-extra-grid"><label class="field"><span>Voie / PK / zone</span><input id="row_zone" value="${escapeHtml(row.zone ?? "")}" placeholder="Ex. V2 – PK 80+240" /></label><label class="field"><span>Lot / référence fournisseur</span><input id="row_reference" value="${escapeHtml(row.reference ?? "")}" placeholder="Optionnel" /></label></div>
+      <label class="field"><span>Observation</span><textarea id="row_observation" rows="3" placeholder="Utilisation, dépose, stockage, réserve…">${escapeHtml(row.observation ?? "")}</textarea></label>
+      <div class="dialog-actions"><button id="saveRowButton" type="button" class="primary-button">Enregistrer le matériau</button></div>
+    </div>`;
+  }
+
+  function readMaterialEditor() {
+    return { type: editorValue("row_type"), name: editorValue("row_name"), quantity: editorValue("row_quantity"), unit: editorValue("row_unit"), zone: editorValue("row_zone"), reference: editorValue("row_reference"), observation: editorValue("row_observation") };
+  }
+
+  function renderSelfCheckEditor(row) {
+    return `<div class="resource-editor">
+      <div class="resource-banner selfcheck-banner"><span class="resource-symbol">✓</span><div><strong>Autocontrôle ou contrôle</strong><p>Tracer le contrôle réalisé, son résultat et la référence éventuelle. Une réserve peut être liée à un point de suivi.</p></div></div>
+      <div class="resource-primary-grid"><label class="field"><span>Type de contrôle</span><select id="row_type">${selectOptions(SELFCHECK_TYPES, row.type || "", "Choisir un contrôle")}</select></label><label class="field"><span>Résultat</span><select id="row_status">${selectOptions(["Conforme", "Avec réserve", "Non conforme", "Non réalisé"], row.status || "", "Choisir un résultat")}</select></label><label class="field"><span>Voie / PK / zone</span><input id="row_zone" value="${escapeHtml(row.zone ?? "")}" placeholder="Ex. V1 – PK 80+120" /></label><label class="field"><span>Référence / fiche</span><input id="row_reference" value="${escapeHtml(row.reference ?? "")}" placeholder="N° fiche ou PV" /></label></div>
+      <div class="task-extra-grid"><label class="field"><span>Réalisé par</span><input id="row_responsible" value="${escapeHtml(row.responsible ?? "")}" placeholder="Nom / fonction" /></label><label class="field"><span>Heure / date</span><input id="row_checkedAt" value="${escapeHtml(row.checkedAt ?? "")}" placeholder="Ex. 02:15" /></label></div>
+      <label class="field"><span>Observation / réserve</span><textarea id="row_observation" rows="3" placeholder="Résultat détaillé, réserve ou action associée.">${escapeHtml(row.observation ?? "")}</textarea></label>
+      <div class="dialog-actions"><button id="saveRowButton" type="button" class="primary-button">Enregistrer le contrôle</button></div>
+    </div>`;
+  }
+
+  function readSelfCheckEditor() {
+    return { type: editorValue("row_type"), status: editorValue("row_status"), zone: editorValue("row_zone"), reference: editorValue("row_reference"), responsible: editorValue("row_responsible"), checkedAt: editorValue("row_checkedAt"), observation: editorValue("row_observation") };
+  }
+
+  function renderSncfMeansEditor(row) {
+    const role = canonicalSncfRole(row.role || "");
+    return `<div class="resource-editor">
+      <div class="resource-banner sncf-banner"><span class="resource-symbol">S</span><div><strong>Moyen SNCF engagé</strong><p>Choisir une fonction habituelle ou utiliser la liste complète. Une seule ligne suffit pour un même moyen et une même mission.</p></div></div>
+      <section class="resource-shortcuts" aria-label="Raccourcis moyens SNCF"><span>Fonctions fréquentes</span><div>${SNCF_MEANS_PRESETS.map((preset, index) => `<button type="button" class="resource-preset ${role === preset ? "active" : ""}" data-sncf-preset="${index}">${escapeHtml(preset)}</button>`).join("")}</div></section>
+      <div class="resource-primary-grid sncf-primary"><label class="field"><span>Fonction / moyen</span><select id="row_role">${selectOptions(SNCF_MEANS_OPTIONS, role, "Choisir une fonction")}</select></label><label class="field field-count"><span>Nombre</span><input id="row_count" type="number" min="1" step="1" inputmode="numeric" value="${escapeHtml(row.count ?? "")}" placeholder="Nb" /></label><label class="field field-wide"><span>Mission / observation</span><input id="row_observation" value="${escapeHtml(row.observation ?? "")}" placeholder="Nom, mission, commentaire utile" /></label></div>
+      <div class="dialog-actions"><button id="saveRowButton" type="button" class="primary-button">Enregistrer le moyen SNCF</button></div>
+    </div>`;
+  }
+
+  function bindSncfMeansEditor() {
+    const pane = $("#rowEditorPane");
+    if (pane?.dataset.sncfShortcutsBound) return;
+    pane?.addEventListener("click", (event) => {
+      const shortcut = event.target.closest("[data-sncf-preset]");
+      if (!shortcut) return;
+      const role = SNCF_MEANS_PRESETS[Number(shortcut.dataset.sncfPreset)];
+      if (!role) return;
+      $("#row_role").value = role;
+      $$('[data-sncf-preset]').forEach((button) => button.classList.toggle("active", button === shortcut));
+    });
+    if (pane) pane.dataset.sncfShortcutsBound = "1";
+  }
+
+  function readSncfMeansEditor() {
+    return { role: canonicalSncfRole(editorValue("row_role")), count: editorValue("row_count"), observation: editorValue("row_observation") };
+  }
+
+  function renderDocumentEditor(row) {
+    return `<div class="resource-editor">
+      <div class="resource-banner document-banner"><span class="resource-symbol">D</span><div><strong>Document, fiche ou rapport</strong><p>Tracer uniquement la pièce utile à l’archivage et sa référence. Elle apparaîtra dans la section dédiée du PDF.</p></div></div>
+      <div class="resource-primary-grid document-primary"><label class="field"><span>Document / fiche</span><input id="row_name" value="${escapeHtml(row.name ?? "")}" placeholder="Ex. Fiche de libération" /></label><label class="field"><span>Référence</span><input id="row_reference" value="${escapeHtml(row.reference ?? "")}" placeholder="N° ou lien" /></label><label class="field field-wide"><span>Observation / réserve</span><input id="row_observation" value="${escapeHtml(row.observation ?? "")}" placeholder="Contenu ou réserve éventuelle" /></label></div>
+      <div class="dialog-actions"><button id="saveRowButton" type="button" class="primary-button">Enregistrer le document</button></div>
+    </div>`;
+  }
+
+  function readDocumentEditor() {
+    return { name: editorValue("row_name"), reference: editorValue("row_reference"), observation: editorValue("row_observation") };
   }
 
   const rowConfig = {
@@ -759,35 +899,27 @@
     },
     possession: {
       title: "Possession / consignation", editor: renderPossessionEditor, bind: bindPossessionEditor, read: readPossessionEditor,
-      display: (row) => `<h3>Voie ${escapeHtml(row.voie || "à préciser")} · Réel ${escapeHtml(row.actualStart || "—")} → ${escapeHtml(row.actualEnd || "—")}</h3><p>Prévu ${escapeHtml(row.plannedStart || "—")} → ${escapeHtml(row.plannedEnd || "—")} · Accordé ${escapeHtml(row.agreedStart || "—")} → ${escapeHtml(row.agreedEnd || "—")}${row.observation ? ` · ${escapeHtml(row.observation)}` : ""}</p>`,
+      display: (row) => `<h3>Voie ${escapeHtml(row.voie || "à préciser")} · Réel ${escapeHtml(row.actualStart || "—")} → ${escapeHtml(row.actualEnd || "—")}</h3><p>${row.reference ? `<span class="resource-chip">${escapeHtml(row.reference)}</span>` : ""}<span>Prévu ${escapeHtml(row.plannedStart || "—")} → ${escapeHtml(row.plannedEnd || "—")}</span><span>Accordé ${escapeHtml(row.agreedStart || "—")} → ${escapeHtml(row.agreedEnd || "—")}</span>${row.interventionStart || row.interventionEnd ? `<span>Intervention ${escapeHtml(row.interventionStart || "—")} → ${escapeHtml(row.interventionEnd || "—")}</span>` : ""}${row.observation ? `<span>${escapeHtml(row.observation)}</span>` : ""}</p>`,
     },
     anomaly: {
-      title: "Anomalie",
-      fields: [
-        ["type", "Type", "select", ["Technique", "Sécurité", "Environnement", "Organisation"]],
-        ["severity", "Niveau", "select", ["Information", "À surveiller", "Bloquant"]],
-        ["detail", "Fait constaté", "textarea", "Décrire factuellement l’anomalie"],
-        ["action", "Mesure prise / suite", "textarea", "Action immédiate, responsable, prochaine étape"],
-      ],
-      display: (row) => `<h3>${escapeHtml(row.type || "Anomalie")} · ${escapeHtml(row.severity || "À préciser")}</h3><p>${escapeHtml(row.detail || "Sans détail")}${row.action ? ` · Suite : ${escapeHtml(row.action)}` : ""}</p>`,
+      title: "Événement / anomalie", editor: renderAnomalyEditor, read: readAnomalyEditor,
+      display: (row) => `<h3>${escapeHtml(row.type || "Anomalie")} · ${escapeHtml(row.severity || "À préciser")}</h3><p>${row.status ? `<span class="resource-chip">${escapeHtml(row.status)}</span>` : ""}${row.zone ? `<span>${escapeHtml(row.zone)}</span>` : ""}<span>${escapeHtml(row.detail || "Sans détail")}</span>${row.action ? `<span>Suite : ${escapeHtml(row.action)}</span>` : ""}</p>`,
     },
     document: {
-      title: "Rapport fourni",
-      fields: [
-        ["name", "Document / fiche", "text", "Ex. Fiche de libération"],
-        ["reference", "Référence", "text", "N° ou lien"],
-        ["observation", "Observation", "textarea", "Contenu ou réserve éventuelle"],
-      ],
+      title: "Rapport fourni", editor: renderDocumentEditor, read: readDocumentEditor,
       display: (row) => `<h3>${escapeHtml(row.name || "Document à préciser")}${row.reference ? ` · ${escapeHtml(row.reference)}` : ""}</h3><p>${escapeHtml(row.observation || "")}</p>`,
     },
     sncfMeans: {
-      title: "Moyen SNCF",
-      fields: [
-        ["role", "Moyen / fonction", "select", ["RPTx", "CCH", "Adjoint SO / S11", "Agent d’activité", "KV caténaire", "Surveillant caténaire", "Surveillant RSE", "KVSE", "Agent RSO", "Agent caténaire", "Agent voie", "Agent SE", "Annonceur / ASP", "RPAC", "Agent PL", "Agent caténaire consignation", "Agent SE mesures S6", "Agent lorry", "Autre"]],
-        ["count", "Nombre", "number", ""],
-        ["observation", "Observation", "textarea", "Nom, mission, commentaire"],
-      ],
+      title: "Moyen SNCF", editor: renderSncfMeansEditor, bind: bindSncfMeansEditor, read: readSncfMeansEditor,
       display: (row) => `<h3>${escapeHtml(row.role || "Moyen à préciser")}${row.count ? ` · ${displayNumber(row.count, 0)}` : ""}</h3><p>${escapeHtml(row.observation || "")}</p>`,
+    },
+    material: {
+      title: "Matériau / consommable", editor: renderMaterialEditor, read: readMaterialEditor,
+      display: (row) => `<h3>${escapeHtml(row.name || row.type || "Matériau à préciser")}${row.quantity ? ` · ${displayNumber(row.quantity)} ${escapeHtml(row.unit || "")}` : ""}</h3><p>${row.type ? `<span class="resource-chip">${escapeHtml(row.type)}</span>` : ""}${row.zone ? `<span>${escapeHtml(row.zone)}</span>` : ""}${row.reference ? `<span>${escapeHtml(row.reference)}</span>` : ""}${row.observation ? `<span>${escapeHtml(row.observation)}</span>` : ""}</p>`,
+    },
+    selfCheck: {
+      title: "Autocontrôle / contrôle", editor: renderSelfCheckEditor, read: readSelfCheckEditor,
+      display: (row) => `<h3>${escapeHtml(row.type || "Contrôle à préciser")} · ${escapeHtml(row.status || "Résultat à préciser")}</h3><p>${row.zone ? `<span>${escapeHtml(row.zone)}</span>` : ""}${row.reference ? `<span>${escapeHtml(row.reference)}</span>` : ""}${row.responsible ? `<span>${escapeHtml(row.responsible)}</span>` : ""}${row.observation ? `<span>${escapeHtml(row.observation)}</span>` : ""}</p>`,
     },
   };
 
@@ -814,7 +946,7 @@
       const rows = photos.filter((photo) => photo.phase === phase);
       if (!rows.length) return "";
       const label = phase === "avant" ? "Avant nuit" : "Après nuit";
-      return `<section class="photo-group"><h3>${label}</h3><div class="photo-grid">${rows.map((photo) => `<figure class="photo-card"><img src="${photo.dataUrl}" alt="${escapeHtml(`${label} — ${photo.caption || "photo terrain"}`)}" /><figcaption><strong>${formatDateTime(photo.capturedAt)}</strong><input data-photo-caption="${escapeHtml(photo.id)}" value="${escapeHtml(photo.caption || "")}" placeholder="Légende / localisation" /><button type="button" class="mini-button danger" data-delete-photo="${escapeHtml(photo.id)}">Supprimer</button></figcaption></figure>`).join("")}</div></section>`;
+      return `<section class="photo-group"><h3>${label}</h3><div class="photo-grid">${rows.map((photo) => `<figure class="photo-card"><img src="${photo.dataUrl}" alt="${escapeHtml(`${label} — ${photo.caption || "photo terrain"}`)}" /><figcaption><strong>${formatDateTime(photo.capturedAt)}</strong><div class="photo-meta-grid"><label><span>Type</span><select data-photo-field="category" data-photo-id="${escapeHtml(photo.id)}">${selectOptions(PHOTO_CONTEXT_OPTIONS, photo.category || "", "À qualifier")}</select></label><label><span>Voie / PK</span><input data-photo-field="zone" data-photo-id="${escapeHtml(photo.id)}" value="${escapeHtml(photo.zone || "")}" placeholder="Zone" /></label></div><label class="photo-caption-label"><span>Légende</span><input data-photo-field="caption" data-photo-id="${escapeHtml(photo.id)}" value="${escapeHtml(photo.caption || "")}" placeholder="Ce que montre la photo" /></label><button type="button" class="mini-button danger" data-delete-photo="${escapeHtml(photo.id)}">Supprimer</button></figcaption></figure>`).join("")}</div></section>`;
     }).join("");
   }
 
@@ -856,7 +988,7 @@
     const added = [];
     for (const file of selected) {
       try {
-        added.push({ id: uid(), phase: selectedPhotoPhase, capturedAt: new Date().toISOString(), caption: "", dataUrl: await compactPhoto(file) });
+        added.push({ id: uid(), phase: selectedPhotoPhase, capturedAt: new Date().toISOString(), category: selectedPhotoPhase === "avant" ? "Avant travaux" : "Après travaux", zone: "", caption: "", dataUrl: await compactPhoto(file) });
       } catch (_) {
         showToast(`La photo « ${file.name || "sans nom"} » n’a pas pu être ajoutée.`, "warning");
       }
@@ -1097,7 +1229,7 @@
     renderHeader();
     renderQuickCatalog();
     renderTasks();
-    ["personnel", "equipment", "possession", "anomaly", "document", "sncfMeans"].forEach(renderDataList);
+    ["personnel", "equipment", "possession", "anomaly", "document", "sncfMeans", "material", "selfCheck"].forEach(renderDataList);
     renderPhotos();
     renderAfterWorkSignature();
     renderReview();
@@ -1347,16 +1479,103 @@
     return { label: "A suivre", tone: "warning" };
   }
 
+  function archiveReportPage(title, subtitle, content, modifier = "") {
+    return `<article class="rj-report-page rj-archive-page ${modifier}">
+      <header class="rj-archive-head"><div class="rj-archive-brand"><img src="assets/ainm-infrapole-paris-sud-est.jpg" alt="AINM Infrapôle Paris Sud Est"><div><span>Rapport journalier · dossier d’archivage</span><h1>${escapeHtml(title)}</h1><p>${escapeHtml(subtitle)}</p></div></div><div class="rj-archive-reference">${escapeHtml(state.meta.reportNo || "N° à renseigner")}</div></header>
+      ${content}
+      ${reportFooter()}
+    </article>`;
+  }
+
+  function archiveTablePage(title, subtitle, headers, rows, pageIndex = 0, extra = "") {
+    const head = headers.map((header) => `<th>${header}</th>`).join("");
+    const body = rows.length ? rows.join("") : `<tr><td colspan="${headers.length}" class="rj-empty-note">Aucune donnée saisie.</td></tr>`;
+    return archiveReportPage(`${title}${pageIndex ? " - suite" : ""}`, subtitle, `<table class="rj-archive-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>${extra}`);
+  }
+
+  function chunkArchiveText(value, maxLength = 1350) {
+    const text = String(value || "").trim();
+    if (!text) return [];
+    const chunks = [];
+    let remaining = text;
+    while (remaining.length > maxLength) {
+      const boundary = Math.max(remaining.lastIndexOf("\n", maxLength), remaining.lastIndexOf(". ", maxLength), remaining.lastIndexOf(" ", maxLength));
+      const splitAt = boundary > Math.floor(maxLength * 0.55) ? boundary + (remaining[boundary] === "." ? 1 : 0) : maxLength;
+      chunks.push(remaining.slice(0, splitAt).trim());
+      remaining = remaining.slice(splitAt).trim();
+    }
+    if (remaining) chunks.push(remaining);
+    return chunks;
+  }
+
+  function renderArchivePages() {
+    const pages = [];
+    const session = `${state.meta.shiftType === "nuit" ? "Nuit" : "Journée"} · ${state.meta.shiftStart || "—"} → ${state.meta.shiftEnd || "—"}`;
+    const status = state.meta.cancelled ? "Chantier annulé" : "Séance réalisée";
+    const identityCards = [
+      ["Opération / chantier", state.meta.operation || "—"], ["Lieu / secteur", state.meta.location || "—"], ["N° rapport", state.meta.reportNo || "—"], ["N° commande", state.meta.orderNo || "—"],
+      ["Entreprise principale", enterpriseName() || "—"], ["Date et séance", `${formatDate(state.meta.date)} · ${session}`], ["Durée effective", state.meta.workDuration ? `${displayNumber(state.meta.workDuration)} h` : "—"], ["Météo / température", [state.meta.weather, state.meta.temperature !== "" ? `${state.meta.temperature} °C` : ""].filter(Boolean).join(" · ") || "—"],
+      ["Rédacteur", state.meta.reporter || "—"], ["Représentant MOETx SNCF", state.meta.moeRepresentative || "—"], ["Représentant entreprise", state.meta.companyRepresentative || "—"], ["Statut", status],
+    ];
+    const notes = [
+      ["Objectif / consigne de la séance", state.meta.objective || "Non renseigné."],
+      ["Faits marquants / aléas / décisions", state.meta.executionNotes && state.meta.executionNotes.length <= 780 ? state.meta.executionNotes : (state.meta.executionNotes ? "Voir la ou les pages détaillées de suivi." : "Aucun élément complémentaire renseigné.")],
+      ["Travaux restant / prochaine séance", state.meta.nextWorks && state.meta.nextWorks.length <= 780 ? state.meta.nextWorks : (state.meta.nextWorks ? "Voir la ou les pages détaillées de suivi." : "Aucun élément complémentaire renseigné.")],
+    ];
+    pages.push(archiveReportPage("Fiche d’identification de la séance", "Trame d’archivage complète — contexte, participants et consignes", `
+      <section class="rj-archive-intro"><div class="rj-archive-logo-line"><img src="assets/ainm-infrapole-paris-sud-est.jpg" alt="AINM"><div><strong>RAPPORT JOURNALIER DE CHANTIER</strong><span>Référence documentaire : ${escapeHtml(state.meta.reportNo || "à renseigner")}</span></div></div><div class="rj-archive-info-grid">${identityCards.map(([label, value]) => `<section><strong>${escapeHtml(label)}</strong><span>${escapeHtml(value)}</span></section>`).join("")}</div></section>
+      <section class="rj-archive-notes">${notes.map(([title, value]) => `<section><h2>${escapeHtml(title)}</h2><p>${escapeHtml(value)}</p></section>`).join("")}${state.meta.cancelled ? `<section class="rj-archive-alert"><h2>Motif d’annulation</h2><p>${escapeHtml(state.meta.cancelReason || "Non renseigné.")}</p></section>` : ""}</section>`));
+
+    [["Faits marquants, aléas et décisions", state.meta.executionNotes], ["Travaux restant et préparation de la prochaine séance", state.meta.nextWorks]].forEach(([title, text]) => {
+      const chunks = chunkArchiveText(text);
+      if (chunks.length <= 1 && String(text || "").length <= 780) return;
+      chunks.forEach((chunk, index) => pages.push(archiveReportPage(`${title}${index ? " - suite" : ""}`, "Détail intégral saisi dans l’application", `<section class="rj-archive-notes"><section><h2>${escapeHtml(title)}</h2><p>${escapeHtml(chunk)}</p></section></section>`)));
+    });
+
+    const addRows = (title, subtitle, headers, rows, size, extra = "") => {
+      if (!rows.length) return;
+      chunkReportItems(rows, size).forEach((chunk, index) => pages.push(archiveTablePage(title, subtitle, headers, chunk, index, index === 0 ? extra : "")));
+    };
+
+    addRows("Personnel et intervenants", "Main-d’œuvre engagée pour la séance", ["Famille / entreprise", "Fonction", "Effectif", "H / pers.", "Chef d’équipe / observation"], state.personnel.map((row) => `<tr><td>${escapeHtml([row.team, companyName(row)].filter(Boolean).join(" · "))}</td><td>${escapeHtml(roleName(row))}</td><td class="rj-archive-number">${escapeHtml(displayNumber(row.count, 0))}</td><td class="rj-archive-number">${row.hours ? escapeHtml(displayNumber(row.hours)) : "—"}</td><td>${escapeHtml([row.lead, row.observation].filter(Boolean).join(" · ") || "—")}</td></tr>`), 8);
+
+    addRows("Engins et matériels entreprise", "Matériels réellement engagés et conditions d’utilisation", ["Engin / famille", "Entreprise", "Nb", "Identification", "Zone / PK", "Observation / sécurité"], state.equipment.map((row) => `<tr><td><strong>${escapeHtml(equipmentName(row))}</strong><br><small>${escapeHtml(row.family || "—")}</small></td><td>${escapeHtml(companyName(row))}</td><td class="rj-archive-number">${escapeHtml(displayNumber(row.count, 0))}</td><td>${escapeHtml(row.identification || "—")}</td><td>${escapeHtml([row.zone, row.pk, row.miseEnVoie].filter(Boolean).join(" · ") || "—")}</td><td>${escapeHtml(row.observation || "—")}</td></tr>`), 7);
+
+    addRows("Interceptions, possessions et consignations", "Horaires prévus, accordés, réels et intervention effective", ["Voie / zone", "Prévu", "Accordé", "Réel", "Intervention", "Référence / observation"], state.possessions.map((row) => `<tr><td>${escapeHtml([row.voie && `Voie ${row.voie}`, row.zone].filter(Boolean).join(" · ") || "—")}</td><td>${escapeHtml(`${row.plannedStart || "—"} → ${row.plannedEnd || "—"}`)}</td><td>${escapeHtml(`${row.agreedStart || "—"} → ${row.agreedEnd || "—"}`)}</td><td>${escapeHtml(`${row.actualStart || "—"} → ${row.actualEnd || "—"}`)}</td><td>${escapeHtml(`${row.interventionStart || "—"} → ${row.interventionEnd || "—"}`)}</td><td>${escapeHtml([row.reference, row.observation].filter(Boolean).join(" · ") || "—")}</td></tr>`), 7);
+
+    addRows("Travaux réellement réalisés", "Détail d’archivage des prestations saisies sur le terrain", ["Prestation", "Quantité", "Voie / PK", "Observation"], state.tasks.map((task) => {
+      const template = templateById.get(task.templateId);
+      return `<tr><td><strong>${escapeHtml(task.label || template?.reportLabel || "Prestation")}</strong></td><td class="rj-archive-number">${escapeHtml(reportTaskQuantity(task, template))}</td><td>${escapeHtml(reportTaskLocation(task))}</td><td>${escapeHtml(task.note || "—")}</td></tr>`;
+    }), 9);
+
+    addRows("Matériaux, consommables et éléments déposés", "Éléments déclarés au cours de la séance", ["Élément", "Qté / unité", "Voie / PK / zone", "Référence", "Observation"], state.materials.map((row) => `<tr><td><strong>${escapeHtml(row.name || row.type || "—")}</strong><br><small>${escapeHtml(row.type || "")}</small></td><td class="rj-archive-number">${row.quantity ? `${escapeHtml(displayNumber(row.quantity))} ${escapeHtml(row.unit || "")}` : "—"}</td><td>${escapeHtml(row.zone || "—")}</td><td>${escapeHtml(row.reference || "—")}</td><td>${escapeHtml(row.observation || "—")}</td></tr>`), 8);
+
+    addRows("Autocontrôles et contrôles", "Contrôles réalisés, résultats et réserves", ["Contrôle", "Résultat", "Zone", "Référence", "Réalisé par / heure", "Observation"], state.selfChecks.map((row) => `<tr><td>${escapeHtml(row.type || "—")}</td><td>${escapeHtml(row.status || "—")}</td><td>${escapeHtml(row.zone || "—")}</td><td>${escapeHtml(row.reference || "—")}</td><td>${escapeHtml([row.responsible, row.checkedAt].filter(Boolean).join(" · ") || "—")}</td><td>${escapeHtml(row.observation || "—")}</td></tr>`), 7);
+
+    addRows("Anomalies, événements et points à lever", "Suivi des situations constatées pendant ou après les travaux", ["Nature / niveau / statut", "Zone", "Fait constaté", "Mesure prise / suite", "Responsable / échéance"], state.anomalies.map((row) => `<tr><td><strong>${escapeHtml(row.type || "Anomalie")}</strong><br><small>${escapeHtml([row.severity, reportStatusForAnomaly(row).label].filter(Boolean).join(" · "))}</small></td><td>${escapeHtml(row.zone || "—")}</td><td>${escapeHtml(row.detail || "—")}</td><td>${escapeHtml(row.action || "—")}</td><td>${escapeHtml([row.responsible, row.dueDate ? formatDate(row.dueDate) : ""].filter(Boolean).join(" · ") || "—")}</td></tr>`), 6);
+
+    addRows("Rapports, fiches et pièces jointes", "Documents fournis ou à rapprocher de la séance", ["Document / fiche", "Référence", "Observation"], state.documents.map((row) => `<tr><td>${escapeHtml(row.name || "—")}</td><td>${escapeHtml(row.reference || "—")}</td><td>${escapeHtml(row.observation || "—")}</td></tr>`), 10);
+
+    addRows("Moyens SNCF engagés", "Moyens et fonctions SNCF mobilisés pendant la séance", ["Fonction", "Nombre", "Observation"], state.sncfMeans.map((row) => `<tr><td>${escapeHtml(canonicalSncfRole(row.role) || "—")}</td><td class="rj-archive-number">${escapeHtml(displayNumber(row.count, 0))}</td><td>${escapeHtml(row.observation || "—")}</td></tr>`), 10);
+
+    const signature = state.afterWorkSignature || {};
+    pages.push(archiveReportPage("Visas et signatures", "Validation de fin de séance et visas des acteurs", `<section class="rj-archive-signatures"><section><strong>Rédacteur / surveillant</strong><span>${escapeHtml(state.meta.reporter || "Nom à renseigner")}</span><div class="rj-archive-signature-line"></div></section><section><strong>Représentant MOETx SNCF</strong><span>${escapeHtml(state.meta.moeRepresentative || "Nom à renseigner")}</span><div class="rj-archive-signature-line"></div></section><section><strong>Représentant entreprise</strong><span>${escapeHtml(state.meta.companyRepresentative || "Nom à renseigner")}</span><div class="rj-archive-signature-line"></div></section><section><strong>Visa après travaux</strong><span>${escapeHtml([signature.name, signature.role].filter(Boolean).join(" · ") || "Nom / fonction à renseigner")}${signature.signedAt ? `<small>Signée le ${escapeHtml(formatDateTime(signature.signedAt))}</small>` : ""}${signature.dataUrl ? `<img src="${escapeHtml(signature.dataUrl)}" alt="Signature après travaux">` : `<div class="rj-archive-signature-line"></div>`}</section></section><p class="rj-archive-legal">Rapport n° ${escapeHtml(state.meta.reportNo || "—")} · Les visas matérialisent la prise de connaissance des informations consignées.</p>`));
+    return pages;
+  }
+
   function renderPrintReport() {
     const includeValuation = isAdminView();
     const breakdown = valuationBreakdown();
     const resolved = breakdown.valuations;
-    const tasks = chunkReportItems(resolved, includeValuation ? 7 : 9);
+    const tasks = chunkReportItems(resolved, 9);
     const allPhotos = state.photos || [];
     const coverPhoto = allPhotos.find((photo) => photo.phase === "apres") || allPhotos.find((photo) => photo.phase === "avant") || allPhotos[0];
     const observationPhotos = allPhotos.slice(0, 2);
-    const appendixPhotos = allPhotos.slice(2);
-    const photosPages = chunkReportItems(appendixPhotos, 6);
+    const appendixPhotos = [
+      ...allPhotos.filter((photo) => photo.phase === "avant"),
+      ...allPhotos.filter((photo) => photo.phase !== "avant"),
+    ];
+    const photosPages = chunkReportItems(appendixPhotos, 4);
     const totalPeople = state.personnel.reduce((sum, row) => sum + number(row.count), 0);
     const totalEquipment = state.equipment.reduce((sum, row) => sum + number(row.count), 0);
     const companies = [enterpriseName(), ...state.personnel.map(companyName), ...state.equipment.map(companyName)];
@@ -1406,19 +1625,14 @@
 
     tasks.forEach((pageTasks, pageIndex) => {
       const rows = pageTasks.length ? pageTasks.map(({ task, template, result }, index) => {
-        const sequence = pageIndex * (includeValuation ? 7 : 9) + index + 1;
-        const record = result.record;
-        const financialCells = includeValuation
-          ? `<td>${escapeHtml(record?.article || "A contrôler")}</td><td class="rj-work-numeric">${result.status === "priced" ? escapeHtml(euros(result.unitPrice)) : "-"}</td><td class="rj-work-numeric">${result.status === "priced" ? escapeHtml(euros(result.amount)) : "-"}</td>`
-          : "";
-        return `<tr><td><div class="rj-work-name"><span class="rj-work-seq">${sequence}</span><span>${escapeHtml(task.label || template?.reportLabel || "Prestation")}</span></div></td><td class="rj-work-numeric">${escapeHtml(reportTaskQuantity(task, template))}</td><td>${escapeHtml(reportTaskLocation(task))}</td><td>${escapeHtml(task.note || "Sans observation")}</td>${financialCells}</tr>`;
+        const sequence = pageIndex * 9 + index + 1;
+        return `<tr><td><div class="rj-work-name"><span class="rj-work-seq">${sequence}</span><span>${escapeHtml(task.label || template?.reportLabel || "Prestation")}</span></div></td><td class="rj-work-numeric">${escapeHtml(reportTaskQuantity(task, template))}</td><td>${escapeHtml(reportTaskLocation(task))}</td><td>${escapeHtml(task.note || "Sans observation")}</td></tr>`;
       }).join("") : `<tr><td colspan="${includeValuation ? 7 : 4}" class="rj-empty-note">Aucune prestation saisie.</td></tr>`;
-      const financialHeaders = includeValuation ? "<th style=\"width:11%\">Réf. PB</th><th style=\"width:10%\">P.U. HT</th><th style=\"width:11%\">Montant HT</th>" : "";
       pages.push(`
         <article class="rj-report-page">
-          <header class="rj-section-head"><span class="rj-section-icon">P</span><div><h1>Prestations saisies sur le terrain${pageIndex ? " - suite" : ""}</h1><p>${includeValuation ? "Saisie terrain et rapprochement interne au bordereau" : "Saisie terrain simplifiée - quantités, voies et observations"}</p></div></header>
-          <table class="rj-work-table"><thead><tr><th style="width:${includeValuation ? "25%" : "31%"}">Prestation terrain</th><th style="width:${includeValuation ? "12%" : "15%"}">Qté / unité</th><th style="width:${includeValuation ? "19%" : "28%"}">Critères / localisation</th><th style="width:${includeValuation ? "12%" : "26%"}">Observation</th>${financialHeaders}</tr></thead><tbody>${rows}</tbody></table>
-          ${pageIndex === 0 ? `<section class="rj-production-bottom"><section class="rj-feature-card"><h2>Fonctions intégrées de l'application</h2><ul><li>Numérotation unique de chaque rapport</li><li>Reprise du personnel et des engins de la dernière nuit</li><li>Saisie simplifiée sans affichage des prix terrain</li><li>Photos datées avant / après nuit</li><li>Visas et signature après travaux</li></ul></section><section class="rj-production-total">${includeValuation ? `<div><span>Montant de la séance</span><strong>${escapeHtml(euros(breakdown.total))}</strong></div><div class="minor-total"><span>Prestations à contrôler</span><strong>${breakdown.valuations.filter(({ result }) => result.status !== "priced").length}</strong></div>` : `<div><span>Production de la séance</span><strong>${state.tasks.length}</strong><span>prestation(s) saisie(s)</span></div><div class="minor-total"><span>Traçabilité</span><strong>${allPhotos.length}</strong><span>photo(s) jointe(s)</span></div>`}</section></section>` : ""}
+          <header class="rj-section-head"><span class="rj-section-icon">P</span><div><h1>Prestations saisies sur le terrain${pageIndex ? " - suite" : ""}</h1><p>Saisie terrain simplifiée — quantités, voies et observations</p></div></header>
+          <table class="rj-work-table"><thead><tr><th style="width:31%">Prestation terrain</th><th style="width:15%">Qté / unité</th><th style="width:28%">Critères / localisation</th><th style="width:26%">Observation</th></tr></thead><tbody>${rows}</tbody></table>
+          ${pageIndex === 0 ? `<section class="rj-production-bottom"><section class="rj-feature-card"><h2>Fonctions intégrées de l'application</h2><ul><li>Numérotation unique de chaque rapport</li><li>Reprise du personnel et des engins de la dernière nuit</li><li>Saisie simplifiée sans affichage des prix terrain</li><li>Photos datées avant / après nuit, avec zone et légende</li><li>Visas et signature après travaux</li></ul></section><section class="rj-production-total"><div><span>Production de la séance</span><strong>${state.tasks.length}</strong><span>prestation(s) saisie(s)</span></div><div class="minor-total"><span>Traçabilité</span><strong>${allPhotos.length}</strong><span>photo(s) jointe(s)</span></div></section></section>` : ""}
           ${reportFooter()}
         </article>`);
     });
@@ -1464,14 +1678,23 @@
 
     if (appendixPhotos.length) {
       photosPages.forEach((photoPage, photoPageIndex) => {
-        const photoCards = photoPage.map((photo) => `<figure class="rj-photo-appendix-card"><img src="${escapeHtml(photo.dataUrl)}" alt="Photo ${escapeHtml(photo.phase === "avant" ? "avant nuit" : "après nuit")}"><figcaption><strong>${escapeHtml(photo.phase === "avant" ? "Avant nuit" : "Après nuit")}</strong><br>${escapeHtml(formatDateTime(photo.capturedAt))}${photo.caption ? `<br>${escapeHtml(photo.caption)}` : ""}</figcaption></figure>`).join("");
-        pages.push(`<article class="rj-report-page"><header class="rj-section-head"><span class="rj-section-icon">P</span><div><h1>Photos de suivi terrain${photoPageIndex ? " - suite" : ""}</h1><p>Photos datées et classées avant / après nuit</p></div></header><section class="rj-photo-appendix-grid">${photoCards}</section>${reportFooter()}</article>`);
+        const photoCards = photoPage.map((photo) => `<figure class="rj-photo-appendix-card"><img src="${escapeHtml(photo.dataUrl)}" alt="Photo ${escapeHtml(photo.phase === "avant" ? "avant nuit" : "après nuit")}"><figcaption><strong>${escapeHtml(photo.phase === "avant" ? "Avant nuit" : "Après nuit")}${photo.category ? ` · ${escapeHtml(photo.category)}` : ""}</strong><br>${escapeHtml(formatDateTime(photo.capturedAt))}${photo.zone ? `<br>${escapeHtml(photo.zone)}` : ""}${photo.caption ? `<br>${escapeHtml(photo.caption)}` : ""}</figcaption></figure>`).join("");
+        pages.push(`<article class="rj-report-page"><header class="rj-section-head"><span class="rj-section-icon">P</span><div><h1>Pièces jointes photo${photoPageIndex ? " - suite" : ""}</h1><p>Photos datées, classées avant / après nuit et localisées</p></div></header><section class="rj-photo-appendix-grid">${photoCards}</section>${reportFooter()}</article>`);
       });
     }
 
+    pages.push(...renderArchivePages());
+
     if (includeValuation) {
-      const valuationRows = breakdown.valuations.map(({ task, template, result }) => `<tr><td>${escapeHtml(task.label || template?.reportLabel || "Prestation")}</td><td>${escapeHtml(result.record?.article || "A contrôler")}</td><td class="rj-work-numeric">${escapeHtml(reportTaskQuantity(task, template))}</td><td class="rj-work-numeric">${result.status === "priced" ? escapeHtml(euros(result.unitPrice)) : "-"}</td><td class="rj-work-numeric">${result.status === "priced" ? escapeHtml(euros(result.amount)) : "-"}</td></tr>`).join("") || `<tr><td colspan="5" class="rj-empty-note">Aucune prestation à valoriser.</td></tr>`;
-      pages.push(`<article class="rj-report-page rj-admin-page"><header class="rj-section-head"><span class="rj-section-icon">€</span><div><h1>Annexe de valorisation interne</h1><p>Réservée à l'administrateur principal - montants indicatifs HT</p></div></header><table class="rj-work-table"><thead><tr><th style="width:35%">Prestation terrain</th><th style="width:18%">Référence PB</th><th style="width:17%">Qté / unité</th><th style="width:15%">P.U. HT</th><th style="width:15%">Montant HT</th></tr></thead><tbody>${valuationRows}${breakdown.commonCosts.map((row) => `<tr><td>${escapeHtml(row.label)}</td><td>${escapeHtml(row.article)}</td><td class="rj-work-numeric">Base ${escapeHtml(euros(row.base))}</td><td class="rj-work-numeric">${displayNumber(row.rate * 100)} %</td><td class="rj-work-numeric">${escapeHtml(euros(row.amount))}</td></tr>`).join("")}<tr><td colspan="4"><strong>Total valorisé indicatif HT</strong></td><td class="rj-work-numeric"><strong>${escapeHtml(euros(breakdown.total))}</strong></td></tr></tbody></table><section class="rj-feature-card"><h2>Contrôle administratif</h2><ul><li>Les prix ne sont jamais affichés aux agents terrain.</li><li>Les lignes sans prix restent à contrôler dans l'espace administrateur.</li><li>Cette annexe ne remplace pas la validation de la situation de travaux.</li></ul></section>${reportFooter()}</article>`);
+      const valuationRows = breakdown.valuations.map(({ task, template, result }) => `<tr><td>${escapeHtml(task.label || template?.reportLabel || "Prestation")}</td><td>${escapeHtml(result.record?.article || "A contrôler")}</td><td class="rj-work-numeric">${escapeHtml(reportTaskQuantity(task, template))}</td><td class="rj-work-numeric">${result.status === "priced" ? escapeHtml(euros(result.unitPrice)) : "-"}</td><td class="rj-work-numeric">${result.status === "priced" ? escapeHtml(euros(result.amount)) : "-"}</td></tr>`);
+      const financePages = chunkReportItems(valuationRows, 12);
+      financePages.forEach((financeRows, financeIndex) => {
+        const isLast = financeIndex === financePages.length - 1;
+        const commonRows = isLast ? breakdown.commonCosts.map((row) => `<tr><td>${escapeHtml(row.label)}</td><td>${escapeHtml(row.article)}</td><td class="rj-work-numeric">Base ${escapeHtml(euros(row.base))}</td><td class="rj-work-numeric">${displayNumber(row.rate * 100)} %</td><td class="rj-work-numeric">${escapeHtml(euros(row.amount))}</td></tr>`).join("") : "";
+        const totalRow = isLast ? `<tr><td colspan="4"><strong>Total valorisé indicatif HT</strong></td><td class="rj-work-numeric"><strong>${escapeHtml(euros(breakdown.total))}</strong></td></tr>` : "";
+        const body = financeRows.length ? financeRows.join("") : `<tr><td colspan="5" class="rj-empty-note">Aucune prestation à valoriser.</td></tr>`;
+        pages.push(`<article class="rj-report-page rj-admin-page"><header class="rj-section-head"><span class="rj-section-icon">€</span><div><h1>Annexe de valorisation interne${financeIndex ? " - suite" : ""}</h1><p>Réservée à l'administrateur principal - montants indicatifs HT</p></div></header><table class="rj-work-table"><thead><tr><th style="width:35%">Prestation terrain</th><th style="width:18%">Référence PB</th><th style="width:17%">Qté / unité</th><th style="width:15%">P.U. HT</th><th style="width:15%">Montant HT</th></tr></thead><tbody>${body}${commonRows}${totalRow}</tbody></table>${isLast ? `<section class="rj-feature-card"><h2>Contrôle administratif</h2><ul><li>Les prix ne sont jamais affichés aux agents terrain.</li><li>Les lignes sans prix restent à contrôler dans l'espace administrateur.</li><li>Cette annexe ne remplace pas la validation de la situation de travaux.</li></ul></section>` : ""}${reportFooter()}</article>`);
+      });
     }
 
     $("#printReport").innerHTML = pages.map((page, index) => page.replaceAll("__REPORT_PAGE__", `${index + 1}/${pages.length}`)).join("");
@@ -1511,12 +1734,15 @@
       reporter: sourceCopy.meta?.reporter || "",
       moeRepresentative: sourceCopy.meta?.moeRepresentative || "",
       companyRepresentative: sourceCopy.meta?.companyRepresentative || "",
+      location: sourceCopy.meta?.location || "",
       shiftType: sourceCopy.meta?.shiftType || "nuit",
       shiftStart: sourceCopy.meta?.shiftStart || "22:00",
       shiftEnd: sourceCopy.meta?.shiftEnd || "06:00",
       workDuration: sourceCopy.meta?.workDuration || "",
       weather: "",
       temperature: "",
+      executionNotes: "",
+      nextWorks: "",
       publicHoliday: false,
       cancelled: false,
       cancelReason: "",
@@ -1647,12 +1873,12 @@
       renderPrintReport();
     });
     $("#photoList").addEventListener("change", (event) => {
-      const input = event.target.closest("[data-photo-caption]");
+      const input = event.target.closest("[data-photo-field]");
       if (!input) return;
-      const photo = state.photos.find((item) => item.id === input.dataset.photoCaption);
+      const photo = state.photos.find((item) => item.id === input.dataset.photoId);
       if (!photo) return;
-      photo.caption = input.value.trim();
-      save("Légende photo enregistrée");
+      photo[input.dataset.photoField] = input.value.trim();
+      save("Informations photo enregistrées");
       renderPrintReport();
     });
     $("#afterWorkSignerName").addEventListener("input", (event) => {

@@ -48,7 +48,8 @@
           <button class="step active" data-scroll-target="contextSection" type="button"><span>1</span>Contexte</button>
           <button class="step" data-scroll-target="productionSection" type="button"><span>2</span>Production</button>
           <button class="step" data-scroll-target="traceabilitySection" type="button"><span>3</span>Traçabilité</button>
-          <button class="step" data-scroll-target="reviewSection" type="button"><span>4</span>Contrôle</button>
+          <button class="step" data-scroll-target="archiveSection" type="button"><span>4</span>Archivage</button>
+          <button class="step" data-scroll-target="reviewSection" type="button"><span>5</span>Contrôle</button>
         </nav>
 
         <section id="contextSection" class="section-card">
@@ -66,6 +67,10 @@
             <label class="field field-wide">
               <span>Opération / chantier</span>
               <input id="operationInput" data-path="meta.operation" autocomplete="organization" placeholder="Ex. RCT AINM — Moret–Montargis" />
+            </label>
+            <label class="field field-wide">
+              <span>Lieu / secteur / ligne</span>
+              <input id="locationInput" data-path="meta.location" placeholder="Ex. V1 et V2 — PK 80+050 à 80+340" />
             </label>
             <label class="field">
               <span>N° rapport</span>
@@ -127,7 +132,7 @@
             </label>
           </div>
           <details class="optional-details context-options">
-            <summary>Compléments de rapport : météo et visas</summary>
+            <summary>Compléments de rapport : météo, objectif et visas</summary>
             <div class="form-grid">
               <label class="field">
                 <span>Temps</span>
@@ -228,10 +233,41 @@
           </section>
         </section>
 
+        <section id="archiveSection" class="section-card archive-card">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">4 · Archivage</p>
+              <h2>Dossier complet de la séance</h2>
+              <p class="muted">Les éléments saisis ici sont repris dans le rapport d’archivage, sans limite de pages.</p>
+            </div>
+            <span class="status-chip neutral">Traçabilité renforcée</span>
+          </div>
+          <div class="two-column-grid archive-grid">
+            <section class="archive-subcard">
+              <div class="section-heading">
+                <div><p class="eyebrow">Consommables</p><h3>Matériaux utilisés</h3><p class="muted">Câbles, fournitures, béton, éléments déposés ou consommés.</p></div>
+                <button class="text-button" data-add-row="material" type="button">＋ Ajouter</button>
+              </div>
+              <div id="materialList" class="data-list"></div>
+            </section>
+            <section class="archive-subcard">
+              <div class="section-heading">
+                <div><p class="eyebrow">Qualité</p><h3>Autocontrôles et contrôles</h3><p class="muted">Contrôles réalisés, résultats, réserves et références.</p></div>
+                <button class="text-button" data-add-row="selfCheck" type="button">＋ Ajouter</button>
+              </div>
+              <div id="selfCheckList" class="data-list"></div>
+            </section>
+          </div>
+          <div class="form-grid archive-notes">
+            <label class="field field-wide"><span>Faits marquants / aléas / décisions</span><textarea id="executionNotesInput" data-path="meta.executionNotes" rows="4" placeholder="Décrire les faits marquants, aléas, décisions prises et coordination réalisée."></textarea></label>
+            <label class="field field-wide"><span>Travaux restant à réaliser / prochaine séance</span><textarea id="nextWorksInput" data-path="meta.nextWorks" rows="4" placeholder="Travaux restant, conditions de reprise, livraisons, contrôles ou points à lever."></textarea></label>
+          </div>
+        </section>
+
         <section id="reviewSection" class="section-card review-card">
           <div class="section-heading">
             <div>
-              <p class="eyebrow">4 · Contrôle</p>
+              <p class="eyebrow">5 · Contrôle</p>
               <h2>Rapport prêt à éditer</h2>
               <p class="muted">Le PDF terrain ne contient que les faits constatés et les quantités réellement réalisées.</p>
             </div>

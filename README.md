@@ -7,13 +7,16 @@ Cette première version transforme les trames fournies en un rapport utilisable 
 - Rapport terrain avec contexte de séance, main-d’œuvre, engins, production, interceptions / consignations, anomalies, pièces jointes déclarées, moyens SNCF et visas.
 - Reprise de la dernière nuit : création d’un nouveau rapport qui reprend uniquement les équipes, engins et moyens SNCF habituels ; les travaux, photos, anomalies, consignations et signatures restent vierges.
 - Numéro de rapport attribué automatiquement et non modifiable : compteur séquentiel local (`000001`, `000002`, …) complété par un identifiant d’appareil. Un nouveau rapport ne peut donc pas reprendre le numéro du précédent sur le même appareil, y compris hors ligne.
-- Photos terrain limitées et compressées pour le fonctionnement hors ligne : classement **Avant nuit / Après nuit**, date et heure de prise dans le rapport, légende et impression PDF.
+- Jusqu’à 12 photos terrain compressées pour le fonctionnement hors ligne : classement **Avant nuit / Après nuit**, date et heure, type de photo, voie / PK, légende et impression PDF complète.
 - Visa après travaux au doigt, daté, avec nom et fonction du signataire, ajouté en complément des deux visas existants.
 - Charte AINM Infrapôle Paris Sud Est : logo intégré, palette bleu acier / cyan, icône PWA assortie et édition PDF harmonisée.
-- Saisie mobile structurée des intervenants : famille (entreprise travaux, SNCF, prestataire sécurité), entreprise, fonction, effectif, heures, chef d’équipe et observation.
-- Saisie mobile structurée des engins : distinction rail-route / LAM, routier / chenillard, manutention / levage et autre matériel ; identification, zone, PK et mode de mise en voie sont tracés lorsque nécessaire.
+- Saisie mobile structurée des intervenants : raccourcis métier (chef de chantier, chef d’équipe, RPTx, KV caténaire, KVSE, Agent RSO…), puis famille, entreprise, effectif et compléments seulement si utiles.
+- Saisie mobile structurée des engins : raccourcis rail-route / LAM, routier, chenillard et levage ; identification, zone, PK et mode de mise en voie sont tracés lorsque nécessaire.
+- Saisie simplifiée et complète des possessions : horaires réels en premier, puis écarts prévu / accordé et fenêtre d’intervention si nécessaire.
+- Fiche d’archivage enrichie : lieu / secteur, faits marquants, suite de chantier, matériaux / consommables / déposes et autocontrôles / contrôles.
 - Entreprises reprises du Briefing Opération : SNCF, ATIF, SYSTRA, ETF, LSDR, ETF SERVICE, TSO, HP ELEC, TSO Signalisation, Bouygues et TSO (LTV), avec une option « Autre ».
-- Nouvelle trame imprimable A4 en trois pages : synthèse de séance, prestations saisies, puis observations / suivi / signatures. Elle reprend la composition professionnelle du modèle fourni et intègre le logo AINM dans le PDF généré.
+- Rapport PDF adaptatif : la synthèse visuelle est suivie des prestations, des photos, puis du **dossier d’archivage détaillé** (contexte, ressources, engins, interceptions, travaux, matériaux, contrôles, anomalies, documents, moyens SNCF et visas). Le nombre de pages augmente automatiquement avec les données ; l’annexe financière reste strictement la dernière partie administrateur.
+- Une trame de contrôle visuel de 11 pages est fournie dans `output/pdf/rapport-journalier-ainm-trame-adaptative-v7.pdf` ; elle illustre la sortie longue lorsque toutes les rubriques sont renseignées.
 - Champ « Objectif / consigne de la séance » pour alimenter directement la première page du rapport sans ressaisie.
 - Dialogues de confirmation et messages propres à l’application : aucune bulle native de navigateur du type « ghostbuilderdev.github.io indique » n’est affichée aux agents.
 - Libellés SNCF corrigés dans les listes et les anciens brouillons migrés automatiquement : « KV caténaire », « KVSE » et « Agent RSO ».

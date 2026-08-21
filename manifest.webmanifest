@@ -1,7 +1,7 @@
 {
   "name": "Rapport journalier AINM",
   "short_name": "RJ AINM",
-  "description": "Saisie terrain des rapports journaliers travaux signalisation.",
+  "description": "Saisie terrain et archivage complet des rapports journaliers travaux signalisation.",
   "lang": "fr",
   "start_url": "./",
   "display": "standalone",
