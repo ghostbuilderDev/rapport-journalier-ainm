@@ -193,7 +193,7 @@
     const identity = allocateReportIdentity();
     return {
       schema: 1,
-      appVersion: 8.1,
+      appVersion: 8.2,
       updatedAt: new Date().toISOString(),
       reportSerial: identity.serial,
       reportUid: identity.uid,
@@ -234,7 +234,7 @@
       photos: [],
       afterWorkSignature: { name: "", role: "", signedAt: "", dataUrl: "" },
       companySignatures: [],
-      collaboration: { revision: 1, currentEditor: "", currentRole: "", receivedAt: "", handoffs: [] },
+      collaboration: { revision: 1, currentEditor: "", currentRole: "", receivedAt: "", receivedFrom: "", receivedFromRole: "", handoffs: [] },
       settings: { mappings: {}, admin: { pinHash: "", configuredAt: "", includeCommonCosts: false } },
     };
   };
@@ -260,7 +260,7 @@
     ["tasks", "personnel", "equipment", "possessions", "anomalies", "documents", "sncfMeans", "materials", "selfChecks", "photos"].forEach((key) => { if (!Array.isArray(state[key])) state[key] = []; });
     state.afterWorkSignature ||= { name: "", role: "", signedAt: "", dataUrl: "" };
     if (!Array.isArray(state.companySignatures)) state.companySignatures = [];
-    state.collaboration ||= { revision: 1, currentEditor: "", currentRole: "", receivedAt: "", handoffs: [] };
+    state.collaboration ||= { revision: 1, currentEditor: "", currentRole: "", receivedAt: "", receivedFrom: "", receivedFromRole: "", handoffs: [] };
     if (!Array.isArray(state.collaboration.handoffs)) state.collaboration.handoffs = [];
     state.collaboration.revision = Math.max(1, Math.floor(number(state.collaboration.revision)) || 1);
     ["location", "executionNotes", "nextWorks"].forEach((key) => { if (typeof state.meta[key] !== "string") state.meta[key] = ""; });
@@ -277,7 +277,7 @@
     state.companySignatures.forEach((signature) => { signature.company = canonicalCompany(signature.company); });
     state.personnel = state.personnel.filter((row) => number(row.count) > 0);
     state.sncfMeans = state.sncfMeans.filter((row) => number(row.count) > 0);
-    state.appVersion = Math.max(8.1, Number(state.appVersion) || 0);
+    state.appVersion = Math.max(8.2, Number(state.appVersion) || 0);
     ["personnel", "sncfMeans"].forEach((key) => {
       state[key].forEach((row) => { row.role = canonicalSncfRole(row.role); });
     });
@@ -664,7 +664,7 @@
     const companies = participatingCompanyNames();
     target.innerHTML = companies.length ? `<div class="company-signer-grid">${companies.map((company) => {
       const signature = state.companySignatures.find((item) => item.company === company);
-      return `<article class="company-signer-card"><strong>${escapeHtml(company)}</strong><label><span>Responsable</span><input data-company-signer-field="name" data-company-signer-id="${escapeHtml(signature.id)}" value="${escapeHtml(signature.name || "")}" autocomplete="name" placeholder="Nom et prénom" /></label><label><span>Fonction</span><input data-company-signer-field="role" data-company-signer-id="${escapeHtml(signature.id)}" value="${escapeHtml(signature.role || "")}" placeholder="Chef de chantier, chef d’équipe…" /></label><button class="mini-button ${signature.dataUrl ? "signed" : ""}" type="button" data-sign-company="${escapeHtml(signature.id)}">${signature.dataUrl ? "Modifier la signature" : "Signer"}</button></article>`;
+      return `<article class="company-signer-card"><strong>${escapeHtml(company)}</strong><label><span>Responsable qui signera</span><input data-company-signer-field="name" data-company-signer-id="${escapeHtml(signature.id)}" value="${escapeHtml(signature.name || "")}" autocomplete="name" placeholder="Nom et prénom" /></label><label><span>Fonction</span><input data-company-signer-field="role" data-company-signer-id="${escapeHtml(signature.id)}" value="${escapeHtml(signature.role || "")}" placeholder="Chef de chantier, chef d’équipe…" /></label></article>`;
     }).join("")}</div>` : `<p class="empty-inline">Ajouter une entreprise pour renseigner son responsable.</p>`;
   }
 
@@ -757,9 +757,13 @@
       .reduce((total, row) => total + number(row.count), 0);
   }
 
+  function roleRow(key, criteria) {
+    return (state[key] || []).find((item) => Object.entries(criteria).every(([field, value]) => item[field] === value));
+  }
+
   function adjustRoleCounter(key, criteria, defaults, delta) {
     const list = state[key];
-    const row = list.find((item) => Object.entries(criteria).every(([field, value]) => item[field] === value));
+    const row = roleRow(key, criteria);
     if (!row && delta < 0) return;
     if (!row) list.push({ id: uid(), ...defaults, count: delta });
     else {
@@ -769,6 +773,40 @@
     }
     save("Effectif mis à jour");
     refresh();
+  }
+
+  async function clearRoleCounter(key, criteria, label) {
+    const rows = (state[key] || []).filter((item) => Object.entries(criteria).every(([field, value]) => item[field] === value));
+    if (!rows.length) return;
+    const accepted = await askConfirm({
+      title: "Retirer cette fonction",
+      message: `Retirer « ${label} » de l’effectif du rapport ?`,
+      confirmLabel: "Retirer",
+      danger: true,
+    });
+    if (!accepted) return;
+    state[key] = state[key].filter((item) => !rows.some((row) => row.id === item.id));
+    save("Fonction retirée de l’effectif");
+    refresh();
+  }
+
+  function openPersonnelForCompany(company) {
+    const safety = isSafetyProvider(company);
+    openRowDialog("personnel", {
+      id: uid(),
+      team: safety ? "Prestataire sécurité" : "Entreprise travaux",
+      company,
+      companyOther: "",
+      role: "",
+      roleOther: "",
+      count: 1,
+      lead: "",
+      observation: "",
+    });
+  }
+
+  function openSncfRoleEditor() {
+    openRowDialog("sncfMeans", { id: uid(), role: "", count: 1, observation: "" });
   }
 
   function renderQuickPersonnelRoster() {
@@ -783,9 +821,10 @@
       const safety = isSafetyProvider(company);
       const team = safety ? "Prestataire sécurité" : "Entreprise travaux";
       const roles = safety ? QUICK_SAFETY_ROLES : QUICK_COMPANY_ROLES;
-      return `<section class="roster-company"><header><strong>${escapeHtml(company)}</strong><span>${safety ? "Prestataire sécurité" : "Entreprise travaux"}</span></header><div class="roster-role-grid">${roles.map((role) => {
+      return `<section class="roster-company"><header><div class="roster-header-main"><strong>${escapeHtml(company)}</strong><span>${safety ? "Prestataire sécurité" : "Entreprise travaux"}</span></div><button type="button" class="roster-add-function" data-add-personnel-company="${escapeHtml(company)}">＋ Fonction</button></header><div class="roster-role-grid">${roles.map((role) => {
         const count = roleCounter(state.personnel, role, company, team);
-        return `<div class="roster-role"><span>${escapeHtml(role)}</span><div class="counter-control"><button type="button" aria-label="Retirer ${escapeHtml(role)}" data-quick-personnel-company="${escapeHtml(company)}" data-quick-personnel-role="${escapeHtml(role)}" data-quick-personnel-team="${escapeHtml(team)}" data-counter-delta="-1">−</button><strong>${displayNumber(count, 0)}</strong><button type="button" aria-label="Ajouter ${escapeHtml(role)}" data-quick-personnel-company="${escapeHtml(company)}" data-quick-personnel-role="${escapeHtml(role)}" data-quick-personnel-team="${escapeHtml(team)}" data-counter-delta="1">+</button></div></div>`;
+        const attributes = `data-quick-personnel-company="${escapeHtml(company)}" data-quick-personnel-role="${escapeHtml(role)}" data-quick-personnel-team="${escapeHtml(team)}"`;
+        return `<div class="roster-role"><span>${escapeHtml(role)}</span><div class="roster-role-actions"><div class="counter-control"><button type="button" aria-label="Retirer ${escapeHtml(role)}" ${attributes} data-counter-delta="-1">−</button><strong>${displayNumber(count, 0)}</strong><button type="button" aria-label="Ajouter ${escapeHtml(role)}" ${attributes} data-counter-delta="1">+</button></div>${count ? `<button type="button" class="roster-edit-button" ${attributes} data-edit-quick-personnel>Modifier</button><button type="button" class="roster-remove-button" aria-label="Retirer entièrement ${escapeHtml(role)}" ${attributes} data-clear-quick-personnel>×</button>` : ""}</div></div>`;
       }).join("")}</div></section>`;
     }).join("");
   }
@@ -793,9 +832,9 @@
   function renderQuickSncfRoster() {
     const target = $("#quickSncfRoster");
     if (!target) return;
-    target.innerHTML = `<section class="roster-company"><header><strong>Personnel SNCF</strong><span>Effectif de la séance</span></header><div class="roster-role-grid">${SNCF_MEANS_PRESETS.map((role) => {
+    target.innerHTML = `<section class="roster-company"><header><div class="roster-header-main"><strong>Personnel SNCF</strong><span>Effectif de la séance</span></div><button type="button" class="roster-add-function" data-add-sncf-function>＋ Fonction</button></header><div class="roster-role-grid">${SNCF_MEANS_PRESETS.map((role) => {
       const count = state.sncfMeans.filter((row) => canonicalSncfRole(row.role) === role).reduce((total, row) => total + number(row.count), 0);
-      return `<div class="roster-role"><span>${escapeHtml(role)}</span><div class="counter-control"><button type="button" aria-label="Retirer ${escapeHtml(role)}" data-quick-sncf-role="${escapeHtml(role)}" data-counter-delta="-1">−</button><strong>${displayNumber(count, 0)}</strong><button type="button" aria-label="Ajouter ${escapeHtml(role)}" data-quick-sncf-role="${escapeHtml(role)}" data-counter-delta="1">+</button></div></div>`;
+      return `<div class="roster-role"><span>${escapeHtml(role)}</span><div class="roster-role-actions"><div class="counter-control"><button type="button" aria-label="Retirer ${escapeHtml(role)}" data-quick-sncf-role="${escapeHtml(role)}" data-counter-delta="-1">−</button><strong>${displayNumber(count, 0)}</strong><button type="button" aria-label="Ajouter ${escapeHtml(role)}" data-quick-sncf-role="${escapeHtml(role)}" data-counter-delta="1">+</button></div>${count ? `<button type="button" class="roster-edit-button" data-quick-sncf-role="${escapeHtml(role)}" data-edit-quick-sncf>Modifier</button><button type="button" class="roster-remove-button" aria-label="Retirer entièrement ${escapeHtml(role)}" data-quick-sncf-role="${escapeHtml(role)}" data-clear-quick-sncf>×</button>` : ""}</div></div>`;
     }).join("")}</div></section>`;
   }
 
@@ -1107,11 +1146,14 @@
       target.innerHTML = rows.length ? `<div class="possession-table-wrap"><table class="possession-table"><thead><tr><th>Type / voie</th><th>Prévue</th><th>Accordée</th><th>ARF / réelle</th><th>Intervention</th><th>ARF</th><th></th></tr></thead><tbody>${rows.map((row) => `<tr><td><strong>${escapeHtml(row.kind || "Interception / consignation")}</strong><br>${escapeHtml([row.voie && `Voie ${row.voie}`, row.zone].filter(Boolean).join(" · ") || "—")}</td><td>${escapeHtml(`${row.plannedStart || "—"} → ${row.plannedEnd || "—"}`)}</td><td>${escapeHtml(`${row.agreedStart || "—"} → ${row.agreedEnd || "—"}`)}</td><td>${escapeHtml(`${row.actualStart || "—"} → ${row.actualEnd || "—"}`)}</td><td>${escapeHtml(`${row.interventionStart || "—"} → ${row.interventionEnd || "—"}`)}</td><td>${row.arfStartPhoto ? "Début ✓" : "Début —"}<br>${row.arfEndPhoto ? "Fin ✓" : "Fin —"}</td><td class="table-actions"><button class="mini-button" type="button" data-edit-row="possession:${row.id}">Modifier</button><button class="mini-button danger" type="button" data-delete-row="possession:${row.id}">Supprimer</button></td></tr>`).join("")}</tbody></table></div>` : `<p class="empty-inline">Aucune interception ou consignation saisie.</p>`;
       return;
     }
-    target.innerHTML = rows.length ? rows.map((row) => `
+    const editableCaption = ["personnel", "sncfMeans"].includes(key)
+      ? `<p class="data-list-caption">Effectifs enregistrés · Modifier une ligne pour corriger l’entreprise, la fonction ou le complément. Retirer enlève la ligne du rapport.</p>`
+      : "";
+    target.innerHTML = rows.length ? `${editableCaption}${rows.map((row) => `
       <article class="data-row"><div>${config.display(row)}</div><div>
         <button class="mini-button" type="button" data-edit-row="${key}:${row.id}">Modifier</button>
-        <button class="mini-button danger" type="button" data-delete-row="${key}:${row.id}">Supprimer</button>
-      </div></article>`).join("") : `<p class="empty-inline">Aucune donnée saisie.</p>`;
+        <button class="mini-button danger" type="button" data-delete-row="${key}:${row.id}">Retirer</button>
+      </div></article>`).join("")}` : `<p class="empty-inline">Aucune donnée saisie.</p>`;
   }
 
   function renderPhotos() {
@@ -1418,7 +1460,7 @@
     }
     target.innerHTML = companies.map((company) => {
       const signature = state.companySignatures.find((item) => item.company === company);
-      return `<section class="company-visa-company"><header><strong>${escapeHtml(company)}</strong><button type="button" class="mini-button ${signature.dataUrl ? "signed" : ""}" data-edit-company-visa="${escapeHtml(signature.id)}">${signature.dataUrl ? "Modifier" : "Signer"}</button></header><article class="company-visa-card"><div><strong>${escapeHtml(signature.name || "Nom du responsable à renseigner")}</strong><span>${escapeHtml(signature.role || "Fonction à renseigner")}</span><small>${signature.signedAt ? `Signé le ${escapeHtml(formatDateTime(signature.signedAt))}` : "Visa à compléter"}</small></div>${signature.dataUrl ? `<img src="${escapeHtml(signature.dataUrl)}" alt="Visa de ${escapeHtml(signature.name || company)}" />` : ""}</article></section>`;
+      return `<section class="company-visa-company"><header><strong>${escapeHtml(company)}</strong><button type="button" class="mini-button ${signature.dataUrl ? "signed" : ""}" data-edit-company-visa="${escapeHtml(signature.id)}">${signature.dataUrl ? "Modifier le visa" : "Signer"}</button></header><article class="company-visa-card"><div><strong>${escapeHtml(signature.name || "Nom du responsable à renseigner dans le contexte")}</strong><span>${escapeHtml(signature.role || "Fonction à renseigner")}</span><small>${signature.signedAt ? `Signé le ${escapeHtml(formatDateTime(signature.signedAt))}` : "Visa final à compléter"}</small></div>${signature.dataUrl ? `<img src="${escapeHtml(signature.dataUrl)}" alt="Visa de ${escapeHtml(signature.name || company)}" />` : ""}</article></section>`;
     }).join("");
   }
 
@@ -1427,7 +1469,7 @@
     companyVisaDraft = visa ? clone(visa) : { id: uid(), company: selectedCompany, name: "", role: "", signedAt: "", dataUrl: "" };
     companyVisaDraft.company = selectedCompany;
     companySignatureCanvasReady = false;
-    $("#companyVisaDialogTitle").textContent = "Visa du responsable";
+    $("#companyVisaDialogTitle").textContent = "Visa final du responsable";
     $("#companyVisaEditor").innerHTML = `<div class="resource-editor"><div class="company-visa-company-name">${escapeHtml(companyVisaDraft.company)}</div><div class="resource-primary-grid"><label class="field"><span>Nom et prénom</span><input id="companyVisaName" value="${escapeHtml(companyVisaDraft.name || "")}" autocomplete="name" placeholder="Nom du responsable" /></label><label class="field"><span>Fonction</span><input id="companyVisaRole" value="${escapeHtml(companyVisaDraft.role || "")}" placeholder="Chef de chantier, chef d’équipe…" /></label></div><div class="signature-canvas-wrap"><canvas id="companySignatureCanvas" aria-label="Zone de signature du responsable entreprise"></canvas><p id="companyVisaSignatureStatus" class="muted">${companyVisaDraft.signedAt ? `Signée le ${escapeHtml(formatDateTime(companyVisaDraft.signedAt))}.` : "Signer au doigt dans la zone ci-dessus."}</p></div><button id="clearCompanyVisaSignatureButton" class="text-button" type="button">Effacer la signature</button><div class="dialog-actions"><button id="saveCompanyVisaButton" type="button" class="primary-button">Enregistrer le visa</button></div></div>`;
     $("#companyVisaDialog").showModal();
     window.setTimeout(setupCompanySignatureCanvas, 0);
@@ -1437,6 +1479,10 @@
     if (!companyVisaDraft) return;
     companyVisaDraft.name = editorValue("companyVisaName");
     companyVisaDraft.role = editorValue("companyVisaRole");
+    if (!companyVisaDraft.name) {
+      showToast("Renseigner le nom du responsable avant d’enregistrer le visa.", "warning");
+      return;
+    }
     const index = state.companySignatures.findIndex((signature) => signature.id === companyVisaDraft.id);
     if (index >= 0) state.companySignatures.splice(index, 1, companyVisaDraft);
     else state.companySignatures.push(companyVisaDraft);
@@ -1461,7 +1507,26 @@
         checks.push({ ok: openTasks.length === 0, message: openTasks.length ? `${openTasks.length} ligne(s) hors catalogue ou incomplètes restent à contrôler.` : "Toutes les prestations saisies sont rattachées au référentiel administrateur." });
       }
     }
+    const missingVisas = (state.companySignatures || []).filter((visa) => !visa.name || !visa.dataUrl);
+    if (participatingCompanyNames().length) {
+      checks.push({ ok: missingVisas.length === 0, message: missingVisas.length ? `${missingVisas.length} responsable(s) ou visa(s) d’entreprise à compléter en fin de rapport.` : "Responsables et visas des entreprises intervenantes renseignés." });
+    }
     return checks;
+  }
+
+  function renderHandoffPanel() {
+    const target = $("#handoffSummary");
+    if (!target) return;
+    const collaboration = state.collaboration || {};
+    const latest = (collaboration.handoffs || [])[0];
+    const revision = Math.max(1, number(collaboration.revision) || 1);
+    const received = collaboration.receivedAt
+      ? `Reçue${collaboration.receivedFrom ? ` de ${collaboration.receivedFrom}${collaboration.receivedFromRole ? ` (${collaboration.receivedFromRole})` : ""}` : ""} le ${formatDateTime(collaboration.receivedAt)}.`
+      : "Brouillon conservé sur cet appareil.";
+    const latestText = latest
+      ? `Dernier envoi : ${[latest.editor, latest.role].filter(Boolean).join(" · ") || "rédacteur à préciser"}${latest.recipient ? ` → ${latest.recipient}` : ""} · révision ${latest.revision || revision} · ${formatDateTime(latest.sentAt)}.`
+      : "Aucune passation envoyée pour le moment.";
+    target.innerHTML = `<strong>${escapeHtml(state.meta.reportNo || "Rapport en cours")} · révision ${escapeHtml(revision)}</strong><span>${escapeHtml(latestText)}</span><small>${escapeHtml(received)}</small>`;
   }
 
   function renderReview() {
@@ -1471,6 +1536,7 @@
     const status = $("#reviewStatus");
     status.className = `status-chip ${okay ? "success" : "warning"}`;
     status.textContent = okay ? "Prêt à éditer" : "Brouillon";
+    renderHandoffPanel();
     renderAdminPanel();
   }
 
@@ -1805,7 +1871,7 @@
         ${(state.meta.executionNotes || state.meta.nextWorks) ? `<section class="print-section"><h2>Synthèse et suite de l’opération</h2><div class="print-info-grid"><div><strong>Faits marquants / aléas / décisions</strong>${escapeHtml(state.meta.executionNotes || "—")}</div><div><strong>Travaux restant à réaliser / prochaine séance</strong>${escapeHtml(state.meta.nextWorks || "—")}</div></div></section>` : ""}
         ${photoSection}
         ${trackedPhotoSection}
-        <section class="print-signatures"><div class="signature-box"><strong>Lieu / date</strong>${escapeHtml(formatDate(state.meta.date))}</div><div class="signature-box"><strong>Visa représentant MOETx SNCF</strong>${escapeHtml(state.meta.moeRepresentative || "Nom / prénom à renseigner")}</div>${companyVisaMarkup}<div class="signature-box signature-after-work"><strong>Visa après travaux</strong>${escapeHtml([signature.name, signature.role].filter(Boolean).join(" · ") || "Nom / fonction à renseigner")}${signature.signedAt ? `<small>Signée le ${escapeHtml(formatDateTime(signature.signedAt))}</small>` : ""}${signatureMarkup}</div></section>
+        <section class="print-section print-final-signatures"><h2>Signatures finales</h2><div class="print-signatures"><div class="signature-box"><strong>Lieu / date</strong>${escapeHtml(formatDate(state.meta.date))}</div><div class="signature-box"><strong>Visa représentant MOETx SNCF</strong>${escapeHtml(state.meta.moeRepresentative || "Nom / prénom à renseigner")}</div>${companyVisaMarkup}<div class="signature-box signature-after-work"><strong>Visa après travaux</strong>${escapeHtml([signature.name, signature.role].filter(Boolean).join(" · ") || "Nom / fonction à renseigner")}${signature.signedAt ? `<small>Signée le ${escapeHtml(formatDateTime(signature.signedAt))}</small>` : ""}${signatureMarkup}</div></div></section>
         <p class="print-footer">Rapport opérationnel généré depuis l’application rapport journalier AINM.</p>
       </article>
       ${includeValuation ? `<article class="print-page print-internal">
@@ -2072,7 +2138,18 @@
     $("#printReport").innerHTML = pages.map((page, index) => page.replaceAll("__REPORT_PAGE__", `${index + 1}/${pages.length}`)).join("");
   }
 
-  function exportState(share = false, { handoff = false } = {}) {
+  function downloadExportFile(file) {
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(file);
+    link.href = url;
+    link.download = file.name;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1200);
+  }
+
+  async function exportState(share = false, { handoff = false } = {}) {
     const baseName = (state.meta.reportNo || "brouillon").replace(/[^a-zA-Z0-9_-]+/g, "-");
     const filename = `${handoff ? "passation-" : "rapport-journalier-"}${baseName}${handoff ? `-r${state.collaboration?.revision || 1}` : ""}.json`;
     const exportable = clone(state);
@@ -2083,45 +2160,80 @@
       reportUid: state.reportUid,
       revision: state.collaboration?.revision || 1,
     };
-    if (!isAdminView()) {
-      delete exportable.settings;
-      exportable.tasks = exportable.tasks.map(({ billingCr, ...task }) => task);
-    }
+    // Les réglages administrateur et les éléments de valorisation ne circulent jamais
+    // dans une passation terrain, y compris si l'émetteur a ouvert l'espace admin.
+    delete exportable.settings;
+    exportable.tasks = exportable.tasks.map(({ billingCr, ...task }) => task);
     const file = new File([JSON.stringify(exportable, null, 2)], filename, { type: "application/json" });
-    if (share && navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
-      navigator.share({ title: handoff ? "Passation rapport journalier" : "Rapport journalier", text: handoff ? `Passation · ${state.meta.reportNo || "rapport"} · révision ${state.collaboration?.revision || 1}` : (state.meta.operation || "Rapport journalier"), files: [file] }).catch(() => {});
-      return;
+    let canShareFiles = false;
+    try {
+      canShareFiles = Boolean(share && navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] })));
+    } catch (_) { canShareFiles = false; }
+    if (canShareFiles) {
+      try {
+        await navigator.share({
+          title: handoff ? "Passation rapport journalier" : "Rapport journalier",
+          text: handoff ? `Passation · ${state.meta.reportNo || "rapport"} · révision ${state.collaboration?.revision || 1}` : (state.meta.operation || "Rapport journalier"),
+          files: [file],
+        });
+        return { shared: true, filename };
+      } catch (error) {
+        if (error?.name === "AbortError") return { cancelled: true, filename };
+        downloadExportFile(file);
+        return { downloaded: true, fallback: true, filename };
+      }
     }
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(file);
-    link.download = filename;
-    document.body.append(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(link.href);
+    downloadExportFile(file);
+    return { downloaded: true, filename };
   }
 
   function openHandoffDialog() {
-    $("#handoffEditorName").value = state.collaboration?.currentEditor || state.meta.reporter || "";
-    $("#handoffEditorRole").value = state.collaboration?.currentRole || "";
+    const receivedOnThisDevice = Boolean(state.collaboration?.receivedAt);
+    $("#handoffEditorName").value = receivedOnThisDevice ? "" : (state.meta.reporter || state.collaboration?.currentEditor || "");
+    $("#handoffEditorRole").value = receivedOnThisDevice ? "" : (state.collaboration?.currentRole || "");
     $("#handoffRecipient").value = "";
-    $("#handoffStatus").textContent = `${state.meta.reportNo || "Rapport"} · révision ${state.collaboration?.revision || 1}. Le destinataire importe ensuite ce fichier depuis Actions.`;
+    $("#handoffStatus").textContent = `${state.meta.reportNo || "Rapport"} · révision ${state.collaboration?.revision || 1}. Le fichier contient la saisie et les photos ; le destinataire choisit ensuite « Recevoir une passation » dans l’application.`;
     $("#handoffDialog").showModal();
   }
 
-  function sendHandoff() {
+  async function sendHandoff() {
     const editor = editorValue("handoffEditorName");
     const role = editorValue("handoffEditorRole");
     const recipient = editorValue("handoffRecipient");
+    if (!editor || !recipient) {
+      showToast("Renseigner votre nom et la personne ou l’étape suivante avant de transmettre.", "warning");
+      return;
+    }
+    const previousCollaboration = clone(state.collaboration || {});
     state.collaboration.currentEditor = editor;
     state.collaboration.currentRole = role;
+    state.collaboration.receivedAt = "";
+    state.collaboration.receivedFrom = "";
+    state.collaboration.receivedFromRole = "";
     state.collaboration.revision = Math.max(1, number(state.collaboration.revision)) + 1;
     state.collaboration.handoffs.unshift({ id: uid(), sentAt: new Date().toISOString(), editor, role, recipient, revision: state.collaboration.revision });
     state.collaboration.handoffs = state.collaboration.handoffs.slice(0, 20);
-    save(`Passation préparée · révision ${state.collaboration.revision}`);
+    // Sauvegarde immédiate : si Android suspend l'application pendant le partage,
+    // la révision préparée reste cohérente avec le fichier transmis.
+    if (!save(`Passation préparée · révision ${state.collaboration.revision}`)) {
+      state.collaboration = previousCollaboration;
+      return;
+    }
+    const sendButton = $("#sendHandoffButton");
+    if (sendButton) sendButton.disabled = true;
+    const outcome = await exportState(true, { handoff: true });
+    if (sendButton) sendButton.disabled = false;
+    if (outcome.cancelled) {
+      state.collaboration = previousCollaboration;
+      save("Passation annulée");
+      $("#handoffStatus").textContent = "Passation annulée : la révision n’a pas été modifiée.";
+      return;
+    }
+    renderHandoffPanel();
     $("#handoffDialog").close();
-    exportState(true, { handoff: true });
-    showToast("Passation exportée : partager le fichier puis le faire importer par le destinataire.", "success");
+    showToast(outcome.shared
+      ? "Passation partagée : le destinataire l’importe dans l’application."
+      : "Fichier de passation téléchargé : le partager puis l’importer sur l’autre téléphone.", "success");
   }
 
   function startNewReport(source = state, { reuseResources = false } = {}) {
@@ -2182,6 +2294,13 @@
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
+  function hasMeaningfulReportContent(report) {
+    const collections = ["tasks", "personnel", "equipment", "possessions", "anomalies", "documents", "sncfMeans", "materials", "selfChecks", "photos"];
+    if (collections.some((key) => Array.isArray(report?.[key]) && report[key].length)) return true;
+    const meta = report?.meta || {};
+    return Boolean(meta.reporter || meta.objective || meta.executionNotes || meta.nextWorks || meta.location || meta.orderNo);
+  }
+
   function setupEvents() {
     $$("[data-path]").forEach((element) => {
       const handler = () => {
@@ -2215,13 +2334,6 @@
       renderCompanyVisas();
       renderPrintReport();
     });
-    $("#companySignerSetup")?.addEventListener("click", (event) => {
-      const button = event.target.closest("[data-sign-company]");
-      if (!button) return;
-      const signature = state.companySignatures.find((item) => item.id === button.dataset.signCompany);
-      if (signature) openCompanyVisaDialog(signature.company, signature);
-    });
-
     $$("[data-scroll-target]").forEach((button) => button.addEventListener("click", () => $(`#${button.dataset.scrollTarget}`).scrollIntoView({ behavior: "smooth", block: "start" })));
     $$("[data-duration-preset]").forEach((button) => button.addEventListener("click", () => {
       state.meta.workDuration = button.dataset.durationPreset;
@@ -2286,7 +2398,25 @@
       }
       if (event.target.closest("#saveRowButton")) saveRow();
     });
-    $("#quickPersonnelRoster")?.addEventListener("click", (event) => {
+    $("#quickPersonnelRoster")?.addEventListener("click", async (event) => {
+      const add = event.target.closest("[data-add-personnel-company]");
+      if (add) {
+        openPersonnelForCompany(add.dataset.addPersonnelCompany);
+        return;
+      }
+      const edit = event.target.closest("[data-edit-quick-personnel]");
+      const clear = event.target.closest("[data-clear-quick-personnel]");
+      if (edit || clear) {
+        const control = edit || clear;
+        const criteria = { company: control.dataset.quickPersonnelCompany, role: control.dataset.quickPersonnelRole, team: control.dataset.quickPersonnelTeam };
+        if (edit) {
+          const row = roleRow("personnel", criteria);
+          if (row) openRowDialog("personnel", row);
+        } else {
+          await clearRoleCounter("personnel", criteria, `${control.dataset.quickPersonnelRole} · ${control.dataset.quickPersonnelCompany}`);
+        }
+        return;
+      }
       const button = event.target.closest("[data-quick-personnel-role]");
       if (!button) return;
       const company = button.dataset.quickPersonnelCompany;
@@ -2294,7 +2424,23 @@
       const team = button.dataset.quickPersonnelTeam;
       adjustRoleCounter("personnel", { company, role, team }, { company, role, team, companyOther: "", roleOther: "", lead: "", observation: "" }, number(button.dataset.counterDelta));
     });
-    $("#quickSncfRoster")?.addEventListener("click", (event) => {
+    $("#quickSncfRoster")?.addEventListener("click", async (event) => {
+      if (event.target.closest("[data-add-sncf-function]")) {
+        openSncfRoleEditor();
+        return;
+      }
+      const edit = event.target.closest("[data-edit-quick-sncf]");
+      const clear = event.target.closest("[data-clear-quick-sncf]");
+      if (edit || clear) {
+        const role = (edit || clear).dataset.quickSncfRole;
+        if (edit) {
+          const row = roleRow("sncfMeans", { role });
+          if (row) openRowDialog("sncfMeans", row);
+        } else {
+          await clearRoleCounter("sncfMeans", { role }, role);
+        }
+        return;
+      }
       const button = event.target.closest("[data-quick-sncf-role]");
       if (!button) return;
       const role = button.dataset.quickSncfRole;
@@ -2400,8 +2546,9 @@
     $("#handoffButton")?.addEventListener("click", openHandoffDialog);
     $("#handoffMenuButton")?.addEventListener("click", () => { $("#moreDialog").close(); openHandoffDialog(); });
     $("#sendHandoffButton")?.addEventListener("click", sendHandoff);
-    $("#exportButton").addEventListener("click", () => exportState(false));
-    $("#shareButton").addEventListener("click", () => exportState(true));
+    $("#importHandoffButton")?.addEventListener("click", () => $("#importInput").click());
+    $("#exportButton").addEventListener("click", () => { void exportState(false); });
+    $("#shareButton").addEventListener("click", () => { void exportState(true); });
     $("#openAdminButton").addEventListener("click", openAdminAccess);
     $("#cancelAdminButton").addEventListener("click", closeAdminAccess);
     $("#confirmAdminButton").addEventListener("click", confirmAdminAccess);
@@ -2465,6 +2612,10 @@
         if (parsed?.schema !== 1) throw new Error("format");
         const incomingRevision = Math.max(1, number(parsed.collaboration?.revision) || 1);
         const currentRevision = Math.max(1, number(state.collaboration?.revision) || 1);
+        if (parsed.reportUid && state.reportUid && parsed.reportUid !== state.reportUid && hasMeaningfulReportContent(state)) {
+          const accepted = await askConfirm({ title: "Importer un autre rapport", message: "Cette passation concerne un autre numéro de rapport et remplacera le brouillon actuellement ouvert sur cet appareil. Continuer ?", confirmLabel: "Importer", danger: true });
+          if (!accepted) { event.target.value = ""; return; }
+        }
         if (parsed.reportUid && parsed.reportUid === state.reportUid && incomingRevision < currentRevision) {
           const accepted = await askConfirm({ title: "Révision plus ancienne", message: `Cette passation est en révision ${incomingRevision} alors que cet appareil contient déjà la révision ${currentRevision}. L’importation remplacerait la saisie locale. Continuer ?`, confirmLabel: "Importer quand même", danger: true });
           if (!accepted) { event.target.value = ""; return; }
@@ -2481,6 +2632,12 @@
         };
         ensureSettings();
         ensureState();
+        state.collaboration.receivedFrom = parsed.collaboration?.currentEditor || "";
+        state.collaboration.receivedFromRole = parsed.collaboration?.currentRole || "";
+        // Le destinataire devient le prochain rédacteur : son identité n'est jamais
+        // préremplie avec celle de l'expéditeur lors de la passation suivante.
+        state.collaboration.currentEditor = "";
+        state.collaboration.currentRole = "";
         state.collaboration.receivedAt = new Date().toISOString();
         adminUnlocked = false;
         adminLoginOpen = false;

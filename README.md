@@ -1,4 +1,4 @@
-# Rapport journalier AINM — PWA terrain V8.1
+# Rapport journalier AINM — PWA terrain V8.2
 
 Application hors ligne pour les rapports journaliers de travaux signalisation AINM.
 
@@ -14,9 +14,10 @@ Application hors ligne pour les rapports journaliers de travaux signalisation AI
 - Les **interceptions et consignations** sont saisies dans un tableau unique : prévue, accordée, ARF/réelle et intervention, avec voie et zone. La référence ITC/ARF/AAN est supprimée de la saisie.
 - Chaque ligne d’interception/consignation peut recevoir une **photo ARF début** et une **photo ARF fin**, prise à l’appareil ou choisie dans les fichiers. Les anomalies qualité-sécurité disposent du même choix.
 - Les prestations, rapports fournis et fiches peuvent recevoir des **photos jointes** depuis l’appareil ou les fichiers. Elles sont annexées au PDF.
-- Chaque entreprise ajoutée possède une fiche simple de **responsable et visa** dès le contexte de séance : nom, fonction, signature au doigt et date. Les visas sont repris dans le PDF V5.
+- Chaque entreprise ajoutée possède une fiche de **responsable** dès le contexte de séance : nom et fonction. Les signatures tactiles sont réalisées uniquement dans la dernière étape et sont placées en bas du PDF V5, après les tableaux et les photos.
 - Le PDF V5 reprend aussi les matériaux, autocontrôles, faits marquants et travaux restants. L’**annexe comptable V5** reste à la fin du PDF administrateur seulement.
-- La sauvegarde locale est automatique. La fonction **Préparer une passation** exporte le brouillon avec le même numéro de rapport, une révision et l’auteur ; le fichier est ensuite partagé par Android, messagerie, Bluetooth ou e-mail. Le destinataire l’importe depuis Actions.
+- Les tableaux d’effectifs entreprises et SNCF sont désormais réellement pilotables sur le terrain : grands compteurs − / +, ajout d’une fonction, modification détaillée et retrait d’une fonction ou d’une ligne.
+- La sauvegarde locale est automatique. La fonction **Transmettre au suivant** exporte le brouillon avec le même numéro, une révision, l’auteur et les photos ; le fichier est ensuite partagé par Android, messagerie, Bluetooth ou e-mail. Le destinataire le reçoit directement depuis la zone Passation.
 
 ## Règle de numérotation
 
@@ -28,17 +29,17 @@ Chaque nouveau rapport reçoit un numéro non modifiable. Le compteur avance loc
 2. Saisir les prestations réalisées ; les prix restent invisibles pour les agents terrain.
 3. Utiliser les compteurs pour les effectifs et les moyens SNCF, puis compléter uniquement les particularités nécessaires.
 4. Compléter les horaires ITC/consignation et joindre les photos ARF si elles existent.
-5. Ajouter les photos avant/après, celles des prestations, les anomalies et les visas des responsables.
+5. Ajouter les photos avant/après, celles des prestations et les anomalies ; renseigner puis faire signer les responsables à la fin de la saisie.
 6. Choisir **Imprimer le rapport PDF**. L’annexe de valorisation V5 est visible seulement après ouverture de l’espace administrateur.
 
 ## Passation entre téléphones
 
 La PWA fonctionne hors ligne : elle ne réalise donc pas une synchronisation simultanée par Internet. Pour faire compléter le même rapport par un RPTx, un Adjoint S11 ou un RSO :
 
-1. Ouvrir **Préparer une passation**, renseigner son nom, son rôle et le destinataire.
-2. Partager le fichier JSON généré.
-3. Sur l’autre téléphone, ouvrir Actions puis **Importer une passation / saisie**.
-4. Le destinataire complète et renvoie une nouvelle passation. L’application avertit si une révision plus ancienne risque d’écraser une saisie plus récente.
+1. Ouvrir **Transmettre au suivant**, renseigner son nom, son rôle et la personne ou partie suivante à compléter.
+2. Partager le fichier JSON généré. Il contient les photos et reste sans données de valorisation.
+3. Sur l’autre téléphone, ouvrir l’application puis toucher **Recevoir une passation**.
+4. Le destinataire complète et retransmet une nouvelle passation. L’application conserve le même numéro, augmente la révision et avertit si une révision plus ancienne risque d’écraser une saisie plus récente.
 
 Une synchronisation multi-utilisateur en temps réel nécessiterait ensuite un stockage central SNCF (intranet, SharePoint ou API) et une authentification nominative.
 
@@ -48,17 +49,17 @@ Décompresser le contenu de cette archive dans le dépôt puis exécuter :
 
 ```sh
 cd ~/projets
-unzip -o ~/storage/downloads/rapport-journalier-ainm-pwa-v8.1-saisie-photos.zip
+unzip -o ~/storage/downloads/rapport-journalier-ainm-pwa-v8.2-passation-terrain.zip
 cd ~/projets/rapport-journalier-ainm-pwa
 rm -f output/pdf/rapport-journalier-ainm-trame-v6.pdf
 rm -f output/pdf/rapport-journalier-ainm-trame-adaptative-v7.pdf
 rm -f tools/generate_trame_v7_pdf.py
 git add -A
-git commit -m "Mise à jour V8.1 : saisie et annexes photo"
+git commit -m "Mise à jour V8.2 : passation et effectifs"
 git push
 ```
 
-Attendre une à deux minutes, puis recharger l’URL GitHub Pages ou fermer/réouvrir la PWA. Le cache du service worker est passé à `rj-ainm-v8-1` pour récupérer cette version.
+Attendre une à deux minutes, puis recharger l’URL GitHub Pages ou fermer/réouvrir la PWA. Le cache du service worker est passé à `rj-ainm-v8-2` pour récupérer cette version.
 
 ## Limites connues
 

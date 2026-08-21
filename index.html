@@ -77,7 +77,8 @@
               </div>
             </section>
             <section class="field-wide company-signer-setup" aria-label="Responsables entreprises">
-              <span>Responsables d’entreprise et visa</span>
+              <span>Responsable de chaque entreprise</span>
+              <p class="company-signer-hint">Renseigner le nom et la fonction ici. Chaque responsable signe en fin de rapport.</p>
               <div id="companySignerSetup"></div>
             </section>
             <label class="field">
@@ -122,7 +123,6 @@
               </label>
               <label class="field"><span>Température (°C)</span><input id="temperatureInput" data-path="meta.temperature" type="number" min="-20" max="60" step="0.5" inputmode="decimal" /></label>
               <label class="field"><span>Représentant MOETx SNCF</span><input id="moeRepresentativeInput" data-path="meta.moeRepresentative" placeholder="Nom et prénom" /></label>
-              <label class="field"><span>Représentant entreprise</span><input id="companyRepresentativeInput" data-path="meta.companyRepresentative" placeholder="Nom et prénom" /></label>
               <label class="field field-wide"><span>Objectif / consigne de la séance</span><textarea id="objectiveInput" data-path="meta.objective" rows="3" placeholder="Objectif de la nuit, zone concernée, consigne principale…"></textarea></label>
             </div>
           </details>
@@ -260,6 +260,18 @@
             </div>
             <span id="reviewStatus" class="status-chip warning">Brouillon</span>
           </div>
+          <div id="reviewChecks" class="review-checks"></div>
+          <section class="handoff-panel" aria-label="Passation entre téléphones">
+            <div class="handoff-panel-heading"><p class="eyebrow">Passation de nuit</p><h3>Transmettre le même rapport</h3><p class="muted">La passation conserve le numéro du rapport et inclut les photos. Le destinataire importe le fichier puis poursuit la saisie.</p></div>
+            <div id="handoffSummary" class="handoff-summary"></div>
+            <div class="handoff-panel-actions"><button id="handoffButton" class="secondary-button" type="button">Transmettre au suivant</button><button id="importHandoffButton" class="text-button" type="button">Recevoir une passation</button></div>
+          </section>
+          <section class="company-visa-section" aria-label="Visas des entreprises intervenantes">
+            <div class="section-heading">
+              <div><p class="eyebrow">Signatures finales</p><h3>Responsables des entreprises intervenantes</h3><p class="muted">Les responsables renseignés dans le contexte signent ici, en dernière étape du rapport.</p></div>
+            </div>
+            <div id="companyVisaList" class="company-visa-list"></div>
+          </section>
           <section class="after-work-signature" aria-label="Visa après travaux">
             <div><p class="eyebrow">Visa après travaux</p><h3>Signature de l’invité / intervenant</h3><p class="muted">Ajoutée au rapport terrain, en complément des visas MOETx et entreprise.</p></div>
             <div class="signature-fields">
@@ -269,16 +281,8 @@
             <div class="signature-canvas-wrap"><canvas id="afterWorkSignatureCanvas" aria-label="Zone de signature après travaux"></canvas><p id="afterWorkSignatureStatus" class="muted">Signer au doigt dans la zone ci-dessus.</p></div>
             <button id="clearAfterWorkSignatureButton" class="text-button" type="button">Effacer la signature</button>
           </section>
-          <section class="company-visa-section" aria-label="Visas des entreprises intervenantes">
-            <div class="section-heading">
-              <div><p class="eyebrow">Visas entreprises</p><h3>Responsables présents à l’opération</h3><p class="muted">Un responsable est renseigné et signe pour chaque entreprise intervenante.</p></div>
-            </div>
-            <div id="companyVisaList" class="company-visa-list"></div>
-          </section>
-          <div id="reviewChecks" class="review-checks"></div>
           <div class="review-actions">
             <button id="printButton" class="primary-button" type="button">Imprimer le rapport PDF</button>
-            <button id="handoffButton" class="secondary-button" type="button">Préparer une passation</button>
             <button id="exportButton" class="secondary-button" type="button">Exporter la saisie</button>
             <button id="shareButton" class="secondary-button" type="button">Partager</button>
           </div>
@@ -354,8 +358,8 @@
         </header>
         <div class="menu-stack">
           <button id="configurePricesButton" class="menu-button admin-finance hidden" type="button">Paramétrer les prix du chantier</button>
-          <button id="handoffMenuButton" class="menu-button" type="button">Préparer une passation</button>
-          <button id="importButton" class="menu-button" type="button">Importer une passation / saisie</button>
+          <button id="handoffMenuButton" class="menu-button" type="button">Transmettre au suivant</button>
+          <button id="importButton" class="menu-button" type="button">Recevoir une passation / saisie</button>
           <button id="saveSnapshotButton" class="menu-button" type="button">Sauvegarder un instantané</button>
           <button id="duplicateLastNightMenuButton" class="menu-button" type="button">Reprendre la dernière nuit</button>
         </div>
@@ -386,15 +390,15 @@
     <dialog id="handoffDialog" class="dialog resource-dialog">
       <form method="dialog" id="handoffForm">
         <header class="dialog-header">
-          <div><p class="eyebrow">Passation hors ligne</p><h2>Transmettre la saisie</h2></div>
+          <div><p class="eyebrow">Passation entre téléphones</p><h2>Transmettre la saisie</h2></div>
           <button class="icon-button" value="cancel" aria-label="Fermer" type="submit">×</button>
         </header>
         <div class="resource-editor">
-          <p class="handoff-note">Le brouillon conserve le même numéro de rapport. Il est exporté puis partagé par le moyen habituel du téléphone (partage Android, messagerie, Bluetooth ou e-mail).</p>
+          <p class="handoff-note">Le brouillon garde le même numéro de rapport et la révision avance d’un cran. Il est partagé par le moyen habituel du téléphone (partage Android, messagerie, Bluetooth ou e-mail), puis importé dans l’application par le destinataire.</p>
           <div class="resource-primary-grid">
             <label class="field"><span>Votre nom</span><input id="handoffEditorName" autocomplete="name" placeholder="Ex. M. Dupont" /></label>
             <label class="field"><span>Votre rôle</span><input id="handoffEditorRole" placeholder="Ex. RPTx, Adjoint S11, RSO" /></label>
-            <label class="field field-wide"><span>Destinataire / rôle attendu</span><input id="handoffRecipient" placeholder="Ex. Adjoint S11 — compléter la consignation" /></label>
+            <label class="field field-wide"><span>Personne suivante / partie à compléter</span><input id="handoffRecipient" placeholder="Ex. Adjoint S11 — compléter la consignation" /></label>
           </div>
           <div id="handoffStatus" class="info-banner"></div>
           <div class="dialog-actions"><button id="sendHandoffButton" type="button" class="primary-button">Exporter et partager la passation</button></div>

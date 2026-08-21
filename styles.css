@@ -479,8 +479,9 @@ h2 { margin-bottom: 0; font-size: 1.15rem; line-height: 1.2; }
 .company-adder input { min-width: 0; flex: 1; border: 1px solid #cbd4d9; border-radius: 10px; padding: 10px 11px; background: #fff; }
 .company-adder .secondary-button { flex: 0 0 auto; }
 .company-signer-setup { display: grid; gap: 7px; padding: 12px; border: 1px solid #c9e0e7; border-radius: 12px; background: linear-gradient(135deg, #f5fcfe, #fff); color: #284c57; font-size: .83rem; font-weight: 800; }
+.company-signer-hint { margin: -2px 0 1px; color: #5e7881; font-size: .75rem; font-weight: 600; line-height: 1.35; }
 .company-signer-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 9px; }
-.company-signer-card { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; align-items: end; gap: 8px; padding: 10px; border: 1px solid #d9e7eb; border-radius: 10px; background: #fff; }
+.company-signer-card { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: end; gap: 8px; padding: 10px; border: 1px solid #d9e7eb; border-radius: 10px; background: #fff; }
 .company-signer-card > strong { grid-column: 1 / -1; color: #254650; font-size: .81rem; }
 .company-signer-card label { display: grid; gap: 4px; min-width: 0; color: #526b74; font-size: .67rem; font-weight: 800; }
 .company-signer-card input { min-width: 0; border: 1px solid #cbd4d9; border-radius: 8px; padding: 8px; color: var(--ink); background: #fff; font-size: .76rem; }
@@ -496,14 +497,23 @@ h2 { margin-bottom: 0; font-size: 1.15rem; line-height: 1.2; }
 .quick-equipment-fields select { min-width: 0; border: 1px solid #cbd4d9; border-radius: 8px; padding: 9px; color: var(--ink); background: #fff; font-size: .77rem; }
 .roster-company { overflow: hidden; border: 1px solid #c9e1e8; border-radius: 12px; background: linear-gradient(135deg, #f5fcfe, #fff); }
 .roster-company > header { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border-bottom: 1px solid #d9eaef; }
+.roster-header-main { display: grid; gap: 2px; min-width: 0; }
 .roster-company > header strong { color: #254650; font-size: .83rem; }
 .roster-company > header span { color: #62808a; font-size: .7rem; font-weight: 750; }
-.roster-role-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(138px, 1fr)); gap: 0; }
+.roster-add-function, .roster-edit-button, .roster-remove-button { border: 0; cursor: pointer; font: inherit; }
+.roster-add-function { flex: 0 0 auto; padding: 6px 8px; border-radius: 8px; color: #1f6074; background: #e4f5fa; font-size: .7rem; font-weight: 850; white-space: nowrap; }
+.roster-add-function:hover { color: #fff; background: #2c8199; }
+.roster-role-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(184px, 1fr)); gap: 0; }
 .roster-role { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 7px; min-height: 51px; padding: 8px 10px; border-right: 1px solid #e0ecef; border-bottom: 1px solid #e0ecef; color: #34474e; font-size: .75rem; font-weight: 750; }
+.roster-role-actions { display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
 .counter-control { display: inline-grid; grid-template-columns: 31px minmax(29px, auto) 31px; align-items: center; overflow: hidden; border: 1px solid #aacbd6; border-radius: 9px; background: #fff; }
 .counter-control button { width: 31px; height: 31px; border: 0; color: #1d5668; background: #eaf7fb; font-size: 1.15rem; line-height: 1; }
 .counter-control button:hover { color: #fff; background: #2c8199; }
 .counter-control strong { min-width: 29px; color: #233f49; font-size: .82rem; text-align: center; }
+.roster-edit-button { padding: 6px 7px; border-radius: 7px; color: #526a72; background: #eef3f4; font-size: .66rem; font-weight: 820; }
+.roster-edit-button:hover { color: #fff; background: #476b76; }
+.roster-remove-button { display: grid; width: 27px; height: 27px; place-items: center; border-radius: 7px; color: #8f3d38; background: #fff1ef; font-size: 1rem; line-height: 1; }
+.roster-remove-button:hover { color: #fff; background: #bb544d; }
 .counter-input { width: 100%; grid-template-columns: 38px minmax(0, 1fr) 38px; }
 .counter-input button { width: 38px; height: 42px; }
 .counter-input input { width: 100%; min-width: 0; height: 42px; padding: 6px; border: 0 !important; border-radius: 0 !important; text-align: center; }
@@ -550,6 +560,15 @@ h2 { margin-bottom: 0; font-size: 1.15rem; line-height: 1.2; }
 .visa-actions { display: flex; gap: 4px; }
 .company-visa-company-name { padding: 10px 11px; border: 1px solid #c9e0e7; border-radius: 10px; color: #284c57; background: #f5fbfd; font-size: .86rem; font-weight: 850; }
 .handoff-note { margin: 0; padding: 11px; border-left: 4px solid #48afd3; border-radius: 8px; color: #375862; background: #eaf8fc; font-size: .83rem; line-height: 1.4; }
+.handoff-panel { display: grid; gap: 11px; margin: 0 0 17px; padding: 15px; border: 1px solid #b9dfe9; border-radius: 13px; background: linear-gradient(135deg, #f1fbfe, #fff); }
+.handoff-panel-heading .eyebrow { margin-bottom: 4px; color: var(--sncf); opacity: 1; }
+.handoff-panel-heading h3 { margin: 0 0 5px; color: #294d58; font-size: 1rem; }
+.handoff-panel-heading .muted { margin: 0; font-size: .8rem; line-height: 1.4; }
+.handoff-summary { display: grid; gap: 3px; padding: 10px 11px; border: 1px solid #d0e4ea; border-radius: 9px; color: #47636d; background: #fff; font-size: .78rem; line-height: 1.35; }
+.handoff-summary strong { color: #1f5263; font-size: .83rem; }
+.handoff-summary small { color: #72858b; font-size: .71rem; }
+.handoff-panel-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.data-list-caption { margin: -1px 0 2px; color: #62767e; font-size: .72rem; line-height: 1.35; }
 
 @media (max-width: 720px) {
   .hero-card.hero-card-compact { padding: 14px 16px; }
@@ -565,6 +584,9 @@ h2 { margin-bottom: 0; font-size: 1.15rem; line-height: 1.2; }
   .quick-equipment-fields .secondary-button { grid-column: 1 / -1; width: 100%; }
   .roster-role-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .roster-role { grid-template-columns: 1fr; align-content: center; }
+  .roster-role-actions { justify-content: flex-start; }
+  .handoff-panel-actions { display: grid; grid-template-columns: 1fr; }
+  .handoff-panel-actions .secondary-button, .handoff-panel-actions .text-button { width: 100%; }
   .time-matrix-head, .time-matrix label { grid-template-columns: minmax(100px, 1fr) minmax(70px, .8fr) minmax(70px, .8fr); gap: 6px; padding: 8px; }
   .arf-photo-grid { grid-template-columns: 1fr; }
   .company-visa-card { grid-template-columns: minmax(0, 1fr) auto; }
@@ -597,6 +619,7 @@ h2 { margin-bottom: 0; font-size: 1.15rem; line-height: 1.2; }
   .print-empty { padding: 8px; border: 1px solid #333; color: #686868; font-size: 8.5pt; font-style: italic; }
   .print-note { min-height: 56px; padding: 8px; border: 1px solid #333; font-size: 8.5pt; white-space: pre-wrap; }
   .print-signatures { display: grid; grid-template-columns: repeat(auto-fit, minmax(42mm, 1fr)); gap: 8px; margin-top: 20px; break-inside: avoid; page-break-inside: avoid; }
+  .print-final-signatures .print-signatures { margin-top: 7px; }
   .signature-box { min-height: 68px; padding: 7px; border: 1px solid #333; font-size: 8pt; }
   .signature-box strong { display: block; margin-bottom: 35px; }
   .signature-after-work { display: flex; flex-direction: column; gap: 3px; }
