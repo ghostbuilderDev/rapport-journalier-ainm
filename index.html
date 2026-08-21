@@ -138,6 +138,7 @@
               <label class="field"><span>Température (°C)</span><input id="temperatureInput" data-path="meta.temperature" type="number" min="-20" max="60" step="0.5" inputmode="decimal" /></label>
               <label class="field"><span>Représentant MOETx SNCF</span><input id="moeRepresentativeInput" data-path="meta.moeRepresentative" placeholder="Nom et prénom" /></label>
               <label class="field"><span>Représentant entreprise</span><input id="companyRepresentativeInput" data-path="meta.companyRepresentative" placeholder="Nom et prénom" /></label>
+              <label class="field field-wide"><span>Objectif / consigne de la séance</span><textarea id="objectiveInput" data-path="meta.objective" rows="3" placeholder="Objectif de la nuit, zone concernée, consigne principale…"></textarea></label>
             </div>
           </details>
           <div class="inline-option">
@@ -292,6 +293,8 @@
       <section id="printReport" class="print-report"></section>
     </div>
 
+    <div id="appToast" class="app-toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
     <dialog id="taskDialog" class="dialog task-dialog">
       <form method="dialog" id="taskForm">
         <header class="dialog-header">
@@ -336,6 +339,23 @@
         </header>
         <p class="muted">Cette page est faite pour lever les ambiguïtés une seule fois par chantier. Les agents ne voient ensuite que les libellés terrain.</p>
         <div id="mappingPane"></div>
+      </form>
+    </dialog>
+
+    <dialog id="confirmDialog" class="dialog confirm-dialog" aria-labelledby="confirmDialogTitle">
+      <form method="dialog" id="confirmForm">
+        <header class="dialog-header">
+          <div>
+            <p class="eyebrow">Confirmation</p>
+            <h2 id="confirmDialogTitle">Confirmer l’action</h2>
+          </div>
+          <button class="icon-button" value="cancel" aria-label="Fermer" type="submit">×</button>
+        </header>
+        <p id="confirmDialogMessage" class="confirm-message"></p>
+        <div class="dialog-actions">
+          <button id="confirmDialogCancel" value="cancel" type="submit" class="secondary-button">Annuler</button>
+          <button id="confirmDialogAccept" value="confirm" type="submit" class="primary-button">Confirmer</button>
+        </div>
       </form>
     </dialog>
 

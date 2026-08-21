@@ -42,12 +42,19 @@
     .replace(/[’'–—/.,;:()\[\]-]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+  const canonicalSncfRole = (role) => {
+    const value = normalise(role);
+    if (value === "kb catenaire") return "KV caténaire";
+    if (value === "kbse") return "KVSE";
+    if (value === "agent rse") return "Agent RSO";
+    return role;
+  };
 
   const COMPANY_OPTIONS = [
     "BOUYGUES ENERGIES & SERVICES / TSO SIGNALISATION", "SNCF", "ATIF", "SYSTRA", "ETF", "LSDR", "ETF SERVICE", "TSO", "HP ELEC", "TSO Signalisation", "Bouygues", "TSO (LTV)", "Autre",
   ];
   const PERSONNEL_ROLES = {
-    "SNCF": ["RLT", "RLTx", "CCH", "CRLT", "RPTx", "RSO", "ASP", "Agent LAM", "Agent PN", "KV Caténaire", "KV SE", "KV Signalisation", "KV Voie", "RS", "RS9", "S11", "RPT", "CATS", "Mainteneur", "MOETx", "AMOETx", "CSPS", "Agent caténaire", "Agent signalisation", "Agent voie", "Autre"],
+    "SNCF": ["RLT", "RLTx", "CCH", "CRLT", "RPTx", "RSO", "ASP", "Agent LAM", "Agent PN", "KV caténaire", "KVSE", "KV Signalisation", "KV Voie", "RS", "RS9", "S11", "RPT", "CATS", "Mainteneur", "MOETx", "AMOETx", "CSPS", "Agent caténaire", "Agent signalisation", "Agent voie", "Agent RSO", "Autre"],
     "Entreprise travaux": ["Conducteur travaux", "Chef de chantier", "Chef d’équipe", "Monteur signalisation", "Électricien", "Opérateur travaux", "Pelleur", "Conducteur d’engin", "Chef de manœuvre", "Élingueur", "Agent lorry", "Soudeur", "SST", "Autre"],
     "Prestataire sécurité": ["Agent prestataire S9", "Agent protection physique", "Annonceur", "Sentinelle", "Agent sécurité", "Pelleur", "Percheur", "SST", "Autre"],
   };
@@ -153,7 +160,7 @@
     const identity = allocateReportIdentity();
     return {
       schema: 1,
-      appVersion: 5,
+      appVersion: 6,
       updatedAt: new Date().toISOString(),
       reportSerial: identity.serial,
       reportUid: identity.uid,
@@ -173,6 +180,7 @@
         reporter: "",
         moeRepresentative: "",
         companyRepresentative: "",
+        objective: "",
         publicHoliday: false,
         cancelled: false,
         cancelReason: "",
@@ -210,6 +218,10 @@
     state.meta ||= {};
     ["tasks", "personnel", "equipment", "possessions", "anomalies", "documents", "sncfMeans", "photos"].forEach((key) => { if (!Array.isArray(state[key])) state[key] = []; });
     state.afterWorkSignature ||= { name: "", role: "", signedAt: "", dataUrl: "" };
+    state.appVersion = Math.max(6, Number(state.appVersion) || 0);
+    ["personnel", "sncfMeans"].forEach((key) => {
+      state[key].forEach((row) => { row.role = canonicalSncfRole(row.role); });
+    });
     if (!state.reportSerial || !state.reportUid) {
       const identity = allocateReportIdentity();
       state.reportSerial = identity.serial;
@@ -230,6 +242,39 @@
   let adminUnlocked = (() => {
     try { return sessionStorage.getItem(adminSessionKey) === "1"; } catch (_) { return false; }
   })();
+  let toastTimer = null;
+  let pendingConfirmation = null;
+
+  function showToast(message, tone = "") {
+    const toast = $("#appToast");
+    if (!toast) return;
+    toast.textContent = message;
+    toast.className = `app-toast visible ${tone}`.trim();
+    window.clearTimeout(toastTimer);
+    toastTimer = window.setTimeout(() => { toast.className = "app-toast"; }, 4200);
+  }
+
+  function askConfirm({ title = "Confirmer l’action", message, confirmLabel = "Confirmer", danger = false }) {
+    const dialog = $("#confirmDialog");
+    if (!dialog) return Promise.resolve(false);
+    if (pendingConfirmation) pendingConfirmation(false);
+    $("#confirmDialogTitle").textContent = title;
+    $("#confirmDialogMessage").textContent = message;
+    const accept = $("#confirmDialogAccept");
+    accept.textContent = confirmLabel;
+    accept.classList.toggle("danger", danger);
+    return new Promise((resolve) => {
+      const settle = (accepted) => {
+        if (!pendingConfirmation) return;
+        pendingConfirmation = null;
+        resolve(accepted);
+      };
+      const onClose = () => settle(dialog.returnValue === "confirm");
+      dialog.addEventListener("close", onClose, { once: true });
+      pendingConfirmation = settle;
+      dialog.showModal();
+    });
+  }
 
   const getPath = (object, path) => path.split(".").reduce((value, key) => value?.[key], object);
   const setPath = (object, path, value) => {
@@ -244,7 +289,7 @@
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     } catch (_) {
-      alert("L’espace local du téléphone est presque plein. Exportez le rapport ou supprimez des photos avant de continuer.");
+      showToast("L’espace local du téléphone est presque plein. Exportez le rapport ou supprimez des photos avant de continuer.", "warning");
       return false;
     }
     const target = $("#saveState");
@@ -738,7 +783,7 @@
     sncfMeans: {
       title: "Moyen SNCF",
       fields: [
-        ["role", "Moyen / fonction", "select", ["RPTx", "CCH", "Adjoint SO / S11", "Agent d’activité", "KB caténaire", "Surveillant caténaire", "Surveillant RSE", "KBSE", "Agent RSE", "Agent caténaire", "Agent voie", "Agent SE", "Annonceur / ASP", "RPAC", "Agent PL", "Agent caténaire consignation", "Agent SE mesures S6", "Agent lorry", "Autre"]],
+        ["role", "Moyen / fonction", "select", ["RPTx", "CCH", "Adjoint SO / S11", "Agent d’activité", "KV caténaire", "Surveillant caténaire", "Surveillant RSE", "KVSE", "Agent RSO", "Agent caténaire", "Agent voie", "Agent SE", "Annonceur / ASP", "RPAC", "Agent PL", "Agent caténaire consignation", "Agent SE mesures S6", "Agent lorry", "Autre"]],
         ["count", "Nombre", "number", ""],
         ["observation", "Observation", "textarea", "Nom, mission, commentaire"],
       ],
@@ -805,7 +850,7 @@
   async function addPhotos(files) {
     const selected = [...(files || [])].slice(0, Math.max(0, MAX_PHOTOS - state.photos.length));
     if (!selected.length) {
-      alert(`Maximum de ${MAX_PHOTOS} photos par rapport atteint.`);
+      showToast(`Maximum de ${MAX_PHOTOS} photos par rapport atteint.`, "warning");
       return;
     }
     const added = [];
@@ -813,7 +858,7 @@
       try {
         added.push({ id: uid(), phase: selectedPhotoPhase, capturedAt: new Date().toISOString(), caption: "", dataUrl: await compactPhoto(file) });
       } catch (_) {
-        alert(`La photo « ${file.name || "sans nom"} » n’a pas pu être ajoutée.`);
+        showToast(`La photo « ${file.name || "sans nom"} » n’a pas pu être ajoutée.`, "warning");
       }
     }
     if (!added.length) return;
@@ -1025,8 +1070,8 @@
 
   function confirmAdminAccess() {
     const pin = $("#adminPinInput").value.trim();
-    if (!/^\d{6}$/.test(pin)) { alert("Le code administrateur doit contenir exactement 6 chiffres."); return; }
-    if (isAdminConfigured() && hashAdminPin(pin) !== state.settings.admin.pinHash) { alert("Code administrateur incorrect."); return; }
+    if (!/^\d{6}$/.test(pin)) { showToast("Le code administrateur doit contenir exactement 6 chiffres.", "warning"); return; }
+    if (isAdminConfigured() && hashAdminPin(pin) !== state.settings.admin.pinHash) { showToast("Code administrateur incorrect.", "danger"); return; }
     if (!isAdminConfigured()) {
       state.settings.admin = { pinHash: hashAdminPin(pin), configuredAt: new Date().toISOString(), includeCommonCosts: false };
     }
@@ -1204,7 +1249,7 @@
     return rows.length ? rows.map(builder).join("") : `<tr><td colspan="${columnCount}" class="print-empty">Aucune donnée saisie.</td></tr>`;
   }
 
-  function renderPrintReport() {
+  function renderLegacyPrintReport() {
     const includeValuation = isAdminView();
     const breakdown = valuationBreakdown();
     const resolved = breakdown.valuations;
@@ -1266,6 +1311,172 @@
       </article>` : ""}`;
   }
 
+  function chunkReportItems(items, size) {
+    const result = [];
+    for (let index = 0; index < items.length; index += size) result.push(items.slice(index, index + size));
+    return result.length ? result : [[]];
+  }
+
+  function reportTextList(items, fallback = "A renseigner", limit = 3) {
+    const values = [...new Set(items.map((item) => String(item || "").trim()).filter(Boolean))];
+    if (!values.length) return fallback;
+    const shown = values.slice(0, limit);
+    return `${shown.join(" - ")}${values.length > limit ? ` + ${values.length - limit}` : ""}`;
+  }
+
+  function reportTaskQuantity(task, template) {
+    if (template?.metric === "openClose") return `Ouv. ${displayNumber(task.opening)} / Ferm. ${displayNumber(task.closing)} ml`;
+    const quantity = task.quantity === "" || task.quantity == null ? "-" : displayNumber(task.quantity);
+    return `${quantity} ${task.unit || template?.unit || "u"}`;
+  }
+
+  function reportTaskLocation(task) {
+    const location = [task.voie && `Voie ${task.voie}`, task.pkStart && `PK ${task.pkStart}`, task.pkEnd && `a ${task.pkEnd}`].filter(Boolean);
+    return location.length ? location.join(" - ") : "Localisation non renseignée";
+  }
+
+  function reportFooter() {
+    return `<footer class="rj-report-foot"><span>Rapport journalier AINM - document généré par l'application</span><span>__REPORT_PAGE__</span></footer>`;
+  }
+
+  function reportStatusForAnomaly(row) {
+    const status = String(row.status || "").trim();
+    if (status) return { label: status, tone: /termin/i.test(status) ? "" : /cours/i.test(status) ? "warning" : "danger" };
+    if (row.severity === "Bloquant") return { label: "A faire", tone: "danger" };
+    if (row.severity === "À surveiller") return { label: "A suivre", tone: "warning" };
+    return { label: "A suivre", tone: "warning" };
+  }
+
+  function renderPrintReport() {
+    const includeValuation = isAdminView();
+    const breakdown = valuationBreakdown();
+    const resolved = breakdown.valuations;
+    const tasks = chunkReportItems(resolved, includeValuation ? 7 : 9);
+    const allPhotos = state.photos || [];
+    const coverPhoto = allPhotos.find((photo) => photo.phase === "apres") || allPhotos.find((photo) => photo.phase === "avant") || allPhotos[0];
+    const observationPhotos = allPhotos.slice(0, 2);
+    const appendixPhotos = allPhotos.slice(2);
+    const photosPages = chunkReportItems(appendixPhotos, 6);
+    const totalPeople = state.personnel.reduce((sum, row) => sum + number(row.count), 0);
+    const totalEquipment = state.equipment.reduce((sum, row) => sum + number(row.count), 0);
+    const companies = [enterpriseName(), ...state.personnel.map(companyName), ...state.equipment.map(companyName)];
+    const locations = [
+      ...state.tasks.map(reportTaskLocation),
+      ...state.possessions.map((row) => row.voie ? `Voie ${row.voie}` : ""),
+    ];
+    const session = `${state.meta.shiftType === "nuit" ? "Nuit" : "Journée"} - ${state.meta.shiftStart || "--:--"} - ${state.meta.shiftEnd || "--:--"}`;
+    const workSummary = state.tasks.length
+      ? reportTextList(state.tasks.map((task) => `${task.label || "Prestation"} (${reportTaskQuantity(task, templateById.get(task.templateId))})`), "Aucun travail saisi", 3)
+      : "Aucun travail saisi.";
+    const pendingAnomalies = state.anomalies.filter((row) => row.severity !== "Information");
+    const observationSummary = pendingAnomalies.length
+      ? reportTextList(pendingAnomalies.map((row) => row.detail || row.action || "Point de suivi"), "Aucun point à lever", 2)
+      : "Aucun point bloquant signalé.";
+    const coverVisual = coverPhoto
+      ? `<img src="${escapeHtml(coverPhoto.dataUrl)}" alt="Photo terrain de la séance">`
+      : `<div class="rj-cover-placeholder"><img src="assets/ainm-infrapole-paris-sud-est.jpg" alt="AINM Infrapôle Paris Sud Est"><span>Ajouter une photo terrain pour illustrer la séance</span></div>`;
+    const reportTitle = state.meta.cancelled ? "Rapport journalier - chantier annulé" : "Rapport Journalier de Chantier";
+    const reportKicker = state.meta.cancelled ? "Séance annulée - traçabilité conservée" : "Compte rendu terrain - travaux signalisation";
+    const pages = [];
+
+    pages.push(`
+      <article class="rj-report-page rj-cover-page">
+        <header class="rj-report-head">
+          <div class="rj-report-brand"><img class="rj-report-logo" src="assets/ainm-infrapole-paris-sud-est.jpg" alt="AINM Infrapôle Paris Sud Est"><div><h1 class="rj-report-title">${escapeHtml(reportTitle)}</h1><p class="rj-report-subtitle">${escapeHtml(reportKicker)}</p></div></div>
+          <div class="rj-report-auto">Document terrain<br>généré par l'application</div>
+        </header>
+        <section class="rj-project"><span class="rj-project-label">Projet / opération</span><div class="rj-project-name">${escapeHtml(state.meta.operation || "Opération à renseigner")}</div></section>
+        <figure class="rj-cover-visual">${coverVisual}</figure>
+        <section class="rj-stat-grid" aria-label="Synthèse de séance">
+          <div class="rj-stat-card"><span class="rj-stat-label">Date</span><span class="rj-stat-value">${escapeHtml(formatDate(state.meta.date))}</span></div>
+          <div class="rj-stat-card"><span class="rj-stat-label">Séance</span><span class="rj-stat-value">${escapeHtml(session)}</span></div>
+          <div class="rj-stat-card"><span class="rj-stat-label">Météo</span><span class="rj-stat-value">${escapeHtml([state.meta.weather || "Non renseignée", state.meta.temperature !== "" && state.meta.temperature != null ? `${state.meta.temperature} °C` : ""].filter(Boolean).join(" - "))}</span></div>
+          <div class="rj-stat-card"><span class="rj-stat-label">Entreprise(s)</span><span class="rj-stat-value">${escapeHtml(reportTextList(companies, "A renseigner", 2))}</span></div>
+          <div class="rj-stat-card"><span class="rj-stat-label">Effectif</span><span class="rj-stat-value">${totalPeople ? `${displayNumber(totalPeople, 0)} personne(s)` : "Non renseigné"}</span></div>
+          <div class="rj-stat-card"><span class="rj-stat-label">Engins</span><span class="rj-stat-value">${totalEquipment ? `${displayNumber(totalEquipment, 0)} engin(s)` : "Aucun renseigné"}</span></div>
+          <div class="rj-stat-card"><span class="rj-stat-label">Incident / aléa</span><span class="rj-stat-value">${state.anomalies.length ? `${state.anomalies.length} point(s) signalé(s)` : "Aucun"}</span></div>
+          <div class="rj-stat-card wide"><span class="rj-stat-label">Voies / zone</span><span class="rj-stat-value">${escapeHtml(reportTextList(locations, "Zone à renseigner", 3))}</span></div>
+        </section>
+        <section class="rj-summary-grid">
+          <section class="rj-summary-panel"><h2>Objectif de la séance</h2><p>${escapeHtml(state.meta.objective || "Objectif non renseigné dans la saisie terrain.")}</p></section>
+          <section class="rj-summary-panel"><h2>Synthèse rapide</h2><ul class="rj-status-list"><li><strong><span class="rj-status-dot"></span>Travaux réalisés</strong>${escapeHtml(workSummary)}</li><li><strong><span class="rj-status-dot ${pendingAnomalies.length ? "warning" : ""}"></span>Points à suivre</strong>${escapeHtml(observationSummary)}</li>${state.meta.cancelled ? `<li><strong><span class="rj-status-dot danger"></span>Annulation</strong>${escapeHtml(state.meta.cancelReason || "Motif non renseigné")}</li>` : ""}</ul></section>
+        </section>
+        ${reportFooter()}
+      </article>`);
+
+    tasks.forEach((pageTasks, pageIndex) => {
+      const rows = pageTasks.length ? pageTasks.map(({ task, template, result }, index) => {
+        const sequence = pageIndex * (includeValuation ? 7 : 9) + index + 1;
+        const record = result.record;
+        const financialCells = includeValuation
+          ? `<td>${escapeHtml(record?.article || "A contrôler")}</td><td class="rj-work-numeric">${result.status === "priced" ? escapeHtml(euros(result.unitPrice)) : "-"}</td><td class="rj-work-numeric">${result.status === "priced" ? escapeHtml(euros(result.amount)) : "-"}</td>`
+          : "";
+        return `<tr><td><div class="rj-work-name"><span class="rj-work-seq">${sequence}</span><span>${escapeHtml(task.label || template?.reportLabel || "Prestation")}</span></div></td><td class="rj-work-numeric">${escapeHtml(reportTaskQuantity(task, template))}</td><td>${escapeHtml(reportTaskLocation(task))}</td><td>${escapeHtml(task.note || "Sans observation")}</td>${financialCells}</tr>`;
+      }).join("") : `<tr><td colspan="${includeValuation ? 7 : 4}" class="rj-empty-note">Aucune prestation saisie.</td></tr>`;
+      const financialHeaders = includeValuation ? "<th style=\"width:11%\">Réf. PB</th><th style=\"width:10%\">P.U. HT</th><th style=\"width:11%\">Montant HT</th>" : "";
+      pages.push(`
+        <article class="rj-report-page">
+          <header class="rj-section-head"><span class="rj-section-icon">P</span><div><h1>Prestations saisies sur le terrain${pageIndex ? " - suite" : ""}</h1><p>${includeValuation ? "Saisie terrain et rapprochement interne au bordereau" : "Saisie terrain simplifiée - quantités, voies et observations"}</p></div></header>
+          <table class="rj-work-table"><thead><tr><th style="width:${includeValuation ? "25%" : "31%"}">Prestation terrain</th><th style="width:${includeValuation ? "12%" : "15%"}">Qté / unité</th><th style="width:${includeValuation ? "19%" : "28%"}">Critères / localisation</th><th style="width:${includeValuation ? "12%" : "26%"}">Observation</th>${financialHeaders}</tr></thead><tbody>${rows}</tbody></table>
+          ${pageIndex === 0 ? `<section class="rj-production-bottom"><section class="rj-feature-card"><h2>Fonctions intégrées de l'application</h2><ul><li>Numérotation unique de chaque rapport</li><li>Reprise du personnel et des engins de la dernière nuit</li><li>Saisie simplifiée sans affichage des prix terrain</li><li>Photos datées avant / après nuit</li><li>Visas et signature après travaux</li></ul></section><section class="rj-production-total">${includeValuation ? `<div><span>Montant de la séance</span><strong>${escapeHtml(euros(breakdown.total))}</strong></div><div class="minor-total"><span>Prestations à contrôler</span><strong>${breakdown.valuations.filter(({ result }) => result.status !== "priced").length}</strong></div>` : `<div><span>Production de la séance</span><strong>${state.tasks.length}</strong><span>prestation(s) saisie(s)</span></div><div class="minor-total"><span>Traçabilité</span><strong>${allPhotos.length}</strong><span>photo(s) jointe(s)</span></div>`}</section></section>` : ""}
+          ${reportFooter()}
+        </article>`);
+    });
+
+    const observationRows = state.anomalies.length ? state.anomalies.slice(0, 2).map((row, index) => {
+      const status = reportStatusForAnomaly(row);
+      const photo = observationPhotos[index];
+      const photoMarkup = photo ? `<figure class="rj-observation-photo"><img src="${escapeHtml(photo.dataUrl)}" alt="Photo de suivi terrain"><figcaption class="hidden">${escapeHtml(photo.caption || "Photo terrain")}</figcaption></figure>` : `<div class="rj-observation-photo"><div class="rj-observation-placeholder">Photo de suivi<br>non ajoutée</div></div>`;
+      return `<article class="rj-observation-card"><div><div class="rj-observation-top"><span class="rj-observation-id">Observation n° ${escapeHtml(`${state.meta.reportNo || "RJ"}-${String(index + 1).padStart(2, "0")}`)}</span><span class="rj-observation-status ${status.tone}">${escapeHtml(status.label)}</span></div><div class="rj-observation-zone">${escapeHtml(row.type || "Observation terrain")} - ${escapeHtml(row.severity || "Niveau à renseigner")}</div><p><strong>Description</strong> ${escapeHtml(row.detail || "Aucun détail renseigné.")}</p><p><strong>Suite</strong> ${escapeHtml(row.action || "Aucune action renseignée.")}</p></div>${photoMarkup}</article>`;
+    }).join("") : `<div class="rj-empty-note">Aucune anomalie ou réserve constatée pour cette séance.</div>`;
+    const personnelText = reportTextList(state.personnel.map((row) => `${roleName(row)} (${displayNumber(row.count, 0)})`), "Aucun intervenant renseigné", 3);
+    const equipmentText = reportTextList(state.equipment.map((row) => `${equipmentName(row)}${row.count ? ` (${displayNumber(row.count, 0)})` : ""}`), "Aucun engin renseigné", 3);
+    const possessionText = reportTextList(state.possessions.map((row) => `${row.voie || "Voie"} ${row.actualStart || "--:--"}-${row.actualEnd || "--:--"}`), session, 2);
+    const sncfMeansText = reportTextList(state.sncfMeans.map((row) => `${canonicalSncfRole(row.role) || "Moyen"}${row.count ? ` (${displayNumber(row.count, 0)})` : ""}`), "Aucun moyen SNCF renseigné", 4);
+    const documentsText = reportTextList(state.documents.map((row) => row.reference ? `${row.name || "Document"} - ${row.reference}` : row.name), "Aucun document renseigné", 3);
+    const actionRows = state.anomalies.length ? state.anomalies.map((row, index) => {
+      const status = reportStatusForAnomaly(row);
+      return `<tr><td>${index + 1}</td><td>${escapeHtml(row.action || row.detail || "Action à définir")}</td><td>${escapeHtml(row.responsible || "À désigner")}</td><td>${escapeHtml(row.dueDate ? formatDate(row.dueDate) : "-")}</td><td>${escapeHtml(status.label)}</td></tr>`;
+    }).join("") : `<tr><td colspan="5">Aucun point à lever.</td></tr>`;
+    pages.push(`
+      <article class="rj-report-page">
+        <header class="rj-section-head"><span class="rj-section-icon">O</span><div><h1>Observations et suivi terrain</h1><p>Suivi des situations, actions et validations de la séance</p></div></header>
+        <section class="rj-observation-list">${observationRows}</section>
+        <section class="rj-resource-strip"><section class="rj-resource-item"><h2>Personnel</h2><p>${escapeHtml(personnelText)}</p></section><section class="rj-resource-item"><h2>Matériels et engins</h2><p>${escapeHtml(equipmentText)}</p></section><section class="rj-resource-item"><h2>Horaires / interceptions</h2><p>${escapeHtml(possessionText)}</p></section></section>
+        <section class="rj-trace-note"><strong>Moyens SNCF :</strong> ${escapeHtml(sncfMeansText)}<br><strong>Documents / fiches :</strong> ${escapeHtml(documentsText)}</section>
+        <section class="rj-actions"><h2>Actions / points à lever</h2><table class="rj-actions-table"><thead><tr><th>N°</th><th>Action / point à lever</th><th>Responsable</th><th>Échéance</th><th>Statut</th></tr></thead><tbody>${actionRows}</tbody></table></section>
+        <section class="rj-signatures"><section class="rj-signature-box"><strong>Représentant entreprise</strong><span>${escapeHtml(state.meta.companyRepresentative || "Nom à renseigner")}</span><div class="rj-signature-line"></div></section><section class="rj-signature-box"><strong>Représentant SNCF</strong><span>${escapeHtml(state.meta.moeRepresentative || "Nom à renseigner")}</span><div class="rj-signature-line"></div></section><section class="rj-signature-box"><strong>Visa après travaux</strong><span>${escapeHtml([state.afterWorkSignature?.name, state.afterWorkSignature?.role].filter(Boolean).join(" - ") || "Nom et fonction à renseigner")}</span>${state.afterWorkSignature?.dataUrl ? `<img src="${escapeHtml(state.afterWorkSignature.dataUrl)}" alt="Signature après travaux">` : "<div class=\"rj-signature-line\"></div>"}</section></section>
+        ${reportFooter()}
+      </article>`);
+
+    if (state.anomalies.length > 2) {
+      chunkReportItems(state.anomalies.slice(2), 2).forEach((anomalyPage, anomalyPageIndex) => {
+        const cards = anomalyPage.map((row, index) => {
+          const globalIndex = anomalyPageIndex * 2 + index + 2;
+          const status = reportStatusForAnomaly(row);
+          const photo = allPhotos[globalIndex];
+          const photoMarkup = photo ? `<figure class="rj-observation-photo"><img src="${escapeHtml(photo.dataUrl)}" alt="Photo de suivi terrain"><figcaption class="hidden">${escapeHtml(photo.caption || "Photo terrain")}</figcaption></figure>` : `<div class="rj-observation-photo"><div class="rj-observation-placeholder">Photo de suivi<br>non ajoutée</div></div>`;
+          return `<article class="rj-observation-card"><div><div class="rj-observation-top"><span class="rj-observation-id">Observation n° ${escapeHtml(`${state.meta.reportNo || "RJ"}-${String(globalIndex + 1).padStart(2, "0")}`)}</span><span class="rj-observation-status ${status.tone}">${escapeHtml(status.label)}</span></div><div class="rj-observation-zone">${escapeHtml(row.type || "Observation terrain")} - ${escapeHtml(row.severity || "Niveau à renseigner")}</div><p><strong>Description</strong> ${escapeHtml(row.detail || "Aucun détail renseigné.")}</p><p><strong>Suite</strong> ${escapeHtml(row.action || "Aucune action renseignée.")}</p></div>${photoMarkup}</article>`;
+        }).join("");
+        pages.push(`<article class="rj-report-page"><header class="rj-section-head"><span class="rj-section-icon">O</span><div><h1>Observations de terrain - suite</h1><p>Détails complémentaires des situations signalées</p></div></header><section class="rj-observation-list">${cards}</section>${reportFooter()}</article>`);
+      });
+    }
+
+    if (appendixPhotos.length) {
+      photosPages.forEach((photoPage, photoPageIndex) => {
+        const photoCards = photoPage.map((photo) => `<figure class="rj-photo-appendix-card"><img src="${escapeHtml(photo.dataUrl)}" alt="Photo ${escapeHtml(photo.phase === "avant" ? "avant nuit" : "après nuit")}"><figcaption><strong>${escapeHtml(photo.phase === "avant" ? "Avant nuit" : "Après nuit")}</strong><br>${escapeHtml(formatDateTime(photo.capturedAt))}${photo.caption ? `<br>${escapeHtml(photo.caption)}` : ""}</figcaption></figure>`).join("");
+        pages.push(`<article class="rj-report-page"><header class="rj-section-head"><span class="rj-section-icon">P</span><div><h1>Photos de suivi terrain${photoPageIndex ? " - suite" : ""}</h1><p>Photos datées et classées avant / après nuit</p></div></header><section class="rj-photo-appendix-grid">${photoCards}</section>${reportFooter()}</article>`);
+      });
+    }
+
+    if (includeValuation) {
+      const valuationRows = breakdown.valuations.map(({ task, template, result }) => `<tr><td>${escapeHtml(task.label || template?.reportLabel || "Prestation")}</td><td>${escapeHtml(result.record?.article || "A contrôler")}</td><td class="rj-work-numeric">${escapeHtml(reportTaskQuantity(task, template))}</td><td class="rj-work-numeric">${result.status === "priced" ? escapeHtml(euros(result.unitPrice)) : "-"}</td><td class="rj-work-numeric">${result.status === "priced" ? escapeHtml(euros(result.amount)) : "-"}</td></tr>`).join("") || `<tr><td colspan="5" class="rj-empty-note">Aucune prestation à valoriser.</td></tr>`;
+      pages.push(`<article class="rj-report-page rj-admin-page"><header class="rj-section-head"><span class="rj-section-icon">€</span><div><h1>Annexe de valorisation interne</h1><p>Réservée à l'administrateur principal - montants indicatifs HT</p></div></header><table class="rj-work-table"><thead><tr><th style="width:35%">Prestation terrain</th><th style="width:18%">Référence PB</th><th style="width:17%">Qté / unité</th><th style="width:15%">P.U. HT</th><th style="width:15%">Montant HT</th></tr></thead><tbody>${valuationRows}${breakdown.commonCosts.map((row) => `<tr><td>${escapeHtml(row.label)}</td><td>${escapeHtml(row.article)}</td><td class="rj-work-numeric">Base ${escapeHtml(euros(row.base))}</td><td class="rj-work-numeric">${displayNumber(row.rate * 100)} %</td><td class="rj-work-numeric">${escapeHtml(euros(row.amount))}</td></tr>`).join("")}<tr><td colspan="4"><strong>Total valorisé indicatif HT</strong></td><td class="rj-work-numeric"><strong>${escapeHtml(euros(breakdown.total))}</strong></td></tr></tbody></table><section class="rj-feature-card"><h2>Contrôle administratif</h2><ul><li>Les prix ne sont jamais affichés aux agents terrain.</li><li>Les lignes sans prix restent à contrôler dans l'espace administrateur.</li><li>Cette annexe ne remplace pas la validation de la situation de travaux.</li></ul></section>${reportFooter()}</article>`);
+    }
+
+    $("#printReport").innerHTML = pages.map((page, index) => page.replaceAll("__REPORT_PAGE__", `${index + 1}/${pages.length}`)).join("");
+  }
+
   function exportState(share = false) {
     const filename = `rapport-journalier-${(state.meta.reportNo || "brouillon").replace(/[^a-zA-Z0-9_-]+/g, "-")}.json`;
     const exportable = clone(state);
@@ -1320,16 +1531,21 @@
     ensureState();
   }
 
-  function duplicateLastNight() {
+  async function duplicateLastNight() {
     const history = readReportHistory();
     const source = history.find((report) => report.meta?.shiftType === "nuit")
       || (state.meta.shiftType === "nuit" && (state.personnel.length || state.equipment.length) ? state : null);
     if (!source) {
-      alert("Aucune nuit précédente avec personnel ou engin n’est disponible sur cet appareil. Créez le premier rapport puis utilisez Nouveau rapport à la fin de la séance.");
+      showToast("Aucune nuit précédente avec personnel ou engin n’est disponible sur cet appareil. Créez le premier rapport puis utilisez Nouveau rapport à la fin de la séance.", "warning");
       return;
     }
     const label = `${formatDate(source.meta?.date)} · ${source.meta?.reportNo || "rapport précédent"}`;
-    if (!confirm(`Créer un nouveau rapport en reprenant le personnel, les engins et les moyens SNCF de ${label} ? Les travaux, photos, anomalies, consignations et signatures ne seront pas recopiés.`)) return;
+    const accepted = await askConfirm({
+      title: "Reprendre la dernière nuit",
+      message: `Créer un nouveau rapport en reprenant le personnel, les engins et les moyens SNCF de ${label} ? Les travaux, photos, anomalies, consignations et signatures ne seront pas recopiés.`,
+      confirmLabel: "Créer le rapport",
+    });
+    if (!accepted) return;
     startNewReport(source, { reuseResources: true });
     save("Dernière nuit reprise");
     refresh({ inputs: true });
@@ -1379,16 +1595,20 @@
       $("#taskDialog").showModal();
     });
     $("#emptyTasks").addEventListener("click", (event) => { if (event.target.closest("[data-action='catalog']")) openTaskCatalog(); });
-    $("#taskList").addEventListener("click", (event) => {
+    $("#taskList").addEventListener("click", async (event) => {
       const edit = event.target.closest("[data-edit-task]");
       const remove = event.target.closest("[data-delete-task]");
       if (edit) openTaskCatalog(edit.dataset.editTask);
-      if (remove && confirm("Supprimer cette prestation ?")) { state.tasks = state.tasks.filter((task) => task.id !== remove.dataset.deleteTask); save("Prestation supprimée"); refresh(); }
+      if (remove && await askConfirm({ title: "Supprimer la prestation", message: "Supprimer cette prestation du rapport ?", confirmLabel: "Supprimer", danger: true })) {
+        state.tasks = state.tasks.filter((task) => task.id !== remove.dataset.deleteTask);
+        save("Prestation supprimée");
+        refresh();
+      }
     });
 
     $$('[data-add-row]').forEach((button) => button.addEventListener("click", () => openRowDialog(button.dataset.addRow)));
     $("#rowDialog").addEventListener("click", (event) => { if (event.target.closest("#saveRowButton")) saveRow(); });
-    $$(".data-list").forEach((list) => list.addEventListener("click", (event) => {
+    $$(".data-list").forEach((list) => list.addEventListener("click", async (event) => {
       const edit = event.target.closest("[data-edit-row]");
       const remove = event.target.closest("[data-delete-row]");
       if (edit) {
@@ -1397,7 +1617,9 @@
         if (row) openRowDialog(key, row);
         return;
       }
-      if (!remove || !confirm("Supprimer cette ligne ?")) return;
+      if (!remove) return;
+      const accepted = await askConfirm({ title: "Supprimer la ligne", message: "Supprimer cette ligne du rapport ?", confirmLabel: "Supprimer", danger: true });
+      if (!accepted) return;
       const [key, id] = remove.dataset.deleteRow.split(":");
       state[key] = state[key].filter((row) => row.id !== id);
       save("Ligne supprimée");
@@ -1414,9 +1636,11 @@
       await addPhotos(event.target.files);
       event.target.value = "";
     });
-    $("#photoList").addEventListener("click", (event) => {
+    $("#photoList").addEventListener("click", async (event) => {
       const remove = event.target.closest("[data-delete-photo]");
-      if (!remove || !confirm("Supprimer cette photo ?")) return;
+      if (!remove) return;
+      const accepted = await askConfirm({ title: "Supprimer la photo", message: "Supprimer cette photo du rapport ?", confirmLabel: "Supprimer", danger: true });
+      if (!accepted) return;
       state.photos = state.photos.filter((photo) => photo.id !== remove.dataset.deletePhoto);
       save("Photo supprimée");
       renderPhotos();
@@ -1443,14 +1667,16 @@
       renderAfterWorkSignature();
       renderPrintReport();
     });
-    $("#clearAfterWorkSignatureButton").addEventListener("click", () => {
-      if (!state.afterWorkSignature.dataUrl || confirm("Effacer la signature après travaux ?")) {
-        state.afterWorkSignature.dataUrl = "";
-        state.afterWorkSignature.signedAt = "";
-        save("Signature effacée");
-        renderAfterWorkSignature();
-        renderPrintReport();
+    $("#clearAfterWorkSignatureButton").addEventListener("click", async () => {
+      if (state.afterWorkSignature.dataUrl) {
+        const accepted = await askConfirm({ title: "Effacer la signature", message: "Effacer la signature après travaux ?", confirmLabel: "Effacer", danger: true });
+        if (!accepted) return;
       }
+      state.afterWorkSignature.dataUrl = "";
+      state.afterWorkSignature.signedAt = "";
+      save("Signature effacée");
+      renderAfterWorkSignature();
+      renderPrintReport();
     });
 
     $("#printButton").addEventListener("click", () => { renderPrintReport(); window.print(); });
@@ -1478,8 +1704,13 @@
       save("CR de règlement mis à jour");
       refresh();
     });
-    $("#newReportButton").addEventListener("click", () => {
-      if (!confirm("Créer un nouveau rapport ? Le rapport actuel sera conservé localement pour pouvoir reprendre ses équipes et engins.")) return;
+    $("#newReportButton").addEventListener("click", async () => {
+      const accepted = await askConfirm({
+        title: "Créer un nouveau rapport",
+        message: "Le rapport actuel sera conservé localement pour pouvoir reprendre ses équipes et engins.",
+        confirmLabel: "Créer le rapport",
+      });
+      if (!accepted) return;
       startNewReport(state);
       save("Nouveau rapport créé");
       refresh({ inputs: true });
@@ -1528,7 +1759,7 @@
         try { sessionStorage.removeItem(adminSessionKey); } catch (_) { /* Session locale indisponible. */ }
         save("Saisie importée");
         refresh({ inputs: true });
-      } catch (_) { alert("Ce fichier n’est pas une exportation compatible de rapport journalier."); }
+      } catch (_) { showToast("Ce fichier n’est pas une exportation compatible de rapport journalier.", "danger"); }
       event.target.value = "";
     });
   }

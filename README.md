@@ -13,7 +13,10 @@ Cette première version transforme les trames fournies en un rapport utilisable 
 - Saisie mobile structurée des intervenants : famille (entreprise travaux, SNCF, prestataire sécurité), entreprise, fonction, effectif, heures, chef d’équipe et observation.
 - Saisie mobile structurée des engins : distinction rail-route / LAM, routier / chenillard, manutention / levage et autre matériel ; identification, zone, PK et mode de mise en voie sont tracés lorsque nécessaire.
 - Entreprises reprises du Briefing Opération : SNCF, ATIF, SYSTRA, ETF, LSDR, ETF SERVICE, TSO, HP ELEC, TSO Signalisation, Bouygues et TSO (LTV), avec une option « Autre ».
-- Mise en page imprimable A4 proche des trames fournies.
+- Nouvelle trame imprimable A4 en trois pages : synthèse de séance, prestations saisies, puis observations / suivi / signatures. Elle reprend la composition professionnelle du modèle fourni et intègre le logo AINM dans le PDF généré.
+- Champ « Objectif / consigne de la séance » pour alimenter directement la première page du rapport sans ressaisie.
+- Dialogues de confirmation et messages propres à l’application : aucune bulle native de navigateur du type « ghostbuilderdev.github.io indique » n’est affichée aux agents.
+- Libellés SNCF corrigés dans les listes et les anciens brouillons migrés automatiquement : « KV caténaire », « KVSE » et « Agent RSO ».
 - Mode terrain par défaut : les agents saisissent les faits, les quantités et les observations sans voir ni prix, ni références PB, ni montants. Le PDF et l’export terrain suivent la même règle.
 - Espace administrateur, placé en fin d’application et ouvert par un code local à 6 chiffres : contrôle hebdomadaire, rapprochement production / bordereau, réglage ponctuel du CR et annexe interne imprimable.
 - Catalogue de **1 796 lignes de prix** issu du détail estimatif AINM « version C — 27/08/2025 », complété et recoupé avec le décompte n°04 PCLE du 12/08/2026.
