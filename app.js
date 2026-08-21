@@ -47,16 +47,18 @@
     if (value === "kb catenaire") return "KV caténaire";
     if (value === "kbse") return "KVSE";
     if (value === "agent rse") return "Agent RSO";
+    if (value === "surveillant rse") return "Surveillant travaux SE";
+    if (value === "adjoint so s11" || value === "adjoint s0" || value === "adjoint so") return "Adjoint S11";
     return role;
   };
 
   const COMPANY_OPTIONS = [
-    "BOUYGUES ENERGIES & SERVICES / TSO SIGNALISATION", "SNCF", "ATIF", "SYSTRA", "ETF", "LSDR", "ETF SERVICE", "TSO", "HP ELEC", "TSO Signalisation", "Bouygues", "TSO (LTV)", "Autre",
+    "BOUYGUES ENERGIES & SERVICES / TSO SIGNALISATION", "SNCF", "ATIF", "SYSTRA", "ETF", "ETF Services", "ETF SERVICE", "Sentinelles du Rail", "LSDR", "TSO", "TSO Signalisation", "TSO (LTV)", "Bouygues", "HP ELEC", "GEQ", "CEM", "Autre",
   ];
   const PERSONNEL_ROLES = {
-    "SNCF": ["RLT", "RLTx", "CCH", "CRLT", "RPTx", "RSO", "ASP", "Agent LAM", "Agent PN", "KV caténaire", "KVSE", "KV Signalisation", "KV Voie", "RS", "RS9", "S11", "RPT", "CATS", "Mainteneur", "MOETx", "AMOETx", "CSPS", "Agent caténaire", "Agent signalisation", "Agent voie", "Agent RSO", "Autre"],
-    "Entreprise travaux": ["Conducteur travaux", "Chef de chantier", "Chef d’équipe", "Monteur signalisation", "Électricien", "Opérateur travaux", "Pelleur", "Conducteur d’engin", "Chef de manœuvre", "Élingueur", "Agent lorry", "Soudeur", "SST", "Autre"],
-    "Prestataire sécurité": ["Agent prestataire S9", "Agent protection physique", "Annonceur", "Sentinelle", "Agent sécurité", "Pelleur", "Percheur", "SST", "Autre"],
+    "SNCF": ["RPTx", "CCH", "Adjoint S11", "Adjoint S6", "RSO", "Agent d’activité", "Agent prestataire", "KV caténaire", "KVSE", "Surveillant caténaire", "Surveillant travaux SE", "Surveillant voie", "Agent signalisation", "Agent voie", "Agent RSO", "ASP / annonceur", "MOETx", "AMOETx", "CSPS", "Autre"],
+    "Entreprise travaux": ["Conducteur travaux", "Chef de chantier", "Chef d’équipe", "Opérateur travaux", "Intérimaire", "Monteur signalisation", "Électricien", "Pelleur", "Conducteur d’engin", "Chef de manœuvre", "Élingueur", "Agent lorry", "Soudeur", "SST", "Autre"],
+    "Prestataire sécurité": ["Agent prestataire", "Sentinelle", "Annonceur", "Agent sécurité", "Agent protection physique", "Pelleur", "Percheur", "SST", "Autre"],
   };
   const EQUIPMENT_TYPES = {
     "Rail-route / LAM": ["Pelle rail-route", "Pelle rail-route + remorque", "LAM (Lorry Automoteur)", "Nacelle rail-route", "4 axes", "Lorry", "Lorry à main", "TTx", "Élan", "Autre rail-route"],
@@ -65,8 +67,8 @@
     "Autre matériel": ["Groupe électrogène", "Compresseur", "Outillage spécialisé", "Autre"],
   };
   const PERSONNEL_PRESETS = [
-    ["Entreprise travaux", "Chef de chantier"], ["Entreprise travaux", "Chef d’équipe"], ["Entreprise travaux", "Monteur signalisation"], ["Entreprise travaux", "Opérateur travaux"],
-    ["SNCF", "RPTx"], ["SNCF", "KV caténaire"], ["SNCF", "KVSE"], ["SNCF", "Agent RSO"],
+    ["Entreprise travaux", "Conducteur travaux"], ["Entreprise travaux", "Chef de chantier"], ["Entreprise travaux", "Chef d’équipe"], ["Entreprise travaux", "Opérateur travaux"], ["Entreprise travaux", "Intérimaire"],
+    ["Prestataire sécurité", "Agent prestataire"], ["Prestataire sécurité", "Sentinelle"],
   ];
   const EQUIPMENT_PRESETS = [
     ["Rail-route / LAM", "Pelle rail-route"], ["Rail-route / LAM", "LAM (Lorry Automoteur)"], ["Rail-route / LAM", "Nacelle rail-route"], ["Rail-route / LAM", "Lorry"],
@@ -76,8 +78,10 @@
   const MATERIAL_UNITS = ["u", "ml", "m²", "m³", "kg", "t", "L", "bobine", "lot"];
   const SELFCHECK_TYPES = ["Contrôle visuel", "Contrôle de serrage", "Contrôle câblage", "Contrôle continuité / isolement", "Contrôle dimensionnel", "Contrôle sécurité", "Essai fonctionnel", "Autre"];
   const PHOTO_CONTEXT_OPTIONS = ["Avancement", "Anomalie", "Autocontrôle", "Sécurité", "Matériel", "Avant travaux", "Après travaux", "Autre"];
-  const SNCF_MEANS_OPTIONS = ["RPTx", "CCH", "Adjoint SO / S11", "Agent d’activité", "KV caténaire", "Surveillant caténaire", "Surveillant RSE", "KVSE", "Agent RSO", "Agent caténaire", "Agent voie", "Agent SE", "Annonceur / ASP", "RPAC", "Agent PL", "Agent caténaire consignation", "Agent SE mesures S6", "Agent lorry", "Autre"];
-  const SNCF_MEANS_PRESETS = ["RPTx", "CCH", "KV caténaire", "KVSE", "Agent RSO", "Agent caténaire", "Agent voie", "Annonceur / ASP"];
+  const SNCF_MEANS_OPTIONS = ["RPTx", "CCH", "Adjoint S11", "Adjoint S6", "Agent d’activité", "Agent prestataire", "KV caténaire", "KVSE", "Surveillant caténaire", "Surveillant travaux SE", "Surveillant voie", "Agent RSO", "Agent signalisation", "Agent voie", "Agent SE", "Annonceur / ASP", "Agent lorry", "Autre"];
+  const SNCF_MEANS_PRESETS = ["RPTx", "Adjoint S11", "Adjoint S6", "KV caténaire", "KVSE", "Surveillant travaux SE", "Surveillant voie", "Agent RSO"];
+  const QUICK_COMPANY_ROLES = ["Conducteur travaux", "Chef de chantier", "Chef d’équipe", "Opérateur travaux", "Intérimaire"];
+  const QUICK_SAFETY_ROLES = ["Agent prestataire", "Sentinelle", "Annonceur", "Agent sécurité"];
   const QUICK_TEMPLATE_IDS = new Set([
     "pose-caniveau-pm-mm", "pose-caniveau-gm-tgm", "deroulage-240", "deroulage-95",
     "pose-intervalle-decharge", "depose-intervalle-decharge", "pose-ci-equilibrage", "depose-ci-equilibrage",
@@ -87,7 +91,10 @@
   const editorValue = (id) => String($(`#${id}`)?.value ?? "").trim();
   const companyName = (row) => row?.company === "Autre" ? (row.companyOther || "Autre entreprise") : (row?.company || "Entreprise à préciser");
   const roleName = (row) => row?.role === "Autre" ? (row.roleOther || "Fonction à préciser") : (row?.role || "Fonction à préciser");
-  const enterpriseName = () => state.meta.enterprise === "Autre" ? (state.meta.enterpriseOther || "Autre entreprise") : state.meta.enterprise;
+  const participatingCompanyNames = () => [...new Set((state.meta?.participatingCompanies || []).map((value) => String(value || "").trim()).filter(Boolean))];
+  const enterpriseName = () => participatingCompanyNames()[0] || (state.meta.enterprise === "Autre" ? (state.meta.enterpriseOther || "Autre entreprise") : state.meta.enterprise);
+  const companiesForSelect = () => [...new Set([...participatingCompanyNames(), ...COMPANY_OPTIONS])];
+  const companySelectOptions = (selected, placeholder = "Choisir une entreprise") => selectOptions(companiesForSelect(), selected, placeholder);
   const isOtherEquipmentType = (type) => String(type || "").startsWith("Autre");
   const equipmentName = (row) => isOtherEquipmentType(row?.type || row?.name) ? (row.typeOther || row.type || row.name) : (row?.type || row?.name || "Engin à préciser");
 
@@ -174,16 +181,17 @@
     const identity = allocateReportIdentity();
     return {
       schema: 1,
-      appVersion: 7,
+      appVersion: 8,
       updatedAt: new Date().toISOString(),
       reportSerial: identity.serial,
       reportUid: identity.uid,
       meta: {
-        operation: "RCT AINM — Tronçon Moret–Montargis",
+        operation: "RCT",
         reportNo: identity.reportNo,
         orderNo: "",
         enterprise: "BOUYGUES ENERGIES & SERVICES / TSO SIGNALISATION",
         enterpriseOther: "",
+        participatingCompanies: ["BOUYGUES ENERGIES & SERVICES / TSO SIGNALISATION"],
         date,
         shiftType: "nuit",
         shiftStart: "22:00",
@@ -213,6 +221,8 @@
       selfChecks: [],
       photos: [],
       afterWorkSignature: { name: "", role: "", signedAt: "", dataUrl: "" },
+      companySignatures: [],
+      collaboration: { revision: 1, currentEditor: "", currentRole: "", receivedAt: "", handoffs: [] },
       settings: { mappings: {}, admin: { pinHash: "", configuredAt: "", includeCommonCosts: false } },
     };
   };
@@ -237,8 +247,19 @@
     state.meta ||= {};
     ["tasks", "personnel", "equipment", "possessions", "anomalies", "documents", "sncfMeans", "materials", "selfChecks", "photos"].forEach((key) => { if (!Array.isArray(state[key])) state[key] = []; });
     state.afterWorkSignature ||= { name: "", role: "", signedAt: "", dataUrl: "" };
+    if (!Array.isArray(state.companySignatures)) state.companySignatures = [];
+    state.collaboration ||= { revision: 1, currentEditor: "", currentRole: "", receivedAt: "", handoffs: [] };
+    if (!Array.isArray(state.collaboration.handoffs)) state.collaboration.handoffs = [];
+    state.collaboration.revision = Math.max(1, Math.floor(number(state.collaboration.revision)) || 1);
     ["location", "executionNotes", "nextWorks"].forEach((key) => { if (typeof state.meta[key] !== "string") state.meta[key] = ""; });
-    state.appVersion = Math.max(7, Number(state.appVersion) || 0);
+    if (!Array.isArray(state.meta.participatingCompanies)) {
+      const legacyEnterprise = state.meta.enterprise === "Autre" ? state.meta.enterpriseOther : state.meta.enterprise;
+      state.meta.participatingCompanies = legacyEnterprise ? [legacyEnterprise] : [];
+    }
+    state.meta.participatingCompanies = [...new Set(state.meta.participatingCompanies.map((value) => String(value || "").trim()).filter(Boolean))];
+    if (!state.meta.participatingCompanies.length && state.meta.enterprise) state.meta.participatingCompanies.push(state.meta.enterprise);
+    state.meta.enterprise = state.meta.participatingCompanies[0] || state.meta.enterprise || "";
+    state.appVersion = Math.max(8, Number(state.appVersion) || 0);
     ["personnel", "sncfMeans"].forEach((key) => {
       state[key].forEach((row) => { row.role = canonicalSncfRole(row.role); });
     });
@@ -258,6 +279,9 @@
   let catalogCategory = "Toutes";
   let selectedPhotoPhase = "avant";
   let signatureCanvasReady = false;
+  let companySignatureCanvasReady = false;
+  let companySignatureResizeBound = false;
+  let companyVisaDraft = null;
   let adminLoginOpen = false;
   let adminUnlocked = (() => {
     try { return sessionStorage.getItem(adminSessionKey) === "1"; } catch (_) { return false; }
@@ -542,13 +566,44 @@
     });
     if ($("#reportNoInput")) $("#reportNoInput").value = state.meta.reportNo || "";
     $("#cancelReasonField").classList.toggle("hidden", !state.meta.cancelled);
-    $("#enterpriseOtherField")?.classList.toggle("hidden", state.meta.enterprise !== "Autre");
+    renderParticipantCompanies();
+  }
+
+  function syncPrimaryEnterprise() {
+    state.meta.participatingCompanies = participatingCompanyNames();
+    state.meta.enterprise = state.meta.participatingCompanies[0] || "";
+  }
+
+  function renderParticipantCompanies() {
+    const target = $("#participantCompanyPicker");
+    if (!target) return;
+    const selected = new Set(participatingCompanyNames());
+    const listed = COMPANY_OPTIONS.filter((company) => company !== "Autre");
+    const known = listed.map((company) => `<button type="button" class="company-choice ${selected.has(company) ? "selected" : ""}" data-participant-company="${escapeHtml(company)}" aria-pressed="${selected.has(company)}">${selected.has(company) ? "✓ " : ""}${escapeHtml(company)}</button>`).join("");
+    const custom = [...selected].filter((company) => !COMPANY_OPTIONS.includes(company)).map((company) => `<button type="button" class="company-choice selected custom-company" data-participant-company="${escapeHtml(company)}" aria-pressed="true">✓ ${escapeHtml(company)}</button>`).join("");
+    target.innerHTML = known + custom;
+  }
+
+  function toggleParticipantCompany(company) {
+    const selected = participatingCompanyNames();
+    const index = selected.indexOf(company);
+    if (index >= 0) {
+      if (selected.length === 1) {
+        showToast("Conserver au moins une entreprise intervenante.", "warning");
+        return;
+      }
+      selected.splice(index, 1);
+    } else selected.push(company);
+    state.meta.participatingCompanies = selected;
+    syncPrimaryEnterprise();
+    save("Entreprises intervenantes mises à jour");
+    refresh({ inputs: true });
   }
 
   function renderPricingContext() {
     const context = getShiftContext();
     const banner = $("#pricingContext");
-    if (!isAdminView()) {
+    if (!isAdminView() || handoff) {
       banner.classList.add("hidden");
       return;
     }
@@ -558,18 +613,7 @@
   }
 
   function renderHeader() {
-    const breakdown = valuationBreakdown();
-    const toReview = breakdown.valuations.filter(({ result }) => result.status !== "priced").length;
-    $("#taskCount").textContent = state.tasks.length;
-    $("#secondaryKpiLabel").textContent = isAdminView() ? "Estimation HT" : "Mode";
-    $("#secondaryKpiValue").textContent = isAdminView() ? (breakdown.total ? euros(breakdown.total) : "—") : "Terrain";
-    $("#heroSubtitle").textContent = state.meta.cancelled
-      ? "Chantier annulé — éditer la cause et la trace de la séance."
-      : isAdminView()
-        ? `${state.meta.operation || "Opération à renseigner"} · ${toReview ? `${toReview} ligne(s) à contrôler` : "contrôle financier prêt"}`
-        : `${state.meta.operation || "Opération à renseigner"} · ${state.tasks.length ? `${state.tasks.length} prestation(s) saisie(s)` : "saisie terrain à démarrer"}`;
-
-    const contextDone = Boolean(state.meta.operation && state.meta.reportNo && state.meta.date && state.meta.workDuration);
+    const contextDone = Boolean(state.meta.operation && state.meta.reportNo && state.meta.date && participatingCompanyNames().length);
     const contextChip = $("#contextStatus");
     contextChip.className = `status-chip ${contextDone ? "success" : "warning"}`;
     contextChip.textContent = contextDone ? "Complet" : "À compléter";
@@ -640,23 +684,80 @@
     toggleOtherRole();
   }
 
+  function isSafetyProvider(company) {
+    const value = normalise(company);
+    return value.includes("etf service") || value.includes("sentinelles du rail") || value.includes("lsdr");
+  }
+
+  function roleCounter(rows, role, company = "", team = "") {
+    return rows.filter((row) => row.role === role && (!company || companyName(row) === company) && (!team || row.team === team))
+      .reduce((total, row) => total + number(row.count), 0);
+  }
+
+  function adjustRoleCounter(key, criteria, defaults, delta) {
+    const list = state[key];
+    const row = list.find((item) => Object.entries(criteria).every(([field, value]) => item[field] === value));
+    if (!row && delta < 0) return;
+    if (!row) list.push({ id: uid(), ...defaults, count: delta });
+    else {
+      const next = Math.max(0, number(row.count) + delta);
+      if (!next) state[key] = list.filter((item) => item.id !== row.id);
+      else row.count = next;
+    }
+    save("Effectif mis à jour");
+    refresh();
+  }
+
+  function renderQuickPersonnelRoster() {
+    const target = $("#quickPersonnelRoster");
+    if (!target) return;
+    const companies = participatingCompanyNames();
+    if (!companies.length) {
+      target.innerHTML = `<p class="empty-inline">Sélectionner d’abord les entreprises intervenantes.</p>`;
+      return;
+    }
+    target.innerHTML = companies.map((company) => {
+      const safety = isSafetyProvider(company);
+      const team = safety ? "Prestataire sécurité" : "Entreprise travaux";
+      const roles = safety ? QUICK_SAFETY_ROLES : QUICK_COMPANY_ROLES;
+      return `<section class="roster-company"><header><strong>${escapeHtml(company)}</strong><span>${safety ? "Prestataire sécurité" : "Entreprise travaux"}</span></header><div class="roster-role-grid">${roles.map((role) => {
+        const count = roleCounter(state.personnel, role, company, team);
+        return `<div class="roster-role"><span>${escapeHtml(role)}</span><div class="counter-control"><button type="button" aria-label="Retirer ${escapeHtml(role)}" data-quick-personnel-company="${escapeHtml(company)}" data-quick-personnel-role="${escapeHtml(role)}" data-quick-personnel-team="${escapeHtml(team)}" data-counter-delta="-1">−</button><strong>${displayNumber(count, 0)}</strong><button type="button" aria-label="Ajouter ${escapeHtml(role)}" data-quick-personnel-company="${escapeHtml(company)}" data-quick-personnel-role="${escapeHtml(role)}" data-quick-personnel-team="${escapeHtml(team)}" data-counter-delta="1">+</button></div></div>`;
+      }).join("")}</div></section>`;
+    }).join("");
+  }
+
+  function renderQuickSncfRoster() {
+    const target = $("#quickSncfRoster");
+    if (!target) return;
+    target.innerHTML = `<section class="roster-company"><header><strong>Personnel SNCF</strong><span>Effectif de la séance</span></header><div class="roster-role-grid">${SNCF_MEANS_PRESETS.map((role) => {
+      const count = state.sncfMeans.filter((row) => canonicalSncfRole(row.role) === role).reduce((total, row) => total + number(row.count), 0);
+      return `<div class="roster-role"><span>${escapeHtml(role)}</span><div class="counter-control"><button type="button" aria-label="Retirer ${escapeHtml(role)}" data-quick-sncf-role="${escapeHtml(role)}" data-counter-delta="-1">−</button><strong>${displayNumber(count, 0)}</strong><button type="button" aria-label="Ajouter ${escapeHtml(role)}" data-quick-sncf-role="${escapeHtml(role)}" data-counter-delta="1">+</button></div></div>`;
+    }).join("")}</div></section>`;
+  }
+
+  function countStepper(id, value = "") {
+    const numeric = Math.max(1, Math.floor(number(value)) || 1);
+    return `<div class="counter-control counter-input"><button type="button" data-counter-target="${id}" data-counter-delta="-1" aria-label="Retirer une personne">−</button><input id="${id}" type="number" min="1" step="1" inputmode="numeric" value="${numeric}" /><button type="button" data-counter-target="${id}" data-counter-delta="1" aria-label="Ajouter une personne">+</button></div>`;
+  }
+
   function renderPersonnelEditor(row) {
     const team = row.team || "Entreprise travaux";
-    const company = row.company || (state.meta.enterprise === "Autre" ? "" : state.meta.enterprise);
+    const company = row.company || enterpriseName() || "";
     const companyOther = row.companyOther || "";
     return `<div class="resource-editor">
-      <div class="resource-banner personnel-banner"><span class="resource-symbol">P</span><div><strong>Intervenant ou équipe</strong><p>Commencer par un raccourci, puis compléter seulement ce qui distingue l’équipe sur cette séance.</p></div></div>
-      <section class="resource-shortcuts" aria-label="Raccourcis personnel"><span>Raccourcis fréquents</span><div>${PERSONNEL_PRESETS.map(([presetTeam, presetRole], index) => `<button type="button" class="resource-preset ${team === presetTeam && row.role === presetRole ? "active" : ""}" data-personnel-preset="${index}">${escapeHtml(presetRole)}</button>`).join("")}</div></section>
+      <h3 class="resource-editor-title">Entreprise intervenante</h3>
+      <section class="resource-shortcuts" aria-label="Raccourcis personnel"><span>Fonctions courantes</span><div>${PERSONNEL_PRESETS.map(([presetTeam, presetRole], index) => `<button type="button" class="resource-preset ${team === presetTeam && row.role === presetRole ? "active" : ""}" data-personnel-preset="${index}">${escapeHtml(presetRole)}</button>`).join("")}</div></section>
       <div class="resource-primary-grid">
-        <label class="field"><span>Famille</span><select id="row_team">${selectOptions(["Entreprise travaux", "SNCF", "Prestataire sécurité"], team, "Choisir une famille")}</select></label>
+        <label class="field"><span>Type d’entreprise</span><select id="row_team">${selectOptions(["Entreprise travaux", "Prestataire sécurité", "SNCF"], team, "Choisir un type")}</select></label>
+        <label class="field"><span>Entreprise</span><select id="row_company">${companySelectOptions(company)}</select></label>
         <label class="field"><span>Fonction</span><select id="row_role">${selectOptions(PERSONNEL_ROLES[team] || [], row.role || "", "Choisir une fonction")}</select></label>
-        <label class="field"><span>Entreprise / acteur</span><select id="row_company">${selectOptions(COMPANY_OPTIONS, company, "Choisir une entreprise")}</select></label>
-        <label class="field field-count"><span>Effectif</span><input id="row_count" type="number" min="1" step="1" inputmode="numeric" value="${escapeHtml(row.count ?? "")}" placeholder="Nb" /></label>
+        <label class="field field-count"><span>Effectif</span>${countStepper("row_count", row.count)}</label>
       </div>
       <label id="row_companyOtherField" class="field ${company === "Autre" ? "" : "hidden"}"><span>Autre entreprise</span><input id="row_companyOther" value="${escapeHtml(companyOther)}" placeholder="Nom de l’entreprise" autocomplete="organization" /></label>
       <label id="row_roleOtherField" class="field ${row.role === "Autre" ? "" : "hidden"}"><span>Autre fonction</span><input id="row_roleOther" value="${escapeHtml(row.roleOther ?? "")}" placeholder="Préciser la fonction" /></label>
-      <details class="optional-details"><summary>Compléments d’équipe</summary><div class="task-extra-grid"><label class="field"><span>Heures / personne</span><input id="row_hours" type="number" min="0" max="24" step="0.25" inputmode="decimal" value="${escapeHtml(row.hours ?? state.meta.workDuration ?? "")}" placeholder="Durée de séance" /></label><label class="field"><span>Chef d’équipe / précision</span><input id="row_lead" value="${escapeHtml(row.lead ?? "")}" placeholder="Nom, équipe ou précision" /></label></div><label class="field"><span>Observation</span><textarea id="row_observation" rows="3" placeholder="Particularité, coactivité, absence, renfort…">${escapeHtml(row.observation ?? "")}</textarea></label></details>
-      <div class="dialog-actions"><button id="saveRowButton" type="button" class="primary-button">Enregistrer l’intervenant</button></div>
+      <details class="optional-details"><summary>Complément équipe</summary><label class="field"><span>Chef d’équipe / précision</span><input id="row_lead" value="${escapeHtml(row.lead ?? "")}" placeholder="Nom ou précision utile" /></label><label class="field"><span>Observation</span><textarea id="row_observation" rows="3" placeholder="Particularité, coactivité, absence ou renfort…">${escapeHtml(row.observation ?? "")}</textarea></label></details>
+      <div class="dialog-actions"><button id="saveRowButton" type="button" class="primary-button">Enregistrer l’effectif</button></div>
     </div>`;
   }
 
@@ -682,7 +783,7 @@
   function readPersonnelEditor() {
     return {
       team: editorValue("row_team"), company: editorValue("row_company"), companyOther: editorValue("row_companyOther"),
-      role: editorValue("row_role"), roleOther: editorValue("row_roleOther"), count: editorValue("row_count"), hours: editorValue("row_hours"), lead: editorValue("row_lead"), observation: editorValue("row_observation"),
+      role: editorValue("row_role"), roleOther: editorValue("row_roleOther"), count: editorValue("row_count"), hours: "", lead: editorValue("row_lead"), observation: editorValue("row_observation"),
     };
   }
 
@@ -704,20 +805,21 @@
 
   function renderEquipmentEditor(row) {
     const family = inferredEquipmentFamily(row);
-    const company = row.company || (state.meta.enterprise === "Autre" ? "" : state.meta.enterprise);
+    const company = row.company || enterpriseName() || "";
     const type = row.type || row.name || "";
     return `<div class="resource-editor">
-      <div class="resource-banner equipment-banner"><span class="resource-symbol">E</span><div><strong>Engin ou mobile travaux</strong><p>Choisir d’abord l’engin utilisé : les informations de mise en voie et de sécurité restent disponibles si nécessaires.</p></div></div>
+      <h3 class="resource-editor-title">Engin ou mobile travaux</h3>
       <section class="resource-shortcuts equipment-shortcuts" aria-label="Raccourcis engins"><span>Engins fréquents</span><div>${EQUIPMENT_PRESETS.map(([presetFamily, presetType], index) => `<button type="button" class="resource-preset ${family === presetFamily && type === presetType ? "active" : ""}" data-equipment-preset="${index}">${escapeHtml(presetType.replace(" (Lorry Automoteur)", ""))}</button>`).join("")}</div></section>
       <div class="resource-primary-grid">
         <label class="field"><span>Famille</span><select id="row_family">${selectOptions(Object.keys(EQUIPMENT_TYPES), family, "Choisir une famille")}</select></label>
         <label class="field"><span>Type d’engin</span><select id="row_type">${selectOptions(EQUIPMENT_TYPES[family] || [], type, "Choisir un type d’engin")}</select></label>
-        <label class="field"><span>Entreprise</span><select id="row_company">${selectOptions(COMPANY_OPTIONS, company, "Choisir une entreprise")}</select></label>
-        <label class="field field-count"><span>Nombre</span><input id="row_count" type="number" min="1" step="1" inputmode="numeric" value="${escapeHtml(row.count ?? "")}" placeholder="Nb" /></label>
+        <label class="field"><span>Entreprise</span><select id="row_company">${companySelectOptions(company)}</select></label>
+        <label class="field field-count"><span>Nombre</span>${countStepper("row_count", row.count)}</label>
+        <label class="field field-wide"><span>Voie / zone de travail</span><input id="row_zone" value="${escapeHtml(row.zone ?? "")}" placeholder="Ex. V1, plateforme ou accès nord" /></label>
       </div>
       <label id="row_companyOtherField" class="field ${company === "Autre" ? "" : "hidden"}"><span>Autre entreprise</span><input id="row_companyOther" value="${escapeHtml(row.companyOther ?? "")}" placeholder="Nom de l’entreprise" autocomplete="organization" /></label>
       <label id="row_typeOtherField" class="field ${isOtherEquipmentType(type) ? "" : "hidden"}"><span>Préciser le type d’engin</span><input id="row_typeOther" value="${escapeHtml(row.typeOther ?? "")}" placeholder="Ex. portique, wagon outillé…" /></label>
-      <details class="optional-details"><summary>Identification, zone et sécurité</summary><div class="task-extra-grid"><label class="field"><span>Identification</span><input id="row_identification" value="${escapeHtml(row.identification ?? "")}" placeholder="Ex. Pelle RR ETF 01 / immatriculation" /></label><label class="field"><span>Voie / zone d’intervention</span><input id="row_zone" value="${escapeHtml(row.zone ?? "")}" placeholder="Ex. V1, plateforme, accès nord" /></label><label class="field"><span>PK / secteur</span><input id="row_pk" value="${escapeHtml(row.pk ?? "")}" placeholder="Ex. PK 79,240" /></label><label id="row_railRoadDetails" class="field ${family === "Rail-route / LAM" ? "" : "hidden"}"><span>Mise en voie</span><select id="row_miseEnVoie">${selectOptions(["Plateforme aménagée", "Sans plateforme aménagée", "Déjà en voie", "Non concerné"], row.miseEnVoie || "", "Choisir le mode")}</select></label></div><label class="field"><span>Observation / mesure de sécurité</span><textarea id="row_observation" rows="3" placeholder="Remorque, stabilisateurs, limite de circulation, coactivité, consigne…">${escapeHtml(row.observation ?? "")}</textarea></label></details>
+      <details class="optional-details"><summary>Identification et sécurité</summary><div class="task-extra-grid"><label class="field"><span>Identification</span><input id="row_identification" value="${escapeHtml(row.identification ?? "")}" placeholder="Ex. Pelle RR ETF 01 / immatriculation" /></label><label class="field"><span>PK / secteur</span><input id="row_pk" value="${escapeHtml(row.pk ?? "")}" placeholder="Ex. PK 79,240" /></label><label id="row_railRoadDetails" class="field ${family === "Rail-route / LAM" ? "" : "hidden"}"><span>Mise en voie</span><select id="row_miseEnVoie">${selectOptions(["Plateforme aménagée", "Sans plateforme aménagée", "Déjà en voie", "Non concerné"], row.miseEnVoie || "", "Choisir le mode")}</select></label></div><label class="field"><span>Observation / mesure de sécurité</span><textarea id="row_observation" rows="3" placeholder="Remorque, stabilisateurs, limite de circulation, coactivité, consigne…">${escapeHtml(row.observation ?? "")}</textarea></label></details>
       <div class="dialog-actions"><button id="saveRowButton" type="button" class="primary-button">Enregistrer l’engin</button></div>
     </div>`;
   }
@@ -750,54 +852,35 @@
     };
   }
 
-  function possessionTimesAreShared(row) {
-    if (row.useSameTimes === false) return false;
-    const starts = [row.plannedStart, row.agreedStart, row.actualStart].filter(Boolean);
-    const ends = [row.plannedEnd, row.agreedEnd, row.actualEnd].filter(Boolean);
-    return !starts.length || (new Set(starts).size === 1 && new Set(ends).size === 1);
-  }
-
   function renderPossessionEditor(row) {
-    const shared = possessionTimesAreShared(row);
     const start = row.actualStart || row.agreedStart || row.plannedStart || state.meta.shiftStart || "";
     const end = row.actualEnd || row.agreedEnd || row.plannedEnd || state.meta.shiftEnd || "";
+    const photoPreview = (photo, label) => photo?.dataUrl ? `<img class="inline-photo-preview" src="${escapeHtml(photo.dataUrl)}" alt="${escapeHtml(label)}" />` : "";
     return `<div class="resource-editor">
-      <div class="resource-banner"><span class="resource-symbol">T</span><div><strong>Possession / consignation</strong><p>Le minimum opérationnel tient en une ligne : voie, horaires réels et référence. Les écarts se déclarent seulement si nécessaire.</p></div></div>
-      <div class="resource-primary-grid possession-primary"><label class="field"><span>Voie</span><input id="row_voie" value="${escapeHtml(row.voie ?? "")}" placeholder="Ex. V1" /></label><label class="field"><span>Début réel</span><input id="row_actualStart" type="time" value="${escapeHtml(start)}" /></label><label class="field"><span>Fin réelle</span><input id="row_actualEnd" type="time" value="${escapeHtml(end)}" /></label><label class="field"><span>ARF / AAN / référence</span><input id="row_reference" value="${escapeHtml(row.reference ?? "")}" placeholder="Référence si disponible" /></label></div>
-      <label class="check-row"><input id="row_useSameTimes" type="checkbox" ${shared ? "checked" : ""} /> Prévue, accordée et réelle identiques</label>
-      <details id="rowPossessionAdvanced" class="optional-details ${shared ? "hidden" : ""}" ${shared ? "" : "open"}><summary>Déclarer un écart ou la fenêtre d’intervention</summary><div class="task-extra-grid"><label class="field"><span>Prévue — début</span><input id="row_plannedStart" type="time" value="${escapeHtml(row.plannedStart ?? start)}" /></label><label class="field"><span>Prévue — fin</span><input id="row_plannedEnd" type="time" value="${escapeHtml(row.plannedEnd ?? end)}" /></label><label class="field"><span>Accordée — début</span><input id="row_agreedStart" type="time" value="${escapeHtml(row.agreedStart ?? start)}" /></label><label class="field"><span>Accordée — fin</span><input id="row_agreedEnd" type="time" value="${escapeHtml(row.agreedEnd ?? end)}" /></label><label class="field"><span>Intervention — début</span><input id="row_interventionStart" type="time" value="${escapeHtml(row.interventionStart ?? "")}" /></label><label class="field"><span>Intervention — fin</span><input id="row_interventionEnd" type="time" value="${escapeHtml(row.interventionEnd ?? "")}" /></label></div><label class="field"><span>Zone / secteur</span><input id="row_zone" value="${escapeHtml(row.zone ?? "")}" placeholder="Ex. V1 – PK 80+050 à 80+340" /></label></details>
-      <label class="field"><span>Observation</span><textarea id="row_observation" rows="3" placeholder="ARF, AAN, motif de décalage…">${escapeHtml(row.observation ?? "")}</textarea></label>
-      <div class="dialog-actions"><button id="saveRowButton" type="button" class="primary-button">Enregistrer la possession</button></div>
+      <h3 class="resource-editor-title">Interception ou consignation</h3>
+      <div class="resource-primary-grid possession-primary"><label class="field"><span>Type</span><select id="row_kind">${selectOptions(["ITC / interception", "Consignation", "ITC + consignation"], row.kind || "", "Choisir un type")}</select></label><label class="field"><span>Voie</span><input id="row_voie" value="${escapeHtml(row.voie ?? "")}" placeholder="Ex. V1" /></label><label class="field"><span>Zone / secteur</span><input id="row_zone" value="${escapeHtml(row.zone ?? "")}" placeholder="Ex. PK 80+050 à 80+340" /></label><label class="field"><span>Réf. ITC / ARF / AAN</span><input id="row_reference" value="${escapeHtml(row.reference ?? "")}" placeholder="Référence si disponible" /></label></div>
+      <section class="time-matrix" aria-label="Tableau des horaires"><div class="time-matrix-head"><span>Étape</span><span>Début</span><span>Fin</span></div><label><strong>Prévue</strong><input id="row_plannedStart" type="time" value="${escapeHtml(row.plannedStart ?? start)}" /><input id="row_plannedEnd" type="time" value="${escapeHtml(row.plannedEnd ?? end)}" /></label><label><strong>Accordée</strong><input id="row_agreedStart" type="time" value="${escapeHtml(row.agreedStart ?? start)}" /><input id="row_agreedEnd" type="time" value="${escapeHtml(row.agreedEnd ?? end)}" /></label><label><strong>ARF / réelle</strong><input id="row_actualStart" type="time" value="${escapeHtml(row.actualStart ?? start)}" /><input id="row_actualEnd" type="time" value="${escapeHtml(row.actualEnd ?? end)}" /></label><label><strong>Intervention</strong><input id="row_interventionStart" type="time" value="${escapeHtml(row.interventionStart ?? "")}" /><input id="row_interventionEnd" type="time" value="${escapeHtml(row.interventionEnd ?? "")}" /></label></section>
+      <section class="arf-photo-capture"><div><strong>Photos ARF</strong><p>Joindre le document de début et de fin directement à cette ligne.</p></div><div class="arf-photo-grid"><label class="field"><span>ARF début</span>${photoPreview(row.arfStartPhoto, "Photo ARF début")}<input id="row_arfStartPhoto" type="file" accept="image/*" capture="environment" /></label><label class="field"><span>ARF fin</span>${photoPreview(row.arfEndPhoto, "Photo ARF fin")}<input id="row_arfEndPhoto" type="file" accept="image/*" capture="environment" /></label></div></section>
+      <label class="field"><span>Observation</span><textarea id="row_observation" rows="3" placeholder="Motif de décalage, information ARF / AAN, consigne…">${escapeHtml(row.observation ?? "")}</textarea></label>
+      <div class="dialog-actions"><button id="saveRowButton" type="button" class="primary-button">Enregistrer les horaires</button></div>
     </div>`;
   }
 
-  function bindPossessionEditor() {
-    $("#row_useSameTimes")?.addEventListener("change", (event) => {
-      const details = $("#rowPossessionAdvanced");
-      if (!details) return;
-      details.classList.toggle("hidden", event.target.checked);
-      if (!event.target.checked) details.open = true;
-    });
-  }
+  function bindPossessionEditor() {}
 
   function readPossessionEditor() {
-    const shared = Boolean($("#row_useSameTimes")?.checked);
-    const actualStart = editorValue("row_actualStart");
-    const actualEnd = editorValue("row_actualEnd");
     return {
-      voie: editorValue("row_voie"), actualStart, actualEnd, useSameTimes: shared,
-      plannedStart: shared ? actualStart : editorValue("row_plannedStart"),
-      plannedEnd: shared ? actualEnd : editorValue("row_plannedEnd"),
-      agreedStart: shared ? actualStart : editorValue("row_agreedStart"),
-      agreedEnd: shared ? actualEnd : editorValue("row_agreedEnd"),
-      interventionStart: shared ? actualStart : editorValue("row_interventionStart"),
-      interventionEnd: shared ? actualEnd : editorValue("row_interventionEnd"),
+      kind: editorValue("row_kind"), voie: editorValue("row_voie"), actualStart: editorValue("row_actualStart"), actualEnd: editorValue("row_actualEnd"), useSameTimes: false,
+      plannedStart: editorValue("row_plannedStart"), plannedEnd: editorValue("row_plannedEnd"),
+      agreedStart: editorValue("row_agreedStart"), agreedEnd: editorValue("row_agreedEnd"),
+      interventionStart: editorValue("row_interventionStart"), interventionEnd: editorValue("row_interventionEnd"),
       reference: editorValue("row_reference"), zone: editorValue("row_zone"),
       observation: editorValue("row_observation"),
     };
   }
 
   function renderAnomalyEditor(row) {
+    const photoPreview = row.photo?.dataUrl ? `<img class="inline-photo-preview anomaly-photo-preview" src="${escapeHtml(row.photo.dataUrl)}" alt="Photo de l’anomalie" />` : "";
     return `<div class="resource-editor">
       <div class="resource-banner anomaly-banner"><span class="resource-symbol">!</span><div><strong>Événement, anomalie ou réserve</strong><p>Décrire le fait, localiser la zone et indiquer clairement la mesure prise. Les points à lever sont repris dans le dossier d’archivage.</p></div></div>
       <div class="resource-primary-grid">
@@ -808,6 +891,7 @@
       </div>
       <label class="field"><span>Fait constaté</span><textarea id="row_detail" rows="4" placeholder="Décrire factuellement l’anomalie, l’écart ou l’événement.">${escapeHtml(row.detail ?? "")}</textarea></label>
       <label class="field"><span>Mesure prise / suite</span><textarea id="row_action" rows="4" placeholder="Action immédiate, mesure conservatoire ou prochaine étape.">${escapeHtml(row.action ?? "")}</textarea></label>
+      <label class="field"><span>Photo associée</span>${photoPreview}<input id="row_anomalyPhoto" type="file" accept="image/*" capture="environment" /></label>
       <details class="optional-details"><summary>Responsable et échéance</summary><div class="task-extra-grid"><label class="field"><span>Responsable</span><input id="row_responsible" value="${escapeHtml(row.responsible ?? "")}" placeholder="Nom ou entreprise responsable" /></label><label class="field"><span>Échéance</span><input id="row_dueDate" type="date" value="${escapeHtml(row.dueDate ?? "")}" /></label></div></details>
       <div class="dialog-actions"><button id="saveRowButton" type="button" class="primary-button">Enregistrer le point de suivi</button></div>
     </div>`;
@@ -851,10 +935,10 @@
   function renderSncfMeansEditor(row) {
     const role = canonicalSncfRole(row.role || "");
     return `<div class="resource-editor">
-      <div class="resource-banner sncf-banner"><span class="resource-symbol">S</span><div><strong>Moyen SNCF engagé</strong><p>Choisir une fonction habituelle ou utiliser la liste complète. Une seule ligne suffit pour un même moyen et une même mission.</p></div></div>
+      <h3 class="resource-editor-title">Personnel SNCF affecté</h3>
       <section class="resource-shortcuts" aria-label="Raccourcis moyens SNCF"><span>Fonctions fréquentes</span><div>${SNCF_MEANS_PRESETS.map((preset, index) => `<button type="button" class="resource-preset ${role === preset ? "active" : ""}" data-sncf-preset="${index}">${escapeHtml(preset)}</button>`).join("")}</div></section>
-      <div class="resource-primary-grid sncf-primary"><label class="field"><span>Fonction / moyen</span><select id="row_role">${selectOptions(SNCF_MEANS_OPTIONS, role, "Choisir une fonction")}</select></label><label class="field field-count"><span>Nombre</span><input id="row_count" type="number" min="1" step="1" inputmode="numeric" value="${escapeHtml(row.count ?? "")}" placeholder="Nb" /></label><label class="field field-wide"><span>Mission / observation</span><input id="row_observation" value="${escapeHtml(row.observation ?? "")}" placeholder="Nom, mission, commentaire utile" /></label></div>
-      <div class="dialog-actions"><button id="saveRowButton" type="button" class="primary-button">Enregistrer le moyen SNCF</button></div>
+      <div class="resource-primary-grid sncf-primary"><label class="field"><span>Fonction</span><select id="row_role">${selectOptions(SNCF_MEANS_OPTIONS, role, "Choisir une fonction")}</select></label><label class="field field-count"><span>Effectif</span>${countStepper("row_count", row.count)}</label><label class="field field-wide"><span>Mission / précision</span><input id="row_observation" value="${escapeHtml(row.observation ?? "")}" placeholder="Nom, mission ou commentaire utile" /></label></div>
+      <div class="dialog-actions"><button id="saveRowButton" type="button" class="primary-button">Enregistrer l’effectif SNCF</button></div>
     </div>`;
   }
 
@@ -891,19 +975,19 @@
   const rowConfig = {
     personnel: {
       title: "Personnel et intervenants", editor: renderPersonnelEditor, bind: bindPersonnelEditor, read: readPersonnelEditor,
-      display: (row) => `<h3><span class="resource-mini personnel-mini">P</span>${escapeHtml(roleName(row))} · ${displayNumber(row.count, 0)} pers.</h3><p><span class="resource-chip">${escapeHtml(row.team || "Intervenant")}</span><span>${escapeHtml(companyName(row))}</span>${row.hours ? `<span>${displayNumber(row.hours)} h/pers.</span>` : ""}${row.lead ? `<span>${escapeHtml(row.lead)}</span>` : ""}${row.observation ? `<span>${escapeHtml(row.observation)}</span>` : ""}</p>`,
+      display: (row) => `<h3>${escapeHtml(roleName(row))} · ${displayNumber(row.count, 0)} pers.</h3><p><span class="resource-chip">${escapeHtml(row.team || "Entreprise intervenante")}</span><span>${escapeHtml(companyName(row))}</span>${row.lead ? `<span>${escapeHtml(row.lead)}</span>` : ""}${row.observation ? `<span>${escapeHtml(row.observation)}</span>` : ""}</p>`,
     },
     equipment: {
       title: "Engin ou mobile travaux", editor: renderEquipmentEditor, bind: bindEquipmentEditor, read: readEquipmentEditor,
-      display: (row) => `<h3><span class="resource-mini equipment-mini">E</span>${escapeHtml(equipmentName(row))}${row.count ? ` · ${displayNumber(row.count, 0)}` : ""}</h3><p><span class="resource-chip">${escapeHtml(row.family || "Matériel")}</span><span>${escapeHtml(companyName(row))}</span>${row.identification ? `<span>${escapeHtml(row.identification)}</span>` : ""}${row.zone ? `<span>${escapeHtml([row.zone, row.pk].filter(Boolean).join(" · "))}</span>` : row.pk ? `<span>${escapeHtml(row.pk)}</span>` : ""}${row.miseEnVoie ? `<span>${escapeHtml(row.miseEnVoie)}</span>` : ""}${row.observation ? `<span>${escapeHtml(row.observation)}</span>` : ""}</p>`,
+      display: (row) => `<h3>${escapeHtml(equipmentName(row))}${row.count ? ` · ${displayNumber(row.count, 0)}` : ""}</h3><p><span class="resource-chip">${escapeHtml(row.family || "Matériel")}</span><span>${escapeHtml(companyName(row))}</span>${row.zone ? `<span>${escapeHtml([row.zone, row.pk].filter(Boolean).join(" · "))}</span>` : row.pk ? `<span>${escapeHtml(row.pk)}</span>` : ""}${row.identification ? `<span>${escapeHtml(row.identification)}</span>` : ""}${row.miseEnVoie ? `<span>${escapeHtml(row.miseEnVoie)}</span>` : ""}${row.observation ? `<span>${escapeHtml(row.observation)}</span>` : ""}</p>`,
     },
     possession: {
-      title: "Possession / consignation", editor: renderPossessionEditor, bind: bindPossessionEditor, read: readPossessionEditor,
-      display: (row) => `<h3>Voie ${escapeHtml(row.voie || "à préciser")} · Réel ${escapeHtml(row.actualStart || "—")} → ${escapeHtml(row.actualEnd || "—")}</h3><p>${row.reference ? `<span class="resource-chip">${escapeHtml(row.reference)}</span>` : ""}<span>Prévu ${escapeHtml(row.plannedStart || "—")} → ${escapeHtml(row.plannedEnd || "—")}</span><span>Accordé ${escapeHtml(row.agreedStart || "—")} → ${escapeHtml(row.agreedEnd || "—")}</span>${row.interventionStart || row.interventionEnd ? `<span>Intervention ${escapeHtml(row.interventionStart || "—")} → ${escapeHtml(row.interventionEnd || "—")}</span>` : ""}${row.observation ? `<span>${escapeHtml(row.observation)}</span>` : ""}</p>`,
+      title: "Interception / consignation", editor: renderPossessionEditor, bind: bindPossessionEditor, read: readPossessionEditor,
+      display: (row) => `<h3>${escapeHtml(row.kind || "Interception / consignation")} · Voie ${escapeHtml(row.voie || "à préciser")}</h3><p>${row.reference ? `<span class="resource-chip">${escapeHtml(row.reference)}</span>` : ""}<span>ARF / réel ${escapeHtml(row.actualStart || "—")} → ${escapeHtml(row.actualEnd || "—")}</span>${row.arfStartPhoto || row.arfEndPhoto ? `<span class="resource-chip">Photos ARF jointes</span>` : ""}${row.observation ? `<span>${escapeHtml(row.observation)}</span>` : ""}</p>`,
     },
     anomaly: {
       title: "Événement / anomalie", editor: renderAnomalyEditor, read: readAnomalyEditor,
-      display: (row) => `<h3>${escapeHtml(row.type || "Anomalie")} · ${escapeHtml(row.severity || "À préciser")}</h3><p>${row.status ? `<span class="resource-chip">${escapeHtml(row.status)}</span>` : ""}${row.zone ? `<span>${escapeHtml(row.zone)}</span>` : ""}<span>${escapeHtml(row.detail || "Sans détail")}</span>${row.action ? `<span>Suite : ${escapeHtml(row.action)}</span>` : ""}</p>`,
+      display: (row) => `<h3>${escapeHtml(row.type || "Anomalie")} · ${escapeHtml(row.severity || "À préciser")}</h3><p>${row.status ? `<span class="resource-chip">${escapeHtml(row.status)}</span>` : ""}${row.zone ? `<span>${escapeHtml(row.zone)}</span>` : ""}${row.photo ? `<span class="resource-chip">Photo jointe</span>` : ""}<span>${escapeHtml(row.detail || "Sans détail")}</span>${row.action ? `<span>Suite : ${escapeHtml(row.action)}</span>` : ""}</p>`,
     },
     document: {
       title: "Rapport fourni", editor: renderDocumentEditor, read: readDocumentEditor,
@@ -927,6 +1011,10 @@
     const target = $(`#${key}List`);
     const config = rowConfig[key];
     const rows = state[key] || [];
+    if (key === "possession") {
+      target.innerHTML = rows.length ? `<div class="possession-table-wrap"><table class="possession-table"><thead><tr><th>Type / voie</th><th>Prévue</th><th>Accordée</th><th>ARF / réelle</th><th>Intervention</th><th>ARF</th><th></th></tr></thead><tbody>${rows.map((row) => `<tr><td><strong>${escapeHtml(row.kind || "Interception / consignation")}</strong><br>${escapeHtml([row.voie && `Voie ${row.voie}`, row.zone].filter(Boolean).join(" · ") || "—")}${row.reference ? `<br><small>${escapeHtml(row.reference)}</small>` : ""}</td><td>${escapeHtml(`${row.plannedStart || "—"} → ${row.plannedEnd || "—"}`)}</td><td>${escapeHtml(`${row.agreedStart || "—"} → ${row.agreedEnd || "—"}`)}</td><td>${escapeHtml(`${row.actualStart || "—"} → ${row.actualEnd || "—"}`)}</td><td>${escapeHtml(`${row.interventionStart || "—"} → ${row.interventionEnd || "—"}`)}</td><td>${row.arfStartPhoto ? "Début ✓" : "Début —"}<br>${row.arfEndPhoto ? "Fin ✓" : "Fin —"}</td><td class="table-actions"><button class="mini-button" type="button" data-edit-row="possession:${row.id}">Modifier</button><button class="mini-button danger" type="button" data-delete-row="possession:${row.id}">Supprimer</button></td></tr>`).join("")}</tbody></table></div>` : `<p class="empty-inline">Aucune interception ou consignation saisie.</p>`;
+      return;
+    }
     target.innerHTML = rows.length ? rows.map((row) => `
       <article class="data-row"><div>${config.display(row)}</div><div>
         <button class="mini-button" type="button" data-edit-row="${key}:${row.id}">Modifier</button>
@@ -1104,6 +1192,143 @@
     window.addEventListener("resize", resize);
   }
 
+  function drawCompanySignatureData() {
+    const canvas = $("#companySignatureCanvas");
+    if (!canvas || !companySignatureCanvasReady) return;
+    const context = canvas.getContext("2d");
+    const ratio = Number(canvas.dataset.ratio || 1);
+    const width = canvas.width / ratio;
+    const height = canvas.height / ratio;
+    context.save();
+    context.setTransform(ratio, 0, 0, ratio, 0, 0);
+    context.clearRect(0, 0, width, height);
+    context.restore();
+    if (!companyVisaDraft?.dataUrl) return;
+    const image = new Image();
+    image.onload = () => {
+      context.save();
+      context.setTransform(ratio, 0, 0, ratio, 0, 0);
+      context.drawImage(image, 0, 0, width, height);
+      context.restore();
+    };
+    image.src = companyVisaDraft.dataUrl;
+  }
+
+  function resizeCompanySignatureCanvas() {
+    const canvas = $("#companySignatureCanvas");
+    if (!canvas || !companySignatureCanvasReady) return;
+    const rect = canvas.getBoundingClientRect();
+    const ratio = Math.max(1, window.devicePixelRatio || 1);
+    canvas.width = Math.max(300, Math.floor(rect.width || 300) * ratio);
+    canvas.height = 148 * ratio;
+    canvas.dataset.ratio = String(ratio);
+    drawCompanySignatureData();
+  }
+
+  function setupCompanySignatureCanvas() {
+    const canvas = $("#companySignatureCanvas");
+    if (!canvas) return;
+    if (companySignatureCanvasReady) {
+      resizeCompanySignatureCanvas();
+      return;
+    }
+    let drawing = false;
+    let lastPoint = null;
+    const point = (event) => {
+      const rect = canvas.getBoundingClientRect();
+      return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+    };
+    const context = () => {
+      const drawingContext = canvas.getContext("2d");
+      const ratio = Number(canvas.dataset.ratio || 1);
+      drawingContext.setTransform(ratio, 0, 0, ratio, 0, 0);
+      drawingContext.strokeStyle = "#17272c";
+      drawingContext.lineWidth = 2.2;
+      drawingContext.lineCap = "round";
+      drawingContext.lineJoin = "round";
+      return drawingContext;
+    };
+    canvas.addEventListener("pointerdown", (event) => {
+      drawing = true;
+      lastPoint = point(event);
+      canvas.setPointerCapture?.(event.pointerId);
+      const drawingContext = context();
+      drawingContext.beginPath();
+      drawingContext.moveTo(lastPoint.x, lastPoint.y);
+      drawingContext.arc(lastPoint.x, lastPoint.y, 0.8, 0, Math.PI * 2);
+      drawingContext.fillStyle = "#17272c";
+      drawingContext.fill();
+      event.preventDefault();
+    });
+    canvas.addEventListener("pointermove", (event) => {
+      if (!drawing) return;
+      const next = point(event);
+      const drawingContext = context();
+      drawingContext.beginPath();
+      drawingContext.moveTo(lastPoint.x, lastPoint.y);
+      drawingContext.lineTo(next.x, next.y);
+      drawingContext.stroke();
+      lastPoint = next;
+      event.preventDefault();
+    });
+    const finish = () => {
+      if (!drawing) return;
+      drawing = false;
+      companyVisaDraft.dataUrl = canvas.toDataURL("image/png");
+      companyVisaDraft.signedAt = new Date().toISOString();
+      const status = $("#companyVisaSignatureStatus");
+      if (status) status.textContent = `Signature capturée le ${formatDateTime(companyVisaDraft.signedAt)}.`;
+    };
+    canvas.addEventListener("pointerup", finish);
+    canvas.addEventListener("pointercancel", finish);
+    companySignatureCanvasReady = true;
+    resizeCompanySignatureCanvas();
+    if (!companySignatureResizeBound) {
+      window.addEventListener("resize", resizeCompanySignatureCanvas);
+      companySignatureResizeBound = true;
+    }
+  }
+
+  function renderCompanyVisas() {
+    const target = $("#companyVisaList");
+    if (!target) return;
+    const companies = participatingCompanyNames();
+    const signatures = state.companySignatures || [];
+    if (!companies.length) {
+      target.innerHTML = `<p class="empty-inline">Sélectionner les entreprises intervenantes avant d’ajouter les visas.</p>`;
+      return;
+    }
+    target.innerHTML = companies.map((company) => {
+      const entries = signatures.filter((signature) => signature.company === company);
+      const cards = entries.length ? entries.map((signature) => `<article class="company-visa-card"><div><strong>${escapeHtml(signature.name || "Nom à renseigner")}</strong><span>${escapeHtml(signature.role || "Fonction à renseigner")}</span><small>${signature.signedAt ? `Signé le ${escapeHtml(formatDateTime(signature.signedAt))}` : "Visa à compléter"}</small></div>${signature.dataUrl ? `<img src="${escapeHtml(signature.dataUrl)}" alt="Visa de ${escapeHtml(signature.name || company)}" />` : ""}<div class="visa-actions"><button type="button" class="mini-button" data-edit-company-visa="${escapeHtml(signature.id)}">Modifier</button><button type="button" class="mini-button danger" data-delete-company-visa="${escapeHtml(signature.id)}">Supprimer</button></div></article>`).join("") : `<p class="empty-inline">Aucun visa saisi.</p>`;
+      return `<section class="company-visa-company"><header><strong>${escapeHtml(company)}</strong><button type="button" class="mini-button" data-add-company-visa="${escapeHtml(company)}">＋ Visa</button></header>${cards}</section>`;
+    }).join("");
+  }
+
+  function openCompanyVisaDialog(company = "", visa = null) {
+    companyVisaDraft = visa ? clone(visa) : { id: uid(), company: company || enterpriseName() || "", name: "", role: "", signedAt: "", dataUrl: "" };
+    companySignatureCanvasReady = false;
+    $("#companyVisaDialogTitle").textContent = visa ? "Modifier le visa" : "Ajouter un visa";
+    $("#companyVisaEditor").innerHTML = `<div class="resource-editor"><div class="resource-primary-grid"><label class="field field-wide"><span>Entreprise intervenante</span><select id="companyVisaCompany">${companySelectOptions(companyVisaDraft.company)}</select></label><label class="field"><span>Nom et prénom</span><input id="companyVisaName" value="${escapeHtml(companyVisaDraft.name || "")}" autocomplete="name" placeholder="Nom du responsable" /></label><label class="field"><span>Fonction</span><input id="companyVisaRole" value="${escapeHtml(companyVisaDraft.role || "")}" placeholder="Chef de chantier, chef d’équipe…" /></label></div><div class="signature-canvas-wrap"><canvas id="companySignatureCanvas" aria-label="Zone de signature du responsable entreprise"></canvas><p id="companyVisaSignatureStatus" class="muted">${companyVisaDraft.signedAt ? `Signée le ${escapeHtml(formatDateTime(companyVisaDraft.signedAt))}.` : "Signer au doigt dans la zone ci-dessus."}</p></div><button id="clearCompanyVisaSignatureButton" class="text-button" type="button">Effacer la signature</button><div class="dialog-actions"><button id="saveCompanyVisaButton" type="button" class="primary-button">Enregistrer le visa</button></div></div>`;
+    $("#companyVisaDialog").showModal();
+    window.setTimeout(setupCompanySignatureCanvas, 0);
+  }
+
+  function saveCompanyVisa() {
+    if (!companyVisaDraft) return;
+    companyVisaDraft.company = editorValue("companyVisaCompany");
+    companyVisaDraft.name = editorValue("companyVisaName");
+    companyVisaDraft.role = editorValue("companyVisaRole");
+    const index = state.companySignatures.findIndex((signature) => signature.id === companyVisaDraft.id);
+    if (index >= 0) state.companySignatures.splice(index, 1, companyVisaDraft);
+    else state.companySignatures.push(companyVisaDraft);
+    save("Visa entreprise enregistré");
+    $("#companyVisaDialog").close();
+    companyVisaDraft = null;
+    renderCompanyVisas();
+    renderPrintReport();
+  }
+
   function validation() {
     const checks = [];
     const metaMissing = [state.meta.operation, state.meta.reportNo, state.meta.date].some((value) => !value);
@@ -1230,8 +1455,11 @@
     renderQuickCatalog();
     renderTasks();
     ["personnel", "equipment", "possession", "anomaly", "document", "sncfMeans", "material", "selfCheck"].forEach(renderDataList);
+    renderQuickPersonnelRoster();
+    renderQuickSncfRoster();
     renderPhotos();
     renderAfterWorkSignature();
+    renderCompanyVisas();
     renderReview();
     renderPrintReport();
   }
@@ -1339,11 +1567,25 @@
     $("#rowDialog").showModal();
   }
 
-  function saveRow() {
+  async function saveRow() {
     if (!rowDraft) return;
     const config = rowConfig[rowDraft.key];
     if (config.read) Object.assign(rowDraft.row, config.read());
     else config.fields.forEach(([name]) => { rowDraft.row[name] = $(`#row_${name}`).value.trim(); });
+    const capture = async (inputId, property, label) => {
+      const file = $(`#${inputId}`)?.files?.[0];
+      if (!file) return;
+      try {
+        rowDraft.row[property] = { id: uid(), label, capturedAt: new Date().toISOString(), dataUrl: await compactPhoto(file) };
+      } catch (_) {
+        showToast(`La photo « ${label} » n’a pas pu être enregistrée.`, "warning");
+      }
+    };
+    if (rowDraft.key === "possession") {
+      await capture("row_arfStartPhoto", "arfStartPhoto", "ARF début");
+      await capture("row_arfEndPhoto", "arfEndPhoto", "ARF fin");
+    }
+    if (rowDraft.key === "anomaly") await capture("row_anomalyPhoto", "photo", "Anomalie");
     const list = state[rowDraft.key];
     const index = list.findIndex((item) => item.id === rowDraft.row.id);
     if (index >= 0) list.splice(index, 1, rowDraft.row);
@@ -1381,7 +1623,8 @@
     return rows.length ? rows.map(builder).join("") : `<tr><td colspan="${columnCount}" class="print-empty">Aucune donnée saisie.</td></tr>`;
   }
 
-  function renderLegacyPrintReport() {
+  // Rendu PDF V5 restauré : format tabulaire opérationnel, sans les maquettes V6/V7.
+  function renderPrintReport() {
     const includeValuation = isAdminView();
     const breakdown = valuationBreakdown();
     const resolved = breakdown.valuations;
@@ -1393,10 +1636,10 @@
       <td class="numeric">${template?.metric === "openClose" ? `Ouv. ${displayNumber(task.opening)}<br>Ferm. ${displayNumber(task.closing)}` : `${displayNumber(task.quantity)} ${escapeHtml(task.unit || template?.unit || "u")}`}</td>
       <td>${escapeHtml(task.voie || "—")}</td><td>${escapeHtml([task.pkStart, task.pkEnd].filter(Boolean).join(" → ") || "—")}</td>
       <td>Saisie terrain</td></tr>`, 5);
-    const personnelRows = renderTableRows(state.personnel, (row) => `<tr><td>${escapeHtml(roleName(row))}</td><td>${escapeHtml([row.team, companyName(row)].filter(Boolean).join(" · "))}</td><td class="numeric">${displayNumber(row.count, 0)}</td><td class="numeric">${row.hours ? displayNumber(row.hours) : "—"}</td><td>${escapeHtml([row.lead, row.observation].filter(Boolean).join(" · ") || "—")}</td></tr>`, 5);
+    const personnelRows = renderTableRows(state.personnel, (row) => `<tr><td>${escapeHtml(roleName(row))}</td><td>${escapeHtml([row.team, companyName(row)].filter(Boolean).join(" · "))}</td><td class="numeric">${displayNumber(row.count, 0)}</td><td>${escapeHtml([row.lead, row.observation].filter(Boolean).join(" · ") || "—")}</td></tr>`, 4);
     const equipmentRows = renderTableRows(state.equipment, (row) => `<tr><td>${escapeHtml(equipmentName(row))}</td><td>${escapeHtml(companyName(row))}</td><td class="numeric">${displayNumber(row.count, 0)}</td><td>${escapeHtml([row.zone, row.pk, row.miseEnVoie].filter(Boolean).join(" · ") || "—")}</td><td>${escapeHtml([row.identification, row.observation].filter(Boolean).join(" · ") || "—")}</td></tr>`, 5);
-    const possessionRows = renderTableRows(state.possessions, (row) => `<tr><td>${escapeHtml(row.voie || "—")}</td><td>${escapeHtml(`${row.plannedStart || "—"} → ${row.plannedEnd || "—"}`)}</td><td>${escapeHtml(`${row.agreedStart || "—"} → ${row.agreedEnd || "—"}`)}</td><td>${escapeHtml(`${row.actualStart || "—"} → ${row.actualEnd || "—"}`)}</td><td>${escapeHtml(row.observation || "—")}</td></tr>`, 5);
-    const anomalyRows = renderTableRows(state.anomalies, (row) => `<tr><td>${escapeHtml(row.type || "—")}</td><td>${escapeHtml(row.severity || "—")}</td><td>${escapeHtml(row.detail || "—")}</td><td>${escapeHtml(row.action || "—")}</td></tr>`, 4);
+    const possessionRows = renderTableRows(state.possessions, (row) => `<tr><td>${escapeHtml([row.kind, row.voie && `Voie ${row.voie}`, row.zone].filter(Boolean).join(" · ") || "—")}</td><td>${escapeHtml(`${row.plannedStart || "—"} → ${row.plannedEnd || "—"}`)}</td><td>${escapeHtml(`${row.agreedStart || "—"} → ${row.agreedEnd || "—"}`)}</td><td>${escapeHtml(`${row.actualStart || "—"} → ${row.actualEnd || "—"}`)}</td><td>${escapeHtml(`${row.interventionStart || "—"} → ${row.interventionEnd || "—"}`)}${row.reference ? `<br><small>${escapeHtml(row.reference)}</small>` : ""}${row.observation ? `<br><small>${escapeHtml(row.observation)}</small>` : ""}</td></tr>`, 5);
+    const anomalyRows = renderTableRows(state.anomalies, (row) => `<tr><td>${escapeHtml(row.type || "—")}</td><td>${escapeHtml(row.severity || "—")}</td><td>${escapeHtml(row.detail || "—")}${row.photo ? "<br><small>Photo jointe</small>" : ""}</td><td>${escapeHtml(row.action || "—")}</td></tr>`, 4);
     const documentsRows = renderTableRows(state.documents, (row) => `<tr><td>${escapeHtml(row.name || "—")}</td><td>${escapeHtml(row.reference || "—")}</td><td>${escapeHtml(row.observation || "—")}</td></tr>`, 3);
     const sncfRows = renderTableRows(state.sncfMeans, (row) => `<tr><td>${escapeHtml(row.role || "—")}</td><td class="numeric">${displayNumber(row.count, 0)}</td><td>${escapeHtml(row.observation || "—")}</td></tr>`, 3);
     const valuationRows = [
@@ -1410,30 +1653,38 @@
       const label = phase === "avant" ? "Avant nuit" : "Après nuit";
       return `<section class="print-section"><h2>Photos ${label}</h2><div class="print-photo-grid">${rows.map((photo) => `<figure class="print-photo"><img src="${escapeHtml(photo.dataUrl)}" alt="${escapeHtml(label)}"><figcaption><strong>${formatDateTime(photo.capturedAt)}</strong>${photo.caption ? `<br>${escapeHtml(photo.caption)}` : ""}</figcaption></figure>`).join("")}</div></section>`;
     }).join("");
+    const arfPhotos = state.possessions.flatMap((row) => [
+      row.arfStartPhoto?.dataUrl ? { ...row.arfStartPhoto, label: `ARF début · ${[row.voie && `Voie ${row.voie}`, row.reference].filter(Boolean).join(" · ")}` } : null,
+      row.arfEndPhoto?.dataUrl ? { ...row.arfEndPhoto, label: `ARF fin · ${[row.voie && `Voie ${row.voie}`, row.reference].filter(Boolean).join(" · ")}` } : null,
+    ].filter(Boolean));
+    const anomalyPhotos = state.anomalies.filter((row) => row.photo?.dataUrl).map((row) => ({ ...row.photo, label: `Anomalie · ${row.type || "—"}${row.zone ? ` · ${row.zone}` : ""}` }));
+    const trackedPhotoSection = [...arfPhotos, ...anomalyPhotos].length ? `<section class="print-section"><h2>Photos ARF et qualité sécurité</h2><div class="print-photo-grid">${[...arfPhotos, ...anomalyPhotos].map((photo) => `<figure class="print-photo"><img src="${escapeHtml(photo.dataUrl)}" alt="${escapeHtml(photo.label)}"><figcaption><strong>${escapeHtml(photo.label)}</strong><br>${formatDateTime(photo.capturedAt)}</figcaption></figure>`).join("")}</div></section>` : "";
     const signature = state.afterWorkSignature || {};
     const signatureMarkup = signature.dataUrl
       ? `<img class="print-signature-image" src="${escapeHtml(signature.dataUrl)}" alt="Signature après travaux">`
       : `<span>Signature à renseigner</span>`;
+    const companyVisaMarkup = (state.companySignatures || []).map((visa) => `<div class="signature-box signature-after-work"><strong>${escapeHtml(visa.company || "Entreprise intervenante")}</strong>${escapeHtml([visa.name, visa.role].filter(Boolean).join(" · ") || "Nom / fonction à renseigner")}${visa.signedAt ? `<small>Signée le ${escapeHtml(formatDateTime(visa.signedAt))}</small>` : ""}${visa.dataUrl ? `<img class="print-signature-image" src="${escapeHtml(visa.dataUrl)}" alt="Visa ${escapeHtml(visa.company || "entreprise")}">` : "<span>Signature à renseigner</span>"}</div>`).join("");
 
     $("#printReport").innerHTML = `
       <article class="print-page">
-        <header class="print-header"><div><span class="print-brand">AINM</span><h1 class="print-title">${reportTitle}</h1></div>
+        <header class="print-header"><div class="print-title-lockup"><img class="print-logo" src="assets/ainm-infrapole-paris-sud-est.jpg" alt="AINM Infrapôle Paris Sud Est"><div><span class="print-brand">AINM travaux signalisation</span><h1 class="print-title">${reportTitle}</h1></div></div>
           <div class="print-meta">AINM · Travaux signalisation<br>Référentiel rapport journalier<br>Édité le ${formatDate(dateToday())}</div></header>
         <section class="print-section"><h2>Identification</h2><div class="print-info-grid">
           <div><strong>Opération / chantier</strong>${escapeHtml(state.meta.operation || "—")}</div><div><strong>N° rapport</strong>${escapeHtml(state.meta.reportNo || "—")}</div><div><strong>N° commande</strong>${escapeHtml(state.meta.orderNo || "—")}</div>
-          <div><strong>Entreprise</strong>${escapeHtml(enterpriseName() || "—")}</div><div><strong>Date / nature</strong>${formatDate(state.meta.date)} · ${escapeHtml(state.meta.shiftType || "—")}</div><div><strong>Intervention réelle</strong>${escapeHtml(`${state.meta.shiftStart || "—"} → ${state.meta.shiftEnd || "—"}`)} · ${durationText}</div>
+          <div><strong>Entreprises intervenantes</strong>${escapeHtml(participatingCompanyNames().join(" · ") || "—")}</div><div><strong>Date / nature</strong>${formatDate(state.meta.date)} · ${escapeHtml(state.meta.shiftType || "—")}</div><div><strong>Intervention réelle</strong>${escapeHtml(`${state.meta.shiftStart || "—"} → ${state.meta.shiftEnd || "—"}`)} · ${durationText}</div>
           <div><strong>Météo / température</strong>${escapeHtml(state.meta.weather || "—")} · ${escapeHtml(state.meta.temperature || "—")} °C</div><div><strong>Rédacteur</strong>${escapeHtml(state.meta.reporter || "—")}</div><div><strong>Régime de séance</strong>${escapeHtml(getShiftContext().label)}</div>
         </div></section>
         ${state.meta.cancelled ? `<section class="print-section"><h2>Annulation du chantier</h2><div class="print-note">${escapeHtml(state.meta.cancelReason || "Motif non renseigné")}</div></section>` : `
         <section class="print-section"><h2>Travaux exécutés</h2><table class="print-table"><thead><tr><th>Prestation terrain</th><th class="numeric">Quantité</th><th>Voie</th><th>PK</th><th>Statut</th></tr></thead><tbody>${taskRows}</tbody></table></section>
-        <section class="print-section"><h2>Personnel et intervenants</h2><table class="print-table"><thead><tr><th>Fonction / grade</th><th>Famille / entreprise</th><th class="numeric">Nb</th><th class="numeric">Heures/pers.</th><th>Observation</th></tr></thead><tbody>${personnelRows}</tbody></table></section>
+        <section class="print-section"><h2>Personnel des entreprises</h2><table class="print-table"><thead><tr><th>Fonction / grade</th><th>Famille / entreprise</th><th class="numeric">Nb</th><th>Complément / observation</th></tr></thead><tbody>${personnelRows}</tbody></table></section>
         <section class="print-section"><h2>Engins et mobiles travaux</h2><table class="print-table"><thead><tr><th>Engin / matériel</th><th>Entreprise</th><th class="numeric">Nb</th><th>Zone / voie</th><th>Identification / observation</th></tr></thead><tbody>${equipmentRows}</tbody></table></section>`}
-        <section class="print-section"><h2>Périodes d’interception – Consignations</h2><table class="print-table"><thead><tr><th>Voie</th><th>Prévues</th><th>Accordées</th><th>Réelles</th><th>Observations</th></tr></thead><tbody>${possessionRows}</tbody></table></section>
+        <section class="print-section"><h2>Interceptions et consignations</h2><table class="print-table"><thead><tr><th>Type / voie / zone</th><th>Prévues</th><th>Accordées</th><th>ARF / réelles</th><th>Intervention / référence</th></tr></thead><tbody>${possessionRows}</tbody></table></section>
         <section class="print-section"><h2>Anomalies constatées</h2><table class="print-table"><thead><tr><th>Type</th><th>Niveau</th><th>Fait constaté</th><th>Mesure prise / suite</th></tr></thead><tbody>${anomalyRows}</tbody></table></section>
         <section class="print-section"><h2>Rapports fournis par l’entreprise</h2><table class="print-table"><thead><tr><th>Document</th><th>Référence</th><th>Observation</th></tr></thead><tbody>${documentsRows}</tbody></table></section>
-        <section class="print-section"><h2>Moyens SNCF entrepreneur</h2><table class="print-table"><thead><tr><th>Fonction</th><th class="numeric">Nb</th><th>Observation</th></tr></thead><tbody>${sncfRows}</tbody></table></section>
+        <section class="print-section"><h2>Personnel SNCF affecté</h2><table class="print-table"><thead><tr><th>Fonction</th><th class="numeric">Nb</th><th>Mission / observation</th></tr></thead><tbody>${sncfRows}</tbody></table></section>
         ${photoSection}
-        <section class="print-signatures"><div class="signature-box"><strong>Lieu / date</strong>${escapeHtml(formatDate(state.meta.date))}</div><div class="signature-box"><strong>Visa représentant MOETx SNCF</strong>${escapeHtml(state.meta.moeRepresentative || "Nom / prénom à renseigner")}</div><div class="signature-box"><strong>Visa représentant entreprise extérieure</strong>${escapeHtml(state.meta.companyRepresentative || "Nom / prénom à renseigner")}</div><div class="signature-box signature-after-work"><strong>Visa après travaux</strong>${escapeHtml([signature.name, signature.role].filter(Boolean).join(" · ") || "Nom / fonction à renseigner")}${signature.signedAt ? `<small>Signée le ${escapeHtml(formatDateTime(signature.signedAt))}</small>` : ""}${signatureMarkup}</div></section>
+        ${trackedPhotoSection}
+        <section class="print-signatures"><div class="signature-box"><strong>Lieu / date</strong>${escapeHtml(formatDate(state.meta.date))}</div><div class="signature-box"><strong>Visa représentant MOETx SNCF</strong>${escapeHtml(state.meta.moeRepresentative || "Nom / prénom à renseigner")}</div>${companyVisaMarkup}<div class="signature-box signature-after-work"><strong>Visa après travaux</strong>${escapeHtml([signature.name, signature.role].filter(Boolean).join(" · ") || "Nom / fonction à renseigner")}${signature.signedAt ? `<small>Signée le ${escapeHtml(formatDateTime(signature.signedAt))}</small>` : ""}${signatureMarkup}</div></section>
         <p class="print-footer">Rapport opérationnel généré depuis l’application rapport journalier AINM.</p>
       </article>
       ${includeValuation ? `<article class="print-page print-internal">
@@ -1563,7 +1814,7 @@
     return pages;
   }
 
-  function renderPrintReport() {
+  function renderV7PrintReportDeprecated() {
     const includeValuation = isAdminView();
     const breakdown = valuationBreakdown();
     const resolved = breakdown.valuations;
@@ -1700,16 +1951,24 @@
     $("#printReport").innerHTML = pages.map((page, index) => page.replaceAll("__REPORT_PAGE__", `${index + 1}/${pages.length}`)).join("");
   }
 
-  function exportState(share = false) {
-    const filename = `rapport-journalier-${(state.meta.reportNo || "brouillon").replace(/[^a-zA-Z0-9_-]+/g, "-")}.json`;
+  function exportState(share = false, { handoff = false } = {}) {
+    const baseName = (state.meta.reportNo || "brouillon").replace(/[^a-zA-Z0-9_-]+/g, "-");
+    const filename = `${handoff ? "passation-" : "rapport-journalier-"}${baseName}${handoff ? `-r${state.collaboration?.revision || 1}` : ""}.json`;
     const exportable = clone(state);
+    exportable.transfer = {
+      format: "AINM-RJ-PASSATION",
+      exportedAt: new Date().toISOString(),
+      handoff,
+      reportUid: state.reportUid,
+      revision: state.collaboration?.revision || 1,
+    };
     if (!isAdminView()) {
       delete exportable.settings;
       exportable.tasks = exportable.tasks.map(({ billingCr, ...task }) => task);
     }
     const file = new File([JSON.stringify(exportable, null, 2)], filename, { type: "application/json" });
     if (share && navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
-      navigator.share({ title: "Rapport journalier", text: state.meta.operation || "Rapport journalier", files: [file] }).catch(() => {});
+      navigator.share({ title: handoff ? "Passation rapport journalier" : "Rapport journalier", text: handoff ? `Passation · ${state.meta.reportNo || "rapport"} · révision ${state.collaboration?.revision || 1}` : (state.meta.operation || "Rapport journalier"), files: [file] }).catch(() => {});
       return;
     }
     const link = document.createElement("a");
@@ -1719,6 +1978,29 @@
     link.click();
     link.remove();
     URL.revokeObjectURL(link.href);
+  }
+
+  function openHandoffDialog() {
+    $("#handoffEditorName").value = state.collaboration?.currentEditor || state.meta.reporter || "";
+    $("#handoffEditorRole").value = state.collaboration?.currentRole || "";
+    $("#handoffRecipient").value = "";
+    $("#handoffStatus").textContent = `${state.meta.reportNo || "Rapport"} · révision ${state.collaboration?.revision || 1}. Le destinataire importe ensuite ce fichier depuis Actions.`;
+    $("#handoffDialog").showModal();
+  }
+
+  function sendHandoff() {
+    const editor = editorValue("handoffEditorName");
+    const role = editorValue("handoffEditorRole");
+    const recipient = editorValue("handoffRecipient");
+    state.collaboration.currentEditor = editor;
+    state.collaboration.currentRole = role;
+    state.collaboration.revision = Math.max(1, number(state.collaboration.revision)) + 1;
+    state.collaboration.handoffs.unshift({ id: uid(), sentAt: new Date().toISOString(), editor, role, recipient, revision: state.collaboration.revision });
+    state.collaboration.handoffs = state.collaboration.handoffs.slice(0, 20);
+    save(`Passation préparée · révision ${state.collaboration.revision}`);
+    $("#handoffDialog").close();
+    exportState(true, { handoff: true });
+    showToast("Passation exportée : partager le fichier puis le faire importer par le destinataire.", "success");
   }
 
   function startNewReport(source = state, { reuseResources = false } = {}) {
@@ -1731,6 +2013,7 @@
       orderNo: sourceCopy.meta?.orderNo || "",
       enterprise: sourceCopy.meta?.enterprise || state.meta.enterprise,
       enterpriseOther: sourceCopy.meta?.enterpriseOther || "",
+      participatingCompanies: clone(sourceCopy.meta?.participatingCompanies || [sourceCopy.meta?.enterprise || state.meta.enterprise]).filter(Boolean),
       reporter: sourceCopy.meta?.reporter || "",
       moeRepresentative: sourceCopy.meta?.moeRepresentative || "",
       companyRepresentative: sourceCopy.meta?.companyRepresentative || "",
@@ -1783,11 +2066,25 @@
       const handler = () => {
         const value = element.type === "checkbox" ? element.checked : element.value;
         setPath(state, element.dataset.path, value);
-        if (element.id === "enterpriseInput") $("#enterpriseOtherField")?.classList.toggle("hidden", value !== "Autre");
         save();
         refresh({ inputs: false });
       };
       element.addEventListener(element.type === "checkbox" || element.tagName === "SELECT" ? "change" : "input", handler);
+    });
+
+    $("#participantCompanyPicker")?.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-participant-company]");
+      if (button) toggleParticipantCompany(button.dataset.participantCompany);
+    });
+    $("#addParticipantCompanyButton")?.addEventListener("click", () => {
+      const input = $("#participantCompanyCustomInput");
+      const company = input?.value.trim();
+      if (!company) { showToast("Saisir le nom de l’entreprise ou du prestataire.", "warning"); return; }
+      if (!participatingCompanyNames().includes(company)) state.meta.participatingCompanies.push(company);
+      syncPrimaryEnterprise();
+      input.value = "";
+      save("Entreprise intervenante ajoutée");
+      refresh({ inputs: true });
     });
 
     $$("[data-scroll-target]").forEach((button) => button.addEventListener("click", () => $(`#${button.dataset.scrollTarget}`).scrollIntoView({ behavior: "smooth", block: "start" })));
@@ -1833,7 +2130,29 @@
     });
 
     $$('[data-add-row]').forEach((button) => button.addEventListener("click", () => openRowDialog(button.dataset.addRow)));
-    $("#rowDialog").addEventListener("click", (event) => { if (event.target.closest("#saveRowButton")) saveRow(); });
+    $("#rowDialog").addEventListener("click", (event) => {
+      const counter = event.target.closest("[data-counter-target]");
+      if (counter) {
+        const input = $(`#${counter.dataset.counterTarget}`);
+        if (input) input.value = Math.max(1, Math.floor(number(input.value)) + number(counter.dataset.counterDelta));
+        return;
+      }
+      if (event.target.closest("#saveRowButton")) saveRow();
+    });
+    $("#quickPersonnelRoster")?.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-quick-personnel-role]");
+      if (!button) return;
+      const company = button.dataset.quickPersonnelCompany;
+      const role = button.dataset.quickPersonnelRole;
+      const team = button.dataset.quickPersonnelTeam;
+      adjustRoleCounter("personnel", { company, role, team }, { company, role, team, companyOther: "", roleOther: "", lead: "", observation: "" }, number(button.dataset.counterDelta));
+    });
+    $("#quickSncfRoster")?.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-quick-sncf-role]");
+      if (!button) return;
+      const role = button.dataset.quickSncfRole;
+      adjustRoleCounter("sncfMeans", { role }, { role, observation: "" }, number(button.dataset.counterDelta));
+    });
     $$(".data-list").forEach((list) => list.addEventListener("click", async (event) => {
       const edit = event.target.closest("[data-edit-row]");
       const remove = event.target.closest("[data-delete-row]");
@@ -1905,7 +2224,40 @@
       renderPrintReport();
     });
 
+    $("#addCompanyVisaButton")?.addEventListener("click", () => openCompanyVisaDialog(enterpriseName()));
+    $("#companyVisaList")?.addEventListener("click", async (event) => {
+      const add = event.target.closest("[data-add-company-visa]");
+      if (add) { openCompanyVisaDialog(add.dataset.addCompanyVisa); return; }
+      const edit = event.target.closest("[data-edit-company-visa]");
+      if (edit) {
+        const visa = state.companySignatures.find((signature) => signature.id === edit.dataset.editCompanyVisa);
+        if (visa) openCompanyVisaDialog(visa.company, visa);
+        return;
+      }
+      const remove = event.target.closest("[data-delete-company-visa]");
+      if (!remove) return;
+      const accepted = await askConfirm({ title: "Supprimer le visa", message: "Supprimer ce visa entreprise du rapport ?", confirmLabel: "Supprimer", danger: true });
+      if (!accepted) return;
+      state.companySignatures = state.companySignatures.filter((signature) => signature.id !== remove.dataset.deleteCompanyVisa);
+      save("Visa entreprise supprimé");
+      renderCompanyVisas();
+      renderPrintReport();
+    });
+    $("#companyVisaDialog")?.addEventListener("click", (event) => {
+      if (event.target.closest("#saveCompanyVisaButton")) { saveCompanyVisa(); return; }
+      if (!event.target.closest("#clearCompanyVisaSignatureButton")) return;
+      if (!companyVisaDraft) return;
+      companyVisaDraft.dataUrl = "";
+      companyVisaDraft.signedAt = "";
+      drawCompanySignatureData();
+      const status = $("#companyVisaSignatureStatus");
+      if (status) status.textContent = "Signer au doigt dans la zone ci-dessus.";
+    });
+
     $("#printButton").addEventListener("click", () => { renderPrintReport(); window.print(); });
+    $("#handoffButton")?.addEventListener("click", openHandoffDialog);
+    $("#handoffMenuButton")?.addEventListener("click", () => { $("#moreDialog").close(); openHandoffDialog(); });
+    $("#sendHandoffButton")?.addEventListener("click", sendHandoff);
     $("#exportButton").addEventListener("click", () => exportState(false));
     $("#shareButton").addEventListener("click", () => exportState(true));
     $("#openAdminButton").addEventListener("click", openAdminAccess);
@@ -1969,9 +2321,16 @@
       try {
         const parsed = JSON.parse(await file.text());
         if (parsed?.schema !== 1) throw new Error("format");
+        const incomingRevision = Math.max(1, number(parsed.collaboration?.revision) || 1);
+        const currentRevision = Math.max(1, number(state.collaboration?.revision) || 1);
+        if (parsed.reportUid && parsed.reportUid === state.reportUid && incomingRevision < currentRevision) {
+          const accepted = await askConfirm({ title: "Révision plus ancienne", message: `Cette passation est en révision ${incomingRevision} alors que cet appareil contient déjà la révision ${currentRevision}. L’importation remplacerait la saisie locale. Continuer ?`, confirmLabel: "Importer quand même", danger: true });
+          if (!accepted) { event.target.value = ""; return; }
+        }
         const currentSettings = clone(state.settings || {});
         const importedSettings = parsed.settings || {};
         state = parsed;
+        delete state.transfer;
         state.settings = {
           ...currentSettings,
           ...importedSettings,
@@ -1980,10 +2339,11 @@
         };
         ensureSettings();
         ensureState();
+        state.collaboration.receivedAt = new Date().toISOString();
         adminUnlocked = false;
         adminLoginOpen = false;
         try { sessionStorage.removeItem(adminSessionKey); } catch (_) { /* Session locale indisponible. */ }
-        save("Saisie importée");
+        save(parsed.transfer?.handoff ? `Passation importée · révision ${state.collaboration.revision}` : "Saisie importée");
         refresh({ inputs: true });
       } catch (_) { showToast("Ce fichier n’est pas une exportation compatible de rapport journalier.", "danger"); }
       event.target.value = "";

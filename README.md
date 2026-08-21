@@ -1,66 +1,58 @@
-# Rapport journalier AINM — PWA terrain
+# Rapport journalier AINM — PWA terrain V8
 
-Cette première version transforme les trames fournies en un rapport utilisable sur téléphone pour les travaux signalisation. L’agent ne choisit que des libellés simples (« Pose caniveau GM / TGM », « Demi-entretoise », etc.) ; le rapport conserve ces libellés opérationnels et la valorisation est calculée séparément.
+Application hors ligne pour les rapports journaliers de travaux signalisation AINM.
 
-## Ce qui est intégré
+## Ce qui change dans cette version
 
-- Rapport terrain avec contexte de séance, main-d’œuvre, engins, production, interceptions / consignations, anomalies, pièces jointes déclarées, moyens SNCF et visas.
-- Reprise de la dernière nuit : création d’un nouveau rapport qui reprend uniquement les équipes, engins et moyens SNCF habituels ; les travaux, photos, anomalies, consignations et signatures restent vierges.
-- Numéro de rapport attribué automatiquement et non modifiable : compteur séquentiel local (`000001`, `000002`, …) complété par un identifiant d’appareil. Un nouveau rapport ne peut donc pas reprendre le numéro du précédent sur le même appareil, y compris hors ligne.
-- Jusqu’à 12 photos terrain compressées pour le fonctionnement hors ligne : classement **Avant nuit / Après nuit**, date et heure, type de photo, voie / PK, légende et impression PDF complète.
-- Visa après travaux au doigt, daté, avec nom et fonction du signataire, ajouté en complément des deux visas existants.
-- Charte AINM Infrapôle Paris Sud Est : logo intégré, palette bleu acier / cyan, icône PWA assortie et édition PDF harmonisée.
-- Saisie mobile structurée des intervenants : raccourcis métier (chef de chantier, chef d’équipe, RPTx, KV caténaire, KVSE, Agent RSO…), puis famille, entreprise, effectif et compléments seulement si utiles.
-- Saisie mobile structurée des engins : raccourcis rail-route / LAM, routier, chenillard et levage ; identification, zone, PK et mode de mise en voie sont tracés lorsque nécessaire.
-- Saisie simplifiée et complète des possessions : horaires réels en premier, puis écarts prévu / accordé et fenêtre d’intervention si nécessaire.
-- Fiche d’archivage enrichie : lieu / secteur, faits marquants, suite de chantier, matériaux / consommables / déposes et autocontrôles / contrôles.
-- Entreprises reprises du Briefing Opération : SNCF, ATIF, SYSTRA, ETF, LSDR, ETF SERVICE, TSO, HP ELEC, TSO Signalisation, Bouygues et TSO (LTV), avec une option « Autre ».
-- Rapport PDF adaptatif : la synthèse visuelle est suivie des prestations, des photos, puis du **dossier d’archivage détaillé** (contexte, ressources, engins, interceptions, travaux, matériaux, contrôles, anomalies, documents, moyens SNCF et visas). Le nombre de pages augmente automatiquement avec les données ; l’annexe financière reste strictement la dernière partie administrateur.
-- Une trame de contrôle visuel de 11 pages est fournie dans `output/pdf/rapport-journalier-ainm-trame-adaptative-v7.pdf` ; elle illustre la sortie longue lorsque toutes les rubriques sont renseignées.
-- Champ « Objectif / consigne de la séance » pour alimenter directement la première page du rapport sans ressaisie.
-- Dialogues de confirmation et messages propres à l’application : aucune bulle native de navigateur du type « ghostbuilderdev.github.io indique » n’est affichée aux agents.
-- Libellés SNCF corrigés dans les listes et les anciens brouillons migrés automatiquement : « KV caténaire », « KVSE » et « Agent RSO ».
-- Mode terrain par défaut : les agents saisissent les faits, les quantités et les observations sans voir ni prix, ni références PB, ni montants. Le PDF et l’export terrain suivent la même règle.
-- Espace administrateur, placé en fin d’application et ouvert par un code local à 6 chiffres : contrôle hebdomadaire, rapprochement production / bordereau, réglage ponctuel du CR et annexe interne imprimable.
-- Catalogue de **1 796 lignes de prix** issu du détail estimatif AINM « version C — 27/08/2025 », complété et recoupé avec le décompte n°04 PCLE du 12/08/2026.
-- Règle automatique de plage horaire pour les travaux de génie civil : jour, nuit N1/N2/N3 et week-end / jour férié.
-- Prix de la série 300 calculés selon la formule observée dans le décompte : **PU BPU × (1 + Maj./Min.) × CR**. Les CR 1,75 et 1,90 constatés sont proposés uniquement à l’administrateur.
-- Référentiel de rapprochement enrichi entre les libellés du rapport AINM et les postes du BPU : caniveaux, artères, câbles, jonctions, intervalles de décharge, CI d’équilibrage, supports à la voie, inserts, repérage, chambres, traversées, chemins de câbles et logistique.
-- Les **31 postes PB2 N2** effectivement facturés dans le décompte sont audités avec leurs montants unitaires, ainsi que **18 articles Série 300** et les lignes PB1 utilisées. Ils sont tous atteignables par les libellés terrain ; le poste 36050 (clôture limitative) est également ajouté.
-- Les dispositions communes PB1-1-1, PB1-1-2 et PB1-2-1 peuvent être incluses en fin de semaine, à titre indicatif et désactivées par défaut ; les lignes logistiques PB1 restent saisissables comme prestations terrain.
-- Brouillon local hors-ligne, export/import JSON, impression / enregistrement PDF depuis le navigateur et partage Android lorsque disponible.
-- Fichiers PWA (manifest + service worker) : une fois le dossier déployé sur un hébergement HTTPS, l’application peut être installée sur les téléphones.
+- Le PDF actif revient au **rendu V5** : rapport tabulaire opérationnel A4, logo AINM, données terrain puis annexe financière uniquement pour l’administrateur. Les maquettes de génération V6/V7/V7.1 ne sont plus utilisées.
+- L’en-tête mobile est simplifié : **AINM travaux · Rapport journalier · AINM travaux signalisation**. Les indicateurs « Production », « Estimation HT », le statut financier et les libellés de tronçon ne sont plus affichés à cet endroit.
+- Plusieurs **entreprises intervenantes** et prestataires peuvent être sélectionnés pour une même séance. Les effectifs sont rattachés à chaque entreprise.
+- Saisie rapide des équipes avec de grands compteurs **− / +** : conducteur travaux, chef de chantier, chef d’équipe, opérateurs, intérimaires ; prestataires de sécurité ETF Services, Sentinelles du Rail, LSDR, etc.
+- Saisie rapide du personnel SNCF avec les libellés corrigés : **Adjoint S11**, **Adjoint S6**, KV caténaire, KVSE, surveillant travaux SE, surveillant voie, agent RSO et agent prestataire. Les libellés obsolètes sont migrés automatiquement.
+- Les engins ont une fiche plus courte : engin, entreprise, quantité et voie/zone de travail d’abord ; identification et sécurité restent disponibles dans le complément.
+- Les **interceptions et consignations** sont saisies dans un tableau unique : prévue, accordée, ARF/réelle et intervention, avec voie, zone et référence ITC/ARF/AAN.
+- Chaque ligne d’interception/consignation peut recevoir une **photo ARF début** et une **photo ARF fin**. Les anomalies qualité-sécurité peuvent aussi contenir une photo.
+- Les entreprises intervenantes disposent de **visas individuels** : entreprise, nom, fonction, signature au doigt et date. Ils apparaissent dans le PDF V5.
+- La sauvegarde locale est automatique. La fonction **Préparer une passation** exporte le brouillon avec le même numéro de rapport, une révision et l’auteur ; le fichier est ensuite partagé par Android, messagerie, Bluetooth ou e-mail. Le destinataire l’importe depuis Actions.
 
-## Séparation terrain / administration
+## Règle de numérotation
 
-L’agent terrain ne peut pas afficher l’annexe de valorisation : les références marché, les prix, les totaux, les CR et les paramètres de rattachement sont absents de son écran, de son PDF et de son export JSON. En bas du rapport, la carte « Accès administrateur » permet à l’administrateur principal de créer puis saisir un code local à 6 chiffres. L’accès est reverrouillable à tout moment.
+Chaque nouveau rapport reçoit un numéro non modifiable. Le compteur avance localement et le code appareil rend le numéro complet distinct même sans réseau. Une passation conserve le même numéro et augmente seulement la révision du brouillon.
 
-> Ce code est un verrou d’interface local au téléphone, adapté à la PWA hors ligne ; il ne remplace pas une authentification SNCF centralisée. Pour une protection organisationnelle complète, la prochaine étape sera une connexion nominative (SSO / intranet) et un stockage centralisé.
+## Utilisation terrain
 
-## Règle de sûreté de valorisation
+1. Renseigner l’opération, la date et les entreprises intervenantes.
+2. Saisir les prestations réalisées ; les prix restent invisibles pour les agents terrain.
+3. Utiliser les compteurs pour les effectifs et les moyens SNCF, puis compléter uniquement les particularités nécessaires.
+4. Compléter les horaires ITC/consignation et joindre les photos ARF si elles existent.
+5. Ajouter les photos avant/après, les anomalies et les visas des responsables.
+6. Choisir **Imprimer le rapport PDF**. L’annexe de valorisation est visible seulement après ouverture de l’espace administrateur.
 
-Les libellés usuels disposent maintenant d’un rattachement par défaut, invisible pour les agents terrain : CI 1 500 V, CIT 1400, RVL 120, intervalle de décharge, connexions 95/240 mm², déroulage/dépose de câbles, BJ et émission/réception CDV. La convention métier fournie est appliquée : `.01` = pose et `.02` = dépose. Le contrôle administrateur peut toujours enregistrer une **exception** de marché, sans exposer les prix aux agents.
+## Passation entre téléphones
 
-Une ligne ne reste hors catalogue que si l’agent choisit explicitement « Autre prestation » ou si la quantité est absente. Le régime N2 est utilisé provisoirement pour le contrôle d’un ancien brouillon sans durée, mais l’administrateur est informé de le confirmer.
+La PWA fonctionne hors ligne : elle ne réalise donc pas une synchronisation simultanée par Internet. Pour faire compléter le même rapport par un RPTx, un Adjoint S11 ou un RSO :
 
-## Rapprochements déjà identifiés
+1. Ouvrir **Préparer une passation**, renseigner son nom, son rôle et le destinataire.
+2. Partager le fichier JSON généré.
+3. Sur l’autre téléphone, ouvrir Actions puis **Importer une passation / saisie**.
+4. Le destinataire complète et renvoie une nouvelle passation. L’application avertit si une révision plus ancienne risque d’écraser une saisie plus récente.
 
-- **Automatiques** : création de caniveaux PM/MM ou GM/TGM, caniveaux composites, dépose de caniveaux béton, ouverture + fermeture d’artère, fouille de recherche de BJ, coupe / perçage courant, demi-entretoise, jonction jusqu’à 95 ou 240 mm².
-- **Automatiques par défaut, contrôlables en exception** : connexions de câble jusqu’à 7 m, CIT 1400 (connexion inductive), RVL 120 (intervalle de décharge), pose et dépose de câble. Pour les câbles, l’application applique ensuite automatiquement la variante jour / nuit / week-end.
-- **À contrôler en fin de semaine** : toute prestation saisie en « Autre prestation », les options d’exception de marché et les situations où la durée effective a été laissée vide.
+Une synchronisation multi-utilisateur en temps réel nécessiterait ensuite un stockage central SNCF (intranet, SharePoint ou API) et une authentification nominative.
 
-## Déploiement terrain
+## Déploiement GitHub Pages / Termux
 
-1. Déposer l’intégralité du dossier sur un hébergement HTTPS (GitHub Pages, intranet ou site statique validé SNCF).
-2. Ouvrir l’URL sur Android, puis utiliser « Installer l’application » dans le navigateur.
-3. À la première utilisation administrative, ouvrir le bas du rapport, choisir **Accès administrateur** puis créer le code local à 6 chiffres.
-4. Sur le terrain : renseigner le contexte, utiliser les 8 prestations fréquentes ou la recherche, puis ajouter seulement les précisions utiles. Pour une nouvelle nuit, utiliser **Reprendre dernière nuit** plutôt que ressaisir les équipes et engins.
-5. Ajouter les photos **Avant** et **Après**, recueillir le visa après travaux, puis **Imprimer / PDF**. Seul l’administrateur obtient l’annexe interne et les montants.
+Décompresser le contenu de cette archive dans le dépôt puis exécuter :
 
-> Ouvrir `index.html` directement depuis un gestionnaire de fichiers permet la saisie et l’impression, mais l’installation PWA et le mode hors-ligne complet nécessitent l’hébergement HTTPS.
+```sh
+cd ~/projets/rapport-journalier-ainm-pwa
+git add .
+git commit -m "Mise à jour V8 : PDF V5 et saisie terrain"
+git push
+```
 
-## À confirmer avant la mise en production
+Attendre une à deux minutes, puis recharger l’URL GitHub Pages ou fermer/réouvrir la PWA. Le cache du service worker est passé à `rj-ainm-v8` pour récupérer cette version.
 
-- Validation de production, avec le gestionnaire de marché, des exceptions VE 25 kV / famille 24150 lorsqu’elles se présentent : les valeurs par défaut sont posées pour les cas usuels 1 500 V / 24050.
-- Règle de décompte des finitions BJ : une BJ équivaut-elle à une jonction, ou à plusieurs jonctions facturables ?
-- Pour une unicité strictement centralisée entre plusieurs téléphones, raccorder la PWA à un serveur SNCF / SharePoint : hors connexion, le compteur est séquentiel par appareil et le code appareil rend le numéro complet distinct.
+## Limites connues
+
+- Le code administrateur est un verrou local d’interface ; il ne remplace pas une authentification SNCF centralisée.
+- Les photos sont compressées et conservées dans le navigateur : exporter régulièrement les rapports terminés, surtout sur les appareils à faible capacité.

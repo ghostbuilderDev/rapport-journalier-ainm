@@ -458,3 +458,118 @@ h2 { margin-bottom: 0; font-size: 1.15rem; line-height: 1.2; }
   .rj-admin-page .rj-section-head h1, .rj-admin-page .rj-report-title { color: #694b17; }
   .rj-admin-page .rj-work-table th { background: #7c5c1a; }
 }
+
+/* V8 — saisie terrain plus directe. */
+.hero-card.hero-card-compact { min-height: 0; padding: 16px 20px; }
+.hero-brand-lockup { position: relative; z-index: 1; display: flex; align-items: center; gap: 15px; min-width: 0; }
+.hero-card-compact .hero-logo { width: 132px; min-width: 132px; padding: 4px; border-radius: 9px; }
+.hero-card-compact .hero-copy { flex: 0 1 auto; }
+.hero-card-compact h1 { margin-bottom: 3px; font-size: clamp(1.45rem, 4.8vw, 2rem); }
+.hero-brandline { margin: 0; color: rgba(255,255,255,.84); font-size: .86rem; font-weight: 650; }
+.company-multiselect { display: flex; flex-wrap: wrap; gap: 7px; padding: 10px; border: 1px solid #d5e0e3; border-radius: 12px; background: #fbfcfc; }
+.company-choice { max-width: 100%; padding: 7px 9px; border: 1px solid #ccdadd; border-radius: 999px; color: #44555d; background: #fff; font-size: .72rem; font-weight: 780; line-height: 1.2; text-align: left; }
+.company-choice.selected { border-color: #6ec0db; color: #1d4e5d; background: #eaf8fc; }
+.company-choice.custom-company { border-style: dashed; }
+.company-adder { display: flex; gap: 8px; }
+.company-adder input { min-width: 0; flex: 1; border: 1px solid #cbd4d9; border-radius: 10px; padding: 10px 11px; background: #fff; }
+.company-adder .secondary-button { flex: 0 0 auto; }
+.quick-roster { display: grid; gap: 10px; margin: 0 0 13px; }
+.roster-company { overflow: hidden; border: 1px solid #c9e1e8; border-radius: 12px; background: linear-gradient(135deg, #f5fcfe, #fff); }
+.roster-company > header { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border-bottom: 1px solid #d9eaef; }
+.roster-company > header strong { color: #254650; font-size: .83rem; }
+.roster-company > header span { color: #62808a; font-size: .7rem; font-weight: 750; }
+.roster-role-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(138px, 1fr)); gap: 0; }
+.roster-role { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 7px; min-height: 51px; padding: 8px 10px; border-right: 1px solid #e0ecef; border-bottom: 1px solid #e0ecef; color: #34474e; font-size: .75rem; font-weight: 750; }
+.counter-control { display: inline-grid; grid-template-columns: 31px minmax(29px, auto) 31px; align-items: center; overflow: hidden; border: 1px solid #aacbd6; border-radius: 9px; background: #fff; }
+.counter-control button { width: 31px; height: 31px; border: 0; color: #1d5668; background: #eaf7fb; font-size: 1.15rem; line-height: 1; }
+.counter-control button:hover { color: #fff; background: #2c8199; }
+.counter-control strong { min-width: 29px; color: #233f49; font-size: .82rem; text-align: center; }
+.counter-input { width: 100%; grid-template-columns: 38px minmax(0, 1fr) 38px; }
+.counter-input button { width: 38px; height: 42px; }
+.counter-input input { width: 100%; min-width: 0; height: 42px; padding: 6px; border: 0 !important; border-radius: 0 !important; text-align: center; }
+.resource-editor-title { margin: 0; color: #274d57; font-size: 1rem; }
+.inline-photo-preview { display: block; width: min(220px, 100%); max-height: 145px; margin-top: 4px; border: 1px solid #cddce0; border-radius: 9px; object-fit: cover; }
+.anomaly-photo-preview { width: min(320px, 100%); }
+.time-matrix { overflow: hidden; border: 1px solid #c8d9de; border-radius: 11px; background: #fff; }
+.time-matrix-head, .time-matrix label { display: grid; grid-template-columns: minmax(118px, 1fr) minmax(78px, .55fr) minmax(78px, .55fr); gap: 8px; align-items: center; padding: 8px 10px; }
+.time-matrix-head { color: #41616c; background: #edf6f8; font-size: .7rem; font-weight: 850; text-transform: uppercase; letter-spacing: .04em; }
+.time-matrix label { border-top: 1px solid #e1eaed; color: #2b454d; font-size: .82rem; }
+.time-matrix input { min-width: 0; border: 1px solid #cbd4d9; border-radius: 8px; padding: 7px; color: var(--ink); background: #fff; }
+.arf-photo-capture { padding: 12px; border: 1px solid #c9e0e7; border-radius: 12px; background: #f5fbfd; }
+.arf-photo-capture strong { color: #2a5360; }
+.arf-photo-capture p { margin: 3px 0 10px; color: #60757e; font-size: .78rem; }
+.arf-photo-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.possession-table-wrap { overflow-x: auto; border: 1px solid #cfdbdf; border-radius: 11px; }
+.possession-table { width: 100%; min-width: 760px; border-collapse: collapse; color: #354e57; font-size: .76rem; }
+.possession-table th, .possession-table td { padding: 9px 8px; border-right: 1px solid #e0e7e9; border-bottom: 1px solid #e0e7e9; vertical-align: top; text-align: left; }
+.possession-table th { color: #31515c; background: #eef6f8; font-size: .67rem; text-transform: uppercase; letter-spacing: .04em; }
+.possession-table tr:last-child td { border-bottom: 0; }
+.possession-table th:last-child, .possession-table td:last-child { border-right: 0; }
+.possession-table small { color: #6b7d84; }
+.table-actions { min-width: 144px; white-space: nowrap; }
+.company-visa-section { margin: 0 0 18px; padding: 15px; border: 1px solid #c8e0e7; border-radius: 13px; background: linear-gradient(135deg, #f5fcfe, #fff); }
+.company-visa-section .section-heading { margin-bottom: 10px; }
+.company-visa-list { display: grid; gap: 10px; }
+.company-visa-company { padding: 10px; border: 1px solid #d8e6e9; border-radius: 10px; background: #fff; }
+.company-visa-company > header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; color: #34515b; font-size: .83rem; }
+.company-visa-card { display: grid; grid-template-columns: minmax(0, 1fr) minmax(96px, .45fr) auto; align-items: center; gap: 9px; padding: 8px 0; border-top: 1px solid #e4edef; }
+.company-visa-card strong, .company-visa-card span, .company-visa-card small { display: block; }
+.company-visa-card strong { color: #2a424a; font-size: .8rem; }
+.company-visa-card span, .company-visa-card small { margin-top: 2px; color: #667b83; font-size: .73rem; }
+.company-visa-card img { width: 100%; height: 52px; object-fit: contain; object-position: left center; }
+.visa-actions { display: flex; gap: 4px; }
+.handoff-note { margin: 0; padding: 11px; border-left: 4px solid #48afd3; border-radius: 8px; color: #375862; background: #eaf8fc; font-size: .83rem; line-height: 1.4; }
+
+@media (max-width: 720px) {
+  .hero-card.hero-card-compact { padding: 14px 16px; }
+  .hero-brand-lockup { align-items: flex-start; gap: 10px; }
+  .hero-card-compact .hero-logo { width: 96px; min-width: 96px; }
+  .company-adder { display: grid; grid-template-columns: 1fr; }
+  .company-adder .secondary-button { width: 100%; }
+  .roster-role-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .roster-role { grid-template-columns: 1fr; align-content: center; }
+  .time-matrix-head, .time-matrix label { grid-template-columns: minmax(100px, 1fr) minmax(70px, .8fr) minmax(70px, .8fr); gap: 6px; padding: 8px; }
+  .arf-photo-grid { grid-template-columns: 1fr; }
+  .company-visa-card { grid-template-columns: minmax(0, 1fr) auto; }
+  .company-visa-card img { display: none; }
+}
+
+/* Rendu V5 restauré pour l'impression et l'enregistrement PDF. */
+@media print {
+  @page { size: A4; margin: 10mm; }
+  body { background: #fff; font-family: Arial, sans-serif; }
+  .no-print { display: none !important; }
+  .print-report { display: block !important; width: auto; color: #121212; }
+  .print-page { width: auto; min-height: 275mm; padding: 0; overflow: visible; background: #fff; break-after: auto; page-break-after: auto; }
+  .print-page + .print-page { break-before: page; page-break-before: always; }
+  .print-header { display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: start; padding-bottom: 7px; border-bottom: 3px solid #34464c; }
+  .print-title-lockup { display: flex; align-items: flex-start; gap: 9px; }
+  .print-logo { width: 38mm; height: 15mm; object-fit: contain; object-position: left top; }
+  .print-brand { display: inline-block; padding: 4px 8px; border-radius: 3px 10px 3px 10px; background: #34464c; color: #fff; font-size: 8pt; font-weight: 900; font-style: italic; }
+  .print-title { margin: 8px 0 0; color: #161616; font-size: 19pt; }
+  .print-meta { color: #4a545a; font-size: 8.5pt; text-align: right; line-height: 1.45; }
+  .print-section { margin-top: 13px; break-inside: avoid; page-break-inside: avoid; }
+  .print-section h2 { margin: 0 0 5px; padding: 6px 8px; color: #fff; background: #34464c; font-size: 9.5pt; text-transform: uppercase; letter-spacing: .03em; }
+  .print-info-grid { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid #333; border-left: 1px solid #333; }
+  .print-info-grid div { min-height: 33px; padding: 6px 7px; border-right: 1px solid #333; border-bottom: 1px solid #333; font-size: 8.5pt; }
+  .print-info-grid strong { display: block; margin-bottom: 2px; color: #5a5a5a; font-size: 7.2pt; text-transform: uppercase; }
+  .print-table { width: 100%; border-collapse: collapse; font-size: 8.2pt; }
+  .print-table th, .print-table td { padding: 5px 6px; border: 1px solid #333; vertical-align: top; text-align: left; }
+  .print-table th { color: #181818; background: #e9e9e9; font-size: 7.5pt; text-transform: uppercase; }
+  .print-table .numeric { text-align: right; }
+  .print-empty { padding: 8px; border: 1px solid #333; color: #686868; font-size: 8.5pt; font-style: italic; }
+  .print-note { min-height: 56px; padding: 8px; border: 1px solid #333; font-size: 8.5pt; white-space: pre-wrap; }
+  .print-signatures { display: grid; grid-template-columns: repeat(auto-fit, minmax(42mm, 1fr)); gap: 8px; margin-top: 20px; break-inside: avoid; page-break-inside: avoid; }
+  .signature-box { min-height: 68px; padding: 7px; border: 1px solid #333; font-size: 8pt; }
+  .signature-box strong { display: block; margin-bottom: 35px; }
+  .signature-after-work { display: flex; flex-direction: column; gap: 3px; }
+  .signature-after-work strong { margin-bottom: 4px; }
+  .signature-after-work small { font-size: 7pt; }
+  .print-signature-image { display: block; width: 100%; height: 37px; margin-top: auto; object-fit: contain; object-position: left bottom; }
+  .print-photo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .print-photo { margin: 0; break-inside: avoid; }
+  .print-photo img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border: 1px solid #333; }
+  .print-photo figcaption { padding-top: 3px; font-size: 7pt; line-height: 1.25; }
+  .print-footer { margin-top: 12px; color: #5f5f5f; font-size: 7.5pt; }
+  .print-internal { color: #6a3600; background: #fff5df; }
+}

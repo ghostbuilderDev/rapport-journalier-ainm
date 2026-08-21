@@ -15,7 +15,7 @@
       <header class="topbar no-print">
         <div class="brand" aria-label="AINM Infrapôle Paris Sud Est">
           <img class="brand-logo" src="assets/ainm-infrapole-paris-sud-est.jpg" alt="AINM Infrapôle Paris Sud Est" />
-          <span class="brand-context">Rapport terrain</span>
+          <span class="brand-context">Rapport travaux</span>
         </div>
         <div class="topbar-actions">
           <span id="saveState" class="save-state" aria-live="polite">Brouillon local</span>
@@ -25,21 +25,13 @@
       </header>
 
       <main class="app-main no-print">
-        <section class="hero-card">
-          <div class="hero-copy">
-            <p class="eyebrow">AINM · Travaux signalisation</p>
-            <h1>Rapport journalier</h1>
-            <p id="heroSubtitle" class="muted">Prépare le rapport terrain de la séance.</p>
-          </div>
-          <img class="hero-logo" src="assets/ainm-infrapole-paris-sud-est.jpg" alt="AINM Infrapôle Paris Sud Est" />
-          <div class="hero-kpis">
-            <div class="kpi">
-              <span>Production</span>
-              <strong id="taskCount">0</strong>
-            </div>
-            <div class="kpi">
-              <span id="secondaryKpiLabel">Rapport</span>
-              <strong id="secondaryKpiValue">Terrain</strong>
+        <section class="hero-card hero-card-compact">
+          <div class="hero-brand-lockup">
+            <img class="hero-logo" src="assets/ainm-infrapole-paris-sud-est.jpg" alt="AINM Infrapôle Paris Sud Est" />
+            <div class="hero-copy">
+              <p class="eyebrow">AINM travaux</p>
+              <h1>Rapport journalier</h1>
+              <p class="hero-brandline">AINM travaux signalisation</p>
             </div>
           </div>
         </section>
@@ -47,7 +39,7 @@
         <nav class="stepper" aria-label="Étapes du rapport">
           <button class="step active" data-scroll-target="contextSection" type="button"><span>1</span>Contexte</button>
           <button class="step" data-scroll-target="productionSection" type="button"><span>2</span>Production</button>
-          <button class="step" data-scroll-target="traceabilitySection" type="button"><span>3</span>Traçabilité</button>
+          <button class="step" data-scroll-target="traceabilitySection" type="button"><span>3</span>Moyens &amp; horaires</button>
           <button class="step" data-scroll-target="archiveSection" type="button"><span>4</span>Archivage</button>
           <button class="step" data-scroll-target="reviewSection" type="button"><span>5</span>Contrôle</button>
         </nav>
@@ -66,42 +58,20 @@
           <div class="form-grid context-grid">
             <label class="field field-wide">
               <span>Opération / chantier</span>
-              <input id="operationInput" data-path="meta.operation" autocomplete="organization" placeholder="Ex. RCT AINM — Moret–Montargis" />
+              <input id="operationInput" data-path="meta.operation" autocomplete="organization" placeholder="Ex. RCT" />
             </label>
             <label class="field field-wide">
               <span>Lieu / secteur / ligne</span>
               <input id="locationInput" data-path="meta.location" placeholder="Ex. V1 et V2 — PK 80+050 à 80+340" />
             </label>
-            <label class="field">
-              <span>N° rapport</span>
-              <input id="reportNoInput" readonly aria-readonly="true" />
-            </label>
-            <label class="field">
-              <span>N° commande</span>
-              <input id="orderNoInput" data-path="meta.orderNo" placeholder="À renseigner" />
-            </label>
-            <label class="field field-wide">
-              <span>Entreprise principale</span>
-              <select id="enterpriseInput" data-path="meta.enterprise">
-                <option value="BOUYGUES ENERGIES & SERVICES / TSO SIGNALISATION">BOUYGUES ENERGIES & SERVICES / TSO SIGNALISATION</option>
-                <option value="SNCF">SNCF</option>
-                <option value="ATIF">ATIF</option>
-                <option value="SYSTRA">SYSTRA</option>
-                <option value="ETF">ETF</option>
-                <option value="LSDR">LSDR</option>
-                <option value="ETF SERVICE">ETF SERVICE</option>
-                <option value="TSO">TSO</option>
-                <option value="HP ELEC">HP ELEC</option>
-                <option value="TSO Signalisation">TSO Signalisation</option>
-                <option value="Bouygues">Bouygues</option>
-                <option value="TSO (LTV)">TSO (LTV)</option>
-                <option value="Autre">Autre</option>
-              </select>
-            </label>
-            <label id="enterpriseOtherField" class="field field-wide hidden">
-              <span>Autre entreprise</span>
-              <input id="enterpriseOtherInput" data-path="meta.enterpriseOther" autocomplete="organization" placeholder="Nom de l’entreprise" />
-            </label>
+            <section class="field field-wide participant-companies-field" aria-label="Entreprises intervenantes">
+              <span>Entreprises intervenantes</span>
+              <div id="participantCompanyPicker" class="company-multiselect"></div>
+              <div class="company-adder">
+                <input id="participantCompanyCustomInput" autocomplete="organization" placeholder="Ajouter une autre entreprise ou un prestataire" />
+                <button id="addParticipantCompanyButton" class="secondary-button" type="button">Ajouter</button>
+              </div>
+            </section>
             <label class="field">
               <span>Date</span>
               <input id="dateInput" data-path="meta.date" type="date" />
@@ -132,8 +102,10 @@
             </label>
           </div>
           <details class="optional-details context-options">
-            <summary>Compléments de rapport : météo, objectif et visas</summary>
+            <summary>Compléments de rapport</summary>
             <div class="form-grid">
+              <label class="field"><span>N° rapport</span><input id="reportNoInput" readonly aria-readonly="true" /></label>
+              <label class="field"><span>N° commande</span><input id="orderNoInput" data-path="meta.orderNo" placeholder="À renseigner ultérieurement" /></label>
               <label class="field">
                 <span>Temps</span>
                 <select id="weatherInput" data-path="meta.weather">
@@ -178,15 +150,16 @@
         <section id="traceabilitySection" class="two-column-grid">
           <section class="section-card compact-card">
             <div class="section-heading">
-              <div><p class="eyebrow">Ressources</p><h2>Personnel et intervenants</h2><p class="muted">Entreprise, SNCF ou prestataire sécurité.</p></div>
-              <button class="text-button" data-add-row="personnel" type="button">＋ Ajouter</button>
+              <div><p class="eyebrow">Ressources</p><h2>Personnel des entreprises</h2><p class="muted">Effectif affecté à l’opération, classé par entreprise.</p></div>
+              <button class="text-button" data-add-row="personnel" type="button">＋ Autre fonction</button>
             </div>
+            <div id="quickPersonnelRoster" class="quick-roster"></div>
             <div id="personnelList" class="data-list"></div>
           </section>
 
           <section class="section-card compact-card">
             <div class="section-heading">
-              <div><p class="eyebrow">Ressources</p><h2>Engins et mobiles travaux</h2><p class="muted">Rail-route, LAM, routier, chenillard et levage.</p></div>
+              <div><p class="eyebrow">Ressources</p><h2>Engins et mobiles travaux</h2></div>
               <button class="text-button" data-add-row="equipment" type="button">＋ Ajouter</button>
             </div>
             <div id="equipmentList" class="data-list"></div>
@@ -194,8 +167,8 @@
 
           <section class="section-card compact-card wide-on-tablet">
             <div class="section-heading">
-              <div><p class="eyebrow">Interceptions</p><h2>Possessions / consignations</h2></div>
-              <button class="text-button" data-add-row="possession" type="button">＋ Ajouter</button>
+              <div><p class="eyebrow">Horaires</p><h2>Interceptions et consignations</h2></div>
+              <button class="text-button" data-add-row="possession" type="button">＋ Nouvelle ligne</button>
             </div>
             <div id="possessionList" class="data-list"></div>
           </section>
@@ -218,9 +191,10 @@
 
           <section class="section-card compact-card">
             <div class="section-heading">
-              <div><p class="eyebrow">SNCF</p><h2>Moyens engagés</h2></div>
-              <button class="text-button" data-add-row="sncfMeans" type="button">＋ Ajouter</button>
+              <div><p class="eyebrow">SNCF</p><h2>Personnel SNCF affecté</h2></div>
+              <button class="text-button" data-add-row="sncfMeans" type="button">＋ Autre fonction</button>
             </div>
+            <div id="quickSncfRoster" class="quick-roster quick-sncf-roster"></div>
             <div id="sncfMeansList" class="data-list"></div>
           </section>
 
@@ -240,7 +214,7 @@
               <h2>Dossier complet de la séance</h2>
               <p class="muted">Les éléments saisis ici sont repris dans le rapport d’archivage, sans limite de pages.</p>
             </div>
-            <span class="status-chip neutral">Traçabilité renforcée</span>
+            <span class="status-chip neutral">Dossier de séance</span>
           </div>
           <div class="two-column-grid archive-grid">
             <section class="archive-subcard">
@@ -282,9 +256,17 @@
             <div class="signature-canvas-wrap"><canvas id="afterWorkSignatureCanvas" aria-label="Zone de signature après travaux"></canvas><p id="afterWorkSignatureStatus" class="muted">Signer au doigt dans la zone ci-dessus.</p></div>
             <button id="clearAfterWorkSignatureButton" class="text-button" type="button">Effacer la signature</button>
           </section>
+          <section class="company-visa-section" aria-label="Visas des entreprises intervenantes">
+            <div class="section-heading">
+              <div><p class="eyebrow">Visas entreprises</p><h3>Responsables présents à l’opération</h3><p class="muted">Un ou plusieurs visas par entreprise intervenante.</p></div>
+              <button id="addCompanyVisaButton" class="text-button" type="button">＋ Ajouter un visa</button>
+            </div>
+            <div id="companyVisaList" class="company-visa-list"></div>
+          </section>
           <div id="reviewChecks" class="review-checks"></div>
           <div class="review-actions">
             <button id="printButton" class="primary-button" type="button">Imprimer le rapport PDF</button>
+            <button id="handoffButton" class="secondary-button" type="button">Préparer une passation</button>
             <button id="exportButton" class="secondary-button" type="button">Exporter la saisie</button>
             <button id="shareButton" class="secondary-button" type="button">Partager</button>
           </div>
@@ -345,7 +327,7 @@
     <dialog id="rowDialog" class="dialog resource-dialog">
       <form method="dialog" id="rowForm">
         <header class="dialog-header">
-          <div><p class="eyebrow">Traçabilité</p><h2 id="rowDialogTitle">Ajouter</h2></div>
+          <div><p class="eyebrow">Saisie terrain</p><h2 id="rowDialogTitle">Ajouter</h2></div>
           <button class="icon-button" value="cancel" aria-label="Fermer" type="submit">×</button>
         </header>
         <div id="rowEditorPane"></div>
@@ -360,7 +342,8 @@
         </header>
         <div class="menu-stack">
           <button id="configurePricesButton" class="menu-button admin-finance hidden" type="button">Paramétrer les prix du chantier</button>
-          <button id="importButton" class="menu-button" type="button">Importer une saisie</button>
+          <button id="handoffMenuButton" class="menu-button" type="button">Préparer une passation</button>
+          <button id="importButton" class="menu-button" type="button">Importer une passation / saisie</button>
           <button id="saveSnapshotButton" class="menu-button" type="button">Sauvegarder un instantané</button>
           <button id="duplicateLastNightMenuButton" class="menu-button" type="button">Reprendre la dernière nuit</button>
         </div>
@@ -375,6 +358,35 @@
         </header>
         <p class="muted">Cette page est faite pour lever les ambiguïtés une seule fois par chantier. Les agents ne voient ensuite que les libellés terrain.</p>
         <div id="mappingPane"></div>
+      </form>
+    </dialog>
+
+    <dialog id="companyVisaDialog" class="dialog resource-dialog">
+      <form method="dialog" id="companyVisaForm">
+        <header class="dialog-header">
+          <div><p class="eyebrow">Visa entreprise</p><h2 id="companyVisaDialogTitle">Ajouter un visa</h2></div>
+          <button class="icon-button" value="cancel" aria-label="Fermer" type="submit">×</button>
+        </header>
+        <div id="companyVisaEditor"></div>
+      </form>
+    </dialog>
+
+    <dialog id="handoffDialog" class="dialog resource-dialog">
+      <form method="dialog" id="handoffForm">
+        <header class="dialog-header">
+          <div><p class="eyebrow">Passation hors ligne</p><h2>Transmettre la saisie</h2></div>
+          <button class="icon-button" value="cancel" aria-label="Fermer" type="submit">×</button>
+        </header>
+        <div class="resource-editor">
+          <p class="handoff-note">Le brouillon conserve le même numéro de rapport. Il est exporté puis partagé par le moyen habituel du téléphone (partage Android, messagerie, Bluetooth ou e-mail).</p>
+          <div class="resource-primary-grid">
+            <label class="field"><span>Votre nom</span><input id="handoffEditorName" autocomplete="name" placeholder="Ex. M. Dupont" /></label>
+            <label class="field"><span>Votre rôle</span><input id="handoffEditorRole" placeholder="Ex. RPTx, Adjoint S11, RSO" /></label>
+            <label class="field field-wide"><span>Destinataire / rôle attendu</span><input id="handoffRecipient" placeholder="Ex. Adjoint S11 — compléter la consignation" /></label>
+          </div>
+          <div id="handoffStatus" class="info-banner"></div>
+          <div class="dialog-actions"><button id="sendHandoffButton" type="button" class="primary-button">Exporter et partager la passation</button></div>
+        </div>
       </form>
     </dialog>
 
