@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#34464c" />
     <meta name="description" content="Rapport journalier travaux signalisation — AINM" />
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
+    <link rel="icon" href="icons/rapport-journalier-ainm.png" type="image/png" />
     <link rel="stylesheet" href="styles.css" />
     <title>Rapport journalier · AINM</title>
   </head>
@@ -14,6 +14,7 @@
     <div class="app-shell">
       <header class="topbar no-print">
         <div class="brand" aria-label="AINM Infrapôle Paris Sud Est">
+          <img class="brand-app-mark" src="icons/rapport-journalier-ainm.png" alt="" aria-hidden="true" />
           <img class="brand-logo" src="assets/ainm-infrapole-paris-sud-est.jpg" alt="AINM Infrapôle Paris Sud Est" />
           <span class="brand-context">Rapport travaux</span>
         </div>
@@ -137,6 +138,20 @@
           <div id="pricingContext" class="info-banner admin-finance hidden"></div>
         </section>
 
+        <section class="quick-actions-card" aria-label="Saisie rapide">
+          <div>
+            <p class="eyebrow">Saisie rapide</p>
+            <h2>Ajouter l’essentiel</h2>
+          </div>
+          <div class="quick-actions-grid">
+            <button id="quickAddTask" class="quick-action-button" type="button"><strong>＋ Prestation</strong><span>Travail réalisé</span></button>
+            <button class="quick-action-button" data-scroll-target="traceabilitySection" type="button"><strong>＋ Équipe</strong><span>Personnel entreprise</span></button>
+            <button class="quick-action-button" data-add-row="equipment" type="button"><strong>＋ Engin</strong><span>Mobile travaux</span></button>
+            <button class="quick-action-button" data-add-row="possession" type="button"><strong>＋ Horaires</strong><span>ITC / consignation</span></button>
+            <button class="quick-action-button" data-scroll-target="photoSection" type="button"><strong>📷 Photos</strong><span>Chantier et contrôles</span></button>
+          </div>
+        </section>
+
         <section id="productionSection" class="section-card">
           <div class="section-heading">
             <div>
@@ -157,11 +172,9 @@
         <section id="traceabilitySection" class="two-column-grid">
           <section class="section-card compact-card">
             <div class="section-heading">
-              <div><p class="eyebrow">Ressources</p><h2>Personnel des entreprises</h2><p class="muted">Effectif affecté à l’opération, classé par entreprise.</p></div>
-              <button class="text-button" data-add-row="personnel" type="button">＋ Autre fonction</button>
+              <div><p class="eyebrow">Ressources</p><h2>Personnel des entreprises</h2><p class="muted">Effectif affecté à l’opération, classé par entreprise. Ajouter ou retirer une fonction directement dans le tableau concerné.</p></div>
             </div>
             <div id="quickPersonnelRoster" class="quick-roster"></div>
-            <div id="personnelList" class="data-list"></div>
           </section>
 
           <section class="section-card compact-card">
@@ -176,7 +189,7 @@
           <section class="section-card compact-card wide-on-tablet">
             <div class="section-heading">
               <div><p class="eyebrow">Horaires</p><h2>Interceptions et consignations</h2></div>
-              <button class="text-button" data-add-row="possession" type="button">＋ Nouvelle ligne</button>
+              <button class="text-button" data-add-row="possession" type="button">＋ Ajouter une ligne</button>
             </div>
             <div id="possessionList" class="data-list"></div>
           </section>
@@ -200,7 +213,7 @@
           <section class="section-card compact-card">
             <div class="section-heading">
               <div><p class="eyebrow">SNCF</p><h2>Personnel SNCF affecté</h2></div>
-              <button class="text-button" data-add-row="sncfMeans" type="button">＋ Autre fonction</button>
+              <button class="text-button" data-add-row="sncfMeans" type="button">＋ Fonction</button>
             </div>
             <div id="quickSncfRoster" class="quick-roster quick-sncf-roster"></div>
             <div id="sncfMeansList" class="data-list"></div>
@@ -261,11 +274,6 @@
             <span id="reviewStatus" class="status-chip warning">Brouillon</span>
           </div>
           <div id="reviewChecks" class="review-checks"></div>
-          <section class="handoff-panel" aria-label="Passation distante du rapport">
-            <div class="handoff-panel-heading"><p class="eyebrow">Passation distante</p><h3>Transmettre le même rapport</h3><p class="muted">Le rapport, les signatures et les photos sont chiffrés puis transmis par lien sécurisé. Le destinataire ouvre ce lien, complète sa partie et transmet au suivant.</p></div>
-            <div id="handoffSummary" class="handoff-summary"></div>
-            <div class="handoff-panel-actions"><button id="handoffButton" class="secondary-button" type="button">Transmettre à distance</button><button id="remoteRefreshButton" class="text-button" type="button">Actualiser depuis le serveur</button><button id="importHandoffButton" class="text-button" type="button">Ouvrir un lien reçu</button></div>
-          </section>
           <section class="company-visa-section" aria-label="Visas des entreprises intervenantes">
             <div class="section-heading">
               <div><p class="eyebrow">Signatures finales</p><h3>Responsables des entreprises intervenantes</h3><p class="muted">Les responsables renseignés dans le contexte signent ici, en dernière étape du rapport.</p></div>
@@ -283,8 +291,7 @@
           </section>
           <div class="review-actions">
             <button id="printButton" class="primary-button" type="button">Imprimer le rapport PDF</button>
-            <button id="exportButton" class="secondary-button" type="button">Exporter la saisie</button>
-            <button id="shareButton" class="secondary-button" type="button">Partager</button>
+            <button id="exportButton" class="secondary-button" type="button">Sauvegarder la saisie</button>
           </div>
           <section id="adminPanel" class="admin-panel" aria-label="Espace administrateur">
             <div id="adminLockedPane" class="admin-access">
@@ -350,17 +357,35 @@
       </form>
     </dialog>
 
+    <dialog id="rosterRoleDialog" class="dialog resource-dialog">
+      <form method="dialog">
+        <header class="dialog-header">
+          <div><p class="eyebrow">Personnel entreprise</p><h2>Ajouter une fonction</h2></div>
+          <button class="icon-button" value="cancel" aria-label="Fermer" type="submit">×</button>
+        </header>
+        <div class="resource-editor">
+          <section class="resource-banner material-banner">
+            <span class="resource-symbol">+</span>
+            <div><strong id="rosterRoleCompanyName">Entreprise</strong><p id="rosterRoleCompanyType">Entreprise intervenante</p></div>
+          </section>
+          <label class="field"><span>Fonction à ajouter au tableau</span><select id="rosterRoleSelect"></select></label>
+          <label id="rosterRoleOtherField" class="field hidden"><span>Autre fonction</span><input id="rosterRoleOtherInput" placeholder="Préciser la fonction" /></label>
+          <p class="muted">La fonction est ajoutée à cette entreprise, puis l’effectif se règle directement avec − et +.</p>
+          <div class="dialog-actions"><button id="saveRosterRoleButton" type="button" class="primary-button">Ajouter au tableau</button></div>
+        </div>
+      </form>
+    </dialog>
+
     <dialog id="moreDialog" class="dialog menu-dialog">
       <form method="dialog">
         <header class="dialog-header">
-          <div><p class="eyebrow">Rapport</p><h2>Actions</h2></div>
+          <div><p class="eyebrow">Rapport</p><h2>Outils</h2></div>
           <button class="icon-button" value="cancel" aria-label="Fermer" type="submit">×</button>
         </header>
         <div class="menu-stack">
           <button id="configurePricesButton" class="menu-button admin-finance hidden" type="button">Paramétrer les prix du chantier</button>
-          <button id="handoffMenuButton" class="menu-button" type="button">Transmettre à distance</button>
-          <button id="importButton" class="menu-button" type="button">Importer une sauvegarde locale</button>
-          <button id="saveSnapshotButton" class="menu-button" type="button">Sauvegarder un instantané</button>
+          <button id="importButton" class="menu-button" type="button">Restaurer une sauvegarde locale</button>
+          <button id="saveSnapshotButton" class="menu-button" type="button">Conserver un instantané sur ce téléphone</button>
           <button id="duplicateLastNightMenuButton" class="menu-button" type="button">Reprendre la dernière nuit</button>
         </div>
       </form>
@@ -384,42 +409,6 @@
           <button class="icon-button" value="cancel" aria-label="Fermer" type="submit">×</button>
         </header>
         <div id="companyVisaEditor"></div>
-      </form>
-    </dialog>
-
-    <dialog id="handoffDialog" class="dialog resource-dialog">
-      <form method="dialog" id="handoffForm">
-        <header class="dialog-header">
-          <div><p class="eyebrow">Passation distante</p><h2>Transmettre la saisie</h2></div>
-          <button class="icon-button" value="cancel" aria-label="Fermer" type="submit">×</button>
-        </header>
-        <div class="resource-editor">
-          <p class="handoff-note">Le rapport conserve son numéro et sa révision. Il est chiffré sur le téléphone, synchronisé avec le serveur puis envoyé au suivant sous forme de lien : la distance ne change rien.</p>
-          <div class="resource-primary-grid">
-            <label class="field"><span>Votre nom</span><input id="handoffEditorName" autocomplete="name" placeholder="Ex. M. Dupont" /></label>
-            <label class="field"><span>Votre rôle</span><input id="handoffEditorRole" placeholder="Ex. RPTx, Adjoint S11, RSO" /></label>
-            <label class="field field-wide"><span>Personne suivante / partie à compléter</span><input id="handoffRecipient" placeholder="Ex. Adjoint S11 — compléter la consignation" /></label>
-            <label class="field field-wide"><span>Adresse du serveur de passation</span><input id="handoffRelayEndpoint" type="url" inputmode="url" autocomplete="url" placeholder="https://votre-relai.workers.dev" /></label>
-          </div>
-          <div id="handoffStatus" class="info-banner"></div>
-          <label class="field handoff-link-field"><span>Lien de passation</span><textarea id="handoffLinkOutput" class="hidden" rows="3" readonly aria-label="Lien de passation à envoyer"></textarea></label>
-          <div class="dialog-actions"><button id="sendHandoffButton" type="button" class="primary-button">Synchroniser et transmettre</button></div>
-        </div>
-      </form>
-    </dialog>
-
-    <dialog id="remoteReceiveDialog" class="dialog resource-dialog">
-      <form method="dialog" id="remoteReceiveForm">
-        <header class="dialog-header">
-          <div><p class="eyebrow">Passation distante</p><h2>Ouvrir un lien reçu</h2></div>
-          <button class="icon-button" value="cancel" aria-label="Fermer" type="submit">×</button>
-        </header>
-        <div class="resource-editor">
-          <p class="handoff-note">Coller ici le lien envoyé par le précédent intervenant. Le rapport est récupéré à distance sans perdre les saisies déjà réalisées.</p>
-          <label class="field"><span>Lien de passation</span><textarea id="remoteReceiveLinkInput" rows="5" placeholder="Coller le lien reçu ici"></textarea></label>
-          <div id="remoteReceiveStatus" class="info-banner"></div>
-          <div class="dialog-actions"><button id="receiveRemoteLinkButton" type="button" class="primary-button">Recevoir le rapport</button></div>
-        </div>
       </form>
     </dialog>
 

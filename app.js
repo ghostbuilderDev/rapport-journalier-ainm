@@ -168,6 +168,7 @@
       savedAt: new Date().toISOString(),
       meta: clone(state.meta),
       personnel: clone(state.personnel || []),
+      personnelRosters: clone(state.personnelRosters || {}),
       equipment: clone(state.equipment || []),
       sncfMeans: clone(state.sncfMeans || []),
     };
@@ -193,7 +194,7 @@
     const identity = allocateReportIdentity();
     return {
       schema: 1,
-      appVersion: 8.3,
+      appVersion: 8.5,
       updatedAt: new Date().toISOString(),
       reportSerial: identity.serial,
       reportUid: identity.uid,
@@ -224,6 +225,7 @@
       },
       tasks: [],
       personnel: [],
+      personnelRosters: {},
       equipment: [],
       possessions: [],
       anomalies: [],
@@ -234,10 +236,6 @@
       photos: [],
       afterWorkSignature: { name: "", role: "", signedAt: "", dataUrl: "" },
       companySignatures: [],
-      collaboration: {
-        revision: 1, currentEditor: "", currentRole: "", receivedAt: "", receivedFrom: "", receivedFromRole: "", handoffs: [],
-        remote: { enabled: false, endpoint: "", reportId: "", token: "", key: "", revision: 0, lastSyncedAt: "", lastError: "", conflictAt: "" },
-      },
       settings: { mappings: {}, admin: { pinHash: "", configuredAt: "", includeCommonCosts: false } },
     };
   };
@@ -263,15 +261,7 @@
     ["tasks", "personnel", "equipment", "possessions", "anomalies", "documents", "sncfMeans", "materials", "selfChecks", "photos"].forEach((key) => { if (!Array.isArray(state[key])) state[key] = []; });
     state.afterWorkSignature ||= { name: "", role: "", signedAt: "", dataUrl: "" };
     if (!Array.isArray(state.companySignatures)) state.companySignatures = [];
-    state.collaboration ||= { revision: 1, currentEditor: "", currentRole: "", receivedAt: "", receivedFrom: "", receivedFromRole: "", handoffs: [] };
-    if (!Array.isArray(state.collaboration.handoffs)) state.collaboration.handoffs = [];
-    state.collaboration.revision = Math.max(1, Math.floor(number(state.collaboration.revision)) || 1);
-    state.collaboration.remote ||= { enabled: false, endpoint: "", reportId: "", token: "", key: "", revision: 0, lastSyncedAt: "", lastError: "", conflictAt: "" };
-    ["endpoint", "reportId", "token", "key", "lastSyncedAt", "lastError", "conflictAt"].forEach((key) => {
-      if (typeof state.collaboration.remote[key] !== "string") state.collaboration.remote[key] = "";
-    });
-    state.collaboration.remote.enabled = Boolean(state.collaboration.remote.enabled);
-    state.collaboration.remote.revision = Math.max(0, Math.floor(number(state.collaboration.remote.revision)) || 0);
+    delete state.collaboration;
     ["location", "executionNotes", "nextWorks"].forEach((key) => { if (typeof state.meta[key] !== "string") state.meta[key] = ""; });
     if (!Array.isArray(state.meta.participatingCompanies)) {
       const legacyEnterprise = state.meta.enterprise === "Autre" ? state.meta.enterpriseOther : state.meta.enterprise;
@@ -284,12 +274,20 @@
       if (row.company !== "Autre") row.company = canonicalCompany(row.company);
     }));
     state.companySignatures.forEach((signature) => { signature.company = canonicalCompany(signature.company); });
+    if (!state.personnelRosters || Array.isArray(state.personnelRosters) || typeof state.personnelRosters !== "object") state.personnelRosters = {};
+    state.personnel.forEach((row) => {
+      if (row.role === "Autre" && String(row.roleOther || "").trim()) {
+        row.role = String(row.roleOther).trim();
+        row.roleOther = "";
+      }
+    });
     state.personnel = state.personnel.filter((row) => number(row.count) > 0);
     state.sncfMeans = state.sncfMeans.filter((row) => number(row.count) > 0);
-    state.appVersion = Math.max(8.3, Number(state.appVersion) || 0);
+    state.appVersion = Math.max(8.5, Number(state.appVersion) || 0);
     ["personnel", "sncfMeans"].forEach((key) => {
       state[key].forEach((row) => { row.role = canonicalSncfRole(row.role); });
     });
+    ensurePersonnelRosters();
     ensureCompanySignatureRecords();
     if (!state.reportSerial || !state.reportUid) {
       const identity = allocateReportIdentity();
@@ -303,6 +301,7 @@
   ensureState();
   let taskDraft = null;
   let rowDraft = null;
+  let rosterFunctionCompany = "";
   let catalogSearch = "";
   let catalogCategory = "Toutes";
   let selectedPhotoPhase = "avant";
@@ -310,10 +309,6 @@
   let companySignatureCanvasReady = false;
   let companySignatureResizeBound = false;
   let companyVisaDraft = null;
-  let remoteSyncTimer = null;
-  let remoteSyncInFlight = false;
-  let remoteSaveGuard = false;
-  let remoteReceiveInProgress = false;
   let adminLoginOpen = false;
   let adminUnlocked = (() => {
     try { return sessionStorage.getItem(adminSessionKey) === "1"; } catch (_) { return false; }
@@ -373,7 +368,6 @@
       target.textContent = label;
       window.setTimeout(() => { target.textContent = "Brouillon local"; }, 1200);
     }
-    if (!remoteSaveGuard) scheduleRemoteSync();
     return true;
   }
 
@@ -650,14 +644,16 @@
     }
     selected.push(value);
     state.meta.participatingCompanies = selected;
+    ensurePersonnelRosters();
     syncPrimaryEnterprise();
-    save("Entreprise intervenante ajoutée");
+    save("Entreprise intervenante et tableau d’effectif ajoutés");
     refresh({ inputs: true });
   }
 
   function removeParticipantCompany(company) {
+    const targetCompany = canonicalCompany(company);
     const selected = participatingCompanyNames();
-    const index = selected.indexOf(canonicalCompany(company));
+    const index = selected.indexOf(targetCompany);
     if (index >= 0) {
       if (selected.length === 1) {
         showToast("Conserver au moins une entreprise intervenante.", "warning");
@@ -666,8 +662,10 @@
       selected.splice(index, 1);
     }
     state.meta.participatingCompanies = selected;
+    state.personnel = state.personnel.filter((row) => companyName(row) !== targetCompany);
+    delete state.personnelRosters?.[targetCompany];
     syncPrimaryEnterprise();
-    save("Entreprises intervenantes mises à jour");
+    save("Entreprise et effectif associés retirés");
     refresh({ inputs: true });
   }
 
@@ -763,7 +761,58 @@
 
   function isSafetyProvider(company) {
     const value = normalise(company);
-    return value.includes("etf service") || value.includes("sentinelles du rail") || value.includes("lsdr");
+    return value.includes("etf service") || value.includes("sentinelles du rail");
+  }
+
+  function uniqueRosterRoles(roles) {
+    return [...new Set(roles.map((role) => String(role || "").trim()).filter((role) => role && role !== "Fonction à préciser"))];
+  }
+
+  function rosterDefaultsForCompany(company) {
+    return isSafetyProvider(company) ? QUICK_SAFETY_ROLES : QUICK_COMPANY_ROLES;
+  }
+
+  function ensurePersonnelRoster(company, team = "") {
+    const name = canonicalCompany(company);
+    if (!name || name === "SNCF") return { team: "", roles: [] };
+    state.personnelRosters ||= {};
+    const existing = state.personnelRosters[name];
+    const rowsForCompany = state.personnel.filter((row) => companyName(row) === name);
+    const inferredTeam = team || existing?.team || rowsForCompany.find((row) => row.team)?.team || (isSafetyProvider(name) ? "Prestataire sécurité" : "Entreprise travaux");
+    const existingRoles = rowsForCompany.map(roleName);
+    state.personnelRosters[name] = {
+      team: inferredTeam,
+      roles: uniqueRosterRoles([...(Array.isArray(existing?.roles) ? existing.roles : rosterDefaultsForCompany(name)), ...existingRoles]),
+    };
+    return state.personnelRosters[name];
+  }
+
+  function ensurePersonnelRosters() {
+    state.personnelRosters ||= {};
+    const activeCompanies = participatingCompanyNames().filter((company) => company && company !== "SNCF");
+    activeCompanies.forEach((company) => ensurePersonnelRoster(company));
+    Object.keys(state.personnelRosters).forEach((company) => {
+      if (!activeCompanies.includes(canonicalCompany(company))) delete state.personnelRosters[company];
+    });
+  }
+
+  async function removePersonnelRosterRole(company, role) {
+    const roster = ensurePersonnelRoster(company);
+    const rows = state.personnel.filter((row) => companyName(row) === canonicalCompany(company) && roleName(row) === role);
+    const count = rows.reduce((total, row) => total + number(row.count), 0);
+    if (count > 0) {
+      const accepted = await askConfirm({
+        title: "Retirer cette fonction",
+        message: `Retirer « ${role} » et ${displayNumber(count, 0)} personne(s) de ${company} du rapport ?`,
+        confirmLabel: "Retirer",
+        danger: true,
+      });
+      if (!accepted) return;
+    }
+    roster.roles = roster.roles.filter((item) => item !== role);
+    if (rows.length) state.personnel = state.personnel.filter((row) => !rows.some((item) => item.id === row.id));
+    save("Fonction retirée du tableau entreprise");
+    refresh();
   }
 
   function roleCounter(rows, role, company = "", team = "") {
@@ -804,19 +853,41 @@
     refresh();
   }
 
+  function toggleRosterOtherRole() {
+    const isOther = editorValue("rosterRoleSelect") === "Autre";
+    $("#rosterRoleOtherField")?.classList.toggle("hidden", !isOther);
+    if (!isOther) $("#rosterRoleOtherInput").value = "";
+  }
+
   function openPersonnelForCompany(company) {
-    const safety = isSafetyProvider(company);
-    openRowDialog("personnel", {
-      id: uid(),
-      team: safety ? "Prestataire sécurité" : "Entreprise travaux",
-      company,
-      companyOther: "",
-      role: "",
-      roleOther: "",
-      count: 1,
-      lead: "",
-      observation: "",
-    });
+    const roster = ensurePersonnelRoster(company);
+    rosterFunctionCompany = canonicalCompany(company);
+    $("#rosterRoleCompanyName").textContent = rosterFunctionCompany;
+    $("#rosterRoleCompanyType").textContent = roster.team || "Entreprise intervenante";
+    $("#rosterRoleSelect").innerHTML = selectOptions(PERSONNEL_ROLES[roster.team] || ["Autre"], "", "Choisir une fonction");
+    $("#rosterRoleOtherInput").value = "";
+    toggleRosterOtherRole();
+    $("#rosterRoleDialog").showModal();
+  }
+
+  function addPersonnelRosterRole() {
+    if (!rosterFunctionCompany) return;
+    const selected = editorValue("rosterRoleSelect");
+    const role = selected === "Autre" ? editorValue("rosterRoleOtherInput") : selected;
+    if (!role) {
+      showToast("Choisir ou préciser une fonction.", "warning");
+      return;
+    }
+    const roster = ensurePersonnelRoster(rosterFunctionCompany);
+    if (roster.roles.includes(role)) {
+      showToast("Cette fonction est déjà présente dans le tableau.", "warning");
+      return;
+    }
+    roster.roles.push(role);
+    save("Fonction ajoutée au tableau entreprise");
+    $("#rosterRoleDialog").close();
+    rosterFunctionCompany = "";
+    refresh();
   }
 
   function openSncfRoleEditor() {
@@ -826,20 +897,21 @@
   function renderQuickPersonnelRoster() {
     const target = $("#quickPersonnelRoster");
     if (!target) return;
-    const companies = participatingCompanyNames();
+    ensurePersonnelRosters();
+    const companies = participatingCompanyNames().filter((company) => company !== "SNCF");
     if (!companies.length) {
       target.innerHTML = `<p class="empty-inline">Sélectionner d’abord les entreprises intervenantes.</p>`;
       return;
     }
     target.innerHTML = companies.map((company) => {
-      const safety = isSafetyProvider(company);
-      const team = safety ? "Prestataire sécurité" : "Entreprise travaux";
-      const roles = safety ? QUICK_SAFETY_ROLES : QUICK_COMPANY_ROLES;
-      return `<section class="roster-company"><header><div class="roster-header-main"><strong>${escapeHtml(company)}</strong><span>${safety ? "Prestataire sécurité" : "Entreprise travaux"}</span></div><button type="button" class="roster-add-function" data-add-personnel-company="${escapeHtml(company)}">＋ Fonction</button></header><div class="roster-role-grid">${roles.map((role) => {
+      const roster = ensurePersonnelRoster(company);
+      const team = roster.team;
+      const roles = roster.roles;
+      return `<section class="roster-company"><header><div class="roster-header-main"><strong>${escapeHtml(company)}</strong><span>${escapeHtml(team || "Entreprise intervenante")}</span></div><button type="button" class="roster-add-function" data-add-personnel-company="${escapeHtml(company)}">＋ Fonction</button></header>${roles.length ? `<div class="roster-role-grid">${roles.map((role) => {
         const count = roleCounter(state.personnel, role, company, team);
         const attributes = `data-quick-personnel-company="${escapeHtml(company)}" data-quick-personnel-role="${escapeHtml(role)}" data-quick-personnel-team="${escapeHtml(team)}"`;
-        return `<div class="roster-role"><span>${escapeHtml(role)}</span><div class="roster-role-actions"><div class="counter-control"><button type="button" aria-label="Retirer ${escapeHtml(role)}" ${attributes} data-counter-delta="-1">−</button><strong>${displayNumber(count, 0)}</strong><button type="button" aria-label="Ajouter ${escapeHtml(role)}" ${attributes} data-counter-delta="1">+</button></div>${count ? `<button type="button" class="roster-edit-button" ${attributes} data-edit-quick-personnel>Modifier</button><button type="button" class="roster-remove-button" aria-label="Retirer entièrement ${escapeHtml(role)}" ${attributes} data-clear-quick-personnel>×</button>` : ""}</div></div>`;
-      }).join("")}</div></section>`;
+        return `<div class="roster-role"><span>${escapeHtml(role)}</span><div class="roster-role-actions"><div class="counter-control"><button type="button" aria-label="Retirer une personne : ${escapeHtml(role)}" ${attributes} data-counter-delta="-1">−</button><strong>${displayNumber(count, 0)}</strong><button type="button" aria-label="Ajouter une personne : ${escapeHtml(role)}" ${attributes} data-counter-delta="1">+</button></div>${count ? `<button type="button" class="roster-edit-button" ${attributes} data-edit-quick-personnel>Modifier</button>` : ""}<button type="button" class="roster-remove-button" title="Retirer la fonction du tableau" aria-label="Retirer la fonction ${escapeHtml(role)}" ${attributes} data-remove-quick-personnel>×</button></div></div>`;
+      }).join("")}</div>` : `<p class="roster-empty">Aucune fonction dans ce tableau. Utiliser « + Fonction » pour la créer.</p>`}</section>`;
     }).join("");
   }
 
@@ -1155,6 +1227,11 @@
   function renderDataList(key) {
     const target = $(`#${key}List`);
     const config = rowConfig[key];
+    if (!target || !config) return;
+    if (key === "personnel") {
+      target.innerHTML = "";
+      return;
+    }
     const rows = state[key] || [];
     if (key === "possession") {
       target.innerHTML = rows.length ? `<div class="possession-table-wrap"><table class="possession-table"><thead><tr><th>Type / voie</th><th>Prévue</th><th>Accordée</th><th>ARF / réelle</th><th>Intervention</th><th>ARF</th><th></th></tr></thead><tbody>${rows.map((row) => `<tr><td><strong>${escapeHtml(row.kind || "Interception / consignation")}</strong><br>${escapeHtml([row.voie && `Voie ${row.voie}`, row.zone].filter(Boolean).join(" · ") || "—")}</td><td>${escapeHtml(`${row.plannedStart || "—"} → ${row.plannedEnd || "—"}`)}</td><td>${escapeHtml(`${row.agreedStart || "—"} → ${row.agreedEnd || "—"}`)}</td><td>${escapeHtml(`${row.actualStart || "—"} → ${row.actualEnd || "—"}`)}</td><td>${escapeHtml(`${row.interventionStart || "—"} → ${row.interventionEnd || "—"}`)}</td><td>${row.arfStartPhoto ? "Début ✓" : "Début —"}<br>${row.arfEndPhoto ? "Fin ✓" : "Fin —"}</td><td class="table-actions"><button class="mini-button" type="button" data-edit-row="possession:${row.id}">Modifier</button><button class="mini-button danger" type="button" data-delete-row="possession:${row.id}">Supprimer</button></td></tr>`).join("")}</tbody></table></div>` : `<p class="empty-inline">Aucune interception ou consignation saisie.</p>`;
@@ -1568,27 +1645,6 @@
     return checks;
   }
 
-  function renderHandoffPanel() {
-    const target = $("#handoffSummary");
-    if (!target) return;
-    const collaboration = state.collaboration || {};
-    const remote = collaboration.remote || {};
-    const latest = (collaboration.handoffs || [])[0];
-    const revision = Math.max(1, number(collaboration.revision) || 1);
-    const received = collaboration.receivedAt
-      ? `Reçue${collaboration.receivedFrom ? ` de ${collaboration.receivedFrom}${collaboration.receivedFromRole ? ` (${collaboration.receivedFromRole})` : ""}` : ""} le ${formatDateTime(collaboration.receivedAt)}.`
-      : "Brouillon conservé sur cet appareil.";
-    const latestText = latest
-      ? `Dernier envoi : ${[latest.editor, latest.role].filter(Boolean).join(" · ") || "rédacteur à préciser"}${latest.recipient ? ` → ${latest.recipient}` : ""} · révision ${latest.revision || revision} · ${formatDateTime(latest.sentAt)}.`
-      : "Aucune passation envoyée pour le moment.";
-    const relay = hasRemoteSession(remote)
-      ? remote.conflictAt
-        ? `Conflit détecté le ${formatDateTime(remote.conflictAt)} : actualiser depuis le serveur avant toute nouvelle transmission.`
-        : `Relais distant actif · version serveur ${Math.max(0, number(remote.revision))}${remote.lastSyncedAt ? ` · synchronisée le ${formatDateTime(remote.lastSyncedAt)}` : " · en attente de première synchronisation"}.`
-      : "Relais distant non configuré : renseigner son adresse lors de la première transmission.";
-    target.innerHTML = `<strong>${escapeHtml(state.meta.reportNo || "Rapport en cours")} · révision ${escapeHtml(revision)}</strong><span>${escapeHtml(relay)}</span><span>${escapeHtml(latestText)}</span><small>${escapeHtml(received)}</small>`;
-  }
-
   function renderReview() {
     const checks = validation();
     const okay = checks.every((check) => check.ok);
@@ -1596,7 +1652,6 @@
     const status = $("#reviewStatus");
     status.className = `status-chip ${okay ? "success" : "warning"}`;
     status.textContent = okay ? "Prêt à éditer" : "Brouillon";
-    renderHandoffPanel();
     renderAdminPanel();
   }
 
@@ -1811,6 +1866,23 @@
     const config = rowConfig[rowDraft.key];
     if (config.read) Object.assign(rowDraft.row, config.read());
     else config.fields.forEach(([name]) => { rowDraft.row[name] = $(`#row_${name}`).value.trim(); });
+    if (rowDraft.key === "personnel") {
+      const company = companyName(rowDraft.row);
+      const role = roleName(rowDraft.row);
+      if (rowDraft.row.role === "Autre" && role !== "Fonction à préciser") {
+        rowDraft.row.role = role;
+        rowDraft.row.roleOther = "";
+      }
+      if (company && company !== "Autre entreprise" && company !== "SNCF") {
+        if (!participatingCompanyNames().includes(company)) {
+          state.meta.participatingCompanies.push(company);
+          syncPrimaryEnterprise();
+        }
+        const roster = ensurePersonnelRoster(company, rowDraft.row.team);
+        roster.team = rowDraft.row.team || roster.team;
+        if (role && role !== "Fonction à préciser") roster.roles = uniqueRosterRoles([...roster.roles, role]);
+      }
+    }
     const capture = async (inputIds, property, label) => {
       const file = inputIds.flatMap((inputId) => [...($(`#${inputId}`)?.files || [])])[0];
       if (!file) return;
@@ -2209,438 +2281,23 @@
     window.setTimeout(() => URL.revokeObjectURL(url), 1200);
   }
 
-  async function exportState(share = false, { handoff = false } = {}) {
+  function exportState() {
     const baseName = (state.meta.reportNo || "brouillon").replace(/[^a-zA-Z0-9_-]+/g, "-");
-    const filename = `${handoff ? "passation-" : "rapport-journalier-"}${baseName}${handoff ? `-r${state.collaboration?.revision || 1}` : ""}.json`;
+    const filename = `rapport-journalier-${baseName}.json`;
     const exportable = clone(state);
     exportable.transfer = {
-      format: "AINM-RJ-PASSATION",
+      format: "AINM-RJ-SAUVEGARDE-LOCALE",
       exportedAt: new Date().toISOString(),
-      handoff,
       reportUid: state.reportUid,
-      revision: state.collaboration?.revision || 1,
     };
-    // Les réglages administrateur et les éléments de valorisation ne circulent jamais
-    // dans une passation terrain, y compris si l'émetteur a ouvert l'espace admin.
+    // Les réglages administrateur et les éléments de valorisation ne sont jamais inclus
+    // dans la sauvegarde terrain.
     delete exportable.settings;
+    delete exportable.collaboration;
     exportable.tasks = exportable.tasks.map(({ billingCr, ...task }) => task);
     const file = new File([JSON.stringify(exportable, null, 2)], filename, { type: "application/json" });
-    let canShareFiles = false;
-    try {
-      canShareFiles = Boolean(share && navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] })));
-    } catch (_) { canShareFiles = false; }
-    if (canShareFiles) {
-      try {
-        await navigator.share({
-          title: handoff ? "Passation rapport journalier" : "Rapport journalier",
-          text: handoff ? `Passation · ${state.meta.reportNo || "rapport"} · révision ${state.collaboration?.revision || 1}` : (state.meta.operation || "Rapport journalier"),
-          files: [file],
-        });
-        return { shared: true, filename };
-      } catch (error) {
-        if (error?.name === "AbortError") return { cancelled: true, filename };
-        downloadExportFile(file);
-        return { downloaded: true, fallback: true, filename };
-      }
-    }
     downloadExportFile(file);
-    return { downloaded: true, filename };
-  }
-
-  const REMOTE_FRAGMENT_KEY = "ainm-rj-remote";
-  const REMOTE_MAX_PLAINTEXT_BYTES = 18 * 1024 * 1024;
-
-  function normaliseRelayEndpoint(value) {
-    try {
-      const url = new URL(String(value || "").trim());
-      const localHttp = url.protocol === "http:" && ["localhost", "127.0.0.1"].includes(url.hostname);
-      if (url.protocol !== "https:" && !localHttp) return "";
-      return `${url.origin}${url.pathname.replace(/\/+$/, "")}`;
-    } catch (_) {
-      return "";
-    }
-  }
-
-  function hasRemoteSession(remote = state.collaboration?.remote) {
-    return Boolean(remote?.enabled
-      && normaliseRelayEndpoint(remote.endpoint)
-      && /^[A-Za-z0-9_-]{16,80}$/.test(remote.reportId || "")
-      && /^[A-Za-z0-9_-]{20,120}$/.test(remote.token || "")
-      && /^[A-Za-z0-9_-]{20,120}$/.test(remote.key || ""));
-  }
-
-  function bytesToBase64Url(input) {
-    const bytes = input instanceof Uint8Array ? input : new Uint8Array(input);
-    let binary = "";
-    for (let index = 0; index < bytes.length; index += 0x8000) {
-      binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000));
-    }
-    return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
-  }
-
-  function base64UrlToBytes(value) {
-    const normalized = String(value || "").replace(/-/g, "+").replace(/_/g, "/");
-    const binary = atob(`${normalized}${"=".repeat((4 - (normalized.length % 4)) % 4)}`);
-    const bytes = new Uint8Array(binary.length);
-    for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
-    return bytes;
-  }
-
-  function createRemoteSecret(length = 32) {
-    if (!globalThis.crypto?.getRandomValues) throw new Error("Le navigateur ne propose pas le chiffrement requis pour la passation distante.");
-    const bytes = new Uint8Array(length);
-    globalThis.crypto.getRandomValues(bytes);
-    return bytesToBase64Url(bytes);
-  }
-
-  async function remoteCryptoKey(encoded, usages) {
-    if (!globalThis.crypto?.subtle) throw new Error("Le chiffrement n’est pas disponible dans ce navigateur.");
-    const raw = base64UrlToBytes(encoded);
-    if (raw.byteLength !== 32) throw new Error("La clé de passation est invalide.");
-    return globalThis.crypto.subtle.importKey("raw", raw, { name: "AES-GCM" }, false, usages);
-  }
-
-  function remoteSnapshot() {
-    const snapshot = clone(state);
-    delete snapshot.settings;
-    snapshot.tasks = (snapshot.tasks || []).map(({ billingCr, ...task }) => task);
-    snapshot.collaboration ||= {};
-    snapshot.collaboration.remote = {
-      enabled: true,
-      revision: Math.max(0, number(state.collaboration?.remote?.revision)),
-      lastSyncedAt: state.collaboration?.remote?.lastSyncedAt || "",
-    };
-    return snapshot;
-  }
-
-  async function encryptRemoteSnapshot(snapshot, key) {
-    const plain = new TextEncoder().encode(JSON.stringify(snapshot));
-    if (plain.byteLength > REMOTE_MAX_PLAINTEXT_BYTES) {
-      throw new Error("Le rapport est trop volumineux pour la passation distante. Réduire le nombre ou le poids des photos avant de transmettre.");
-    }
-    const iv = new Uint8Array(12);
-    globalThis.crypto.getRandomValues(iv);
-    const encrypted = await globalThis.crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, plain);
-    return { schema: "AINM-RJ-REMOTE-1", algorithm: "A256GCM", iv: bytesToBase64Url(iv), cipherText: bytesToBase64Url(new Uint8Array(encrypted)) };
-  }
-
-  async function decryptRemoteSnapshot(envelope, key) {
-    if (!envelope || envelope.schema !== "AINM-RJ-REMOTE-1" || !envelope.iv || !envelope.cipherText) throw new Error("Le contenu reçu n’est pas une passation AINM compatible.");
-    const decrypted = await globalThis.crypto.subtle.decrypt({ name: "AES-GCM", iv: base64UrlToBytes(envelope.iv) }, key, base64UrlToBytes(envelope.cipherText));
-    const report = JSON.parse(new TextDecoder().decode(decrypted));
-    if (report?.schema !== 1) throw new Error("Le contenu reçu n’est pas un rapport journalier valide.");
-    return report;
-  }
-
-  async function relayRequest(remote, method, body = null) {
-    const endpoint = normaliseRelayEndpoint(remote?.endpoint);
-    if (!endpoint) throw new Error("Adresse du serveur de passation invalide.");
-    const response = await fetch(`${endpoint}/reports/${encodeURIComponent(remote.reportId)}`, {
-      method,
-      cache: "no-store",
-      headers: { "Content-Type": "application/json", "X-AINM-Report-Token": remote.token },
-      body: body ? JSON.stringify(body) : undefined,
-    });
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      const error = new Error(payload?.message || payload?.error || `Le serveur a répondu ${response.status}.`);
-      error.status = response.status;
-      error.payload = payload;
-      throw error;
-    }
-    return payload;
-  }
-
-  function persistRemoteState(label) {
-    remoteSaveGuard = true;
-    const saved = save(label);
-    remoteSaveGuard = false;
-    renderHandoffPanel();
-    return saved;
-  }
-
-  function scheduleRemoteSync() {
-    const remote = state.collaboration?.remote;
-    if (!hasRemoteSession(remote) || remote.conflictAt || remoteSyncInFlight) return;
-    window.clearTimeout(remoteSyncTimer);
-    remoteSyncTimer = window.setTimeout(() => { void syncRemoteReport(); }, 2600);
-  }
-
-  async function syncRemoteReport({ announce = false } = {}) {
-    const remote = state.collaboration?.remote;
-    if (!hasRemoteSession(remote)) return { skipped: true };
-    if (remote.conflictAt) {
-      if (announce) showToast("Actualiser la version serveur avant une nouvelle transmission.", "warning");
-      return { conflict: true };
-    }
-    if (remoteSyncInFlight) return { pending: true };
-    if (navigator.onLine === false) {
-      remote.lastError = "Téléphone hors ligne";
-      persistRemoteState("Brouillon local · hors ligne");
-      if (announce) showToast("Téléphone hors ligne : le brouillon reste enregistré localement.", "warning");
-      return { offline: true };
-    }
-    remoteSyncInFlight = true;
-    window.clearTimeout(remoteSyncTimer);
-    try {
-      const session = clone(remote);
-      const key = await remoteCryptoKey(session.key, ["encrypt"]);
-      const payload = await encryptRemoteSnapshot(remoteSnapshot(), key);
-      const result = await relayRequest(session, "PUT", { baseRevision: Math.max(0, number(session.revision)), payload });
-      const current = state.collaboration?.remote;
-      if (current && current.reportId === session.reportId) {
-        current.revision = Math.max(1, number(result.revision));
-        current.lastSyncedAt = result.updatedAt || new Date().toISOString();
-        current.lastError = "";
-        current.conflictAt = "";
-        persistRemoteState(announce ? "Rapport synchronisé sur le serveur" : "Brouillon synchronisé");
-      }
-      if (announce) showToast("Rapport synchronisé : le lien peut être envoyé au suivant.", "success");
-      return { synced: true, revision: result.revision };
-    } catch (error) {
-      if (error?.status === 409) {
-        remote.conflictAt = new Date().toISOString();
-        remote.lastError = "Une version plus récente est disponible sur le serveur.";
-        persistRemoteState("Conflit de passation détecté");
-        showToast("Une version plus récente est sur le serveur. Actualiser avant de continuer.", "warning");
-        return { conflict: true };
-      }
-      remote.lastError = error?.message || "Synchronisation impossible";
-      persistRemoteState("Brouillon local · synchronisation à reprendre");
-      if (announce) showToast(`Transmission impossible : ${remote.lastError}`, "warning");
-      return { error };
-    } finally {
-      remoteSyncInFlight = false;
-    }
-  }
-
-  function createRemoteSession(endpoint) {
-    const remote = {
-      enabled: true,
-      endpoint: normaliseRelayEndpoint(endpoint),
-      reportId: createRemoteSecret(18),
-      token: createRemoteSecret(32),
-      key: createRemoteSecret(32),
-      revision: 0,
-      lastSyncedAt: "",
-      lastError: "",
-      conflictAt: "",
-    };
-    state.collaboration.remote = remote;
-    return remote;
-  }
-
-  function buildRemoteLink(remote = state.collaboration?.remote) {
-    if (!hasRemoteSession(remote)) throw new Error("La passation distante n’est pas encore configurée.");
-    const capability = { v: 1, e: normaliseRelayEndpoint(remote.endpoint), i: remote.reportId, t: remote.token, k: remote.key };
-    const encoded = bytesToBase64Url(new TextEncoder().encode(JSON.stringify(capability)));
-    return `${location.href.split("#")[0]}#${REMOTE_FRAGMENT_KEY}=${encodeURIComponent(encoded)}`;
-  }
-
-  function remoteSessionFromLink(link) {
-    const raw = String(link || "").trim();
-    let fragment = raw;
-    try {
-      if (!raw.startsWith("#")) fragment = new URL(raw, location.href).hash;
-    } catch (_) {
-      throw new Error("Le lien de passation est invalide.");
-    }
-    const encoded = new URLSearchParams(fragment.replace(/^#/, "")).get(REMOTE_FRAGMENT_KEY);
-    if (!encoded) throw new Error("Ce lien ne contient pas de passation distante AINM.");
-    let capability;
-    try { capability = JSON.parse(new TextDecoder().decode(base64UrlToBytes(decodeURIComponent(encoded)))); } catch (_) { throw new Error("Le lien de passation est illisible."); }
-    const remote = {
-      enabled: true,
-      endpoint: normaliseRelayEndpoint(capability?.e),
-      reportId: String(capability?.i || ""),
-      token: String(capability?.t || ""),
-      key: String(capability?.k || ""),
-      revision: 0,
-      lastSyncedAt: "",
-      lastError: "",
-      conflictAt: "",
-    };
-    if (!hasRemoteSession(remote)) throw new Error("Le lien de passation est incomplet ou invalide.");
-    return remote;
-  }
-
-  function displayHandoffLink(link) {
-    const output = $("#handoffLinkOutput");
-    if (!output) return;
-    output.value = link;
-    output.classList.remove("hidden");
-  }
-
-  async function shareRemoteLink(link) {
-    try {
-      if (navigator.share) {
-        await navigator.share({ title: "Passation · rapport journalier AINM", text: `Ouvrir le rapport ${state.meta.reportNo || "AINM"} puis compléter la partie demandée.`, url: link });
-        return { shared: true };
-      }
-    } catch (error) {
-      if (error?.name === "AbortError") return { cancelled: true };
-    }
-    try {
-      await navigator.clipboard?.writeText(link);
-      return { copied: true };
-    } catch (_) {
-      return { ready: true };
-    }
-  }
-
-  function applyRemoteReport(incoming, session, serverRevision, updatedAt) {
-    const currentSettings = clone(state.settings || {});
-    const sourceCollaboration = incoming.collaboration || {};
-    state = incoming;
-    delete state.transfer;
-    state.settings = currentSettings;
-    ensureSettings();
-    ensureState();
-    state.collaboration.remote = {
-      ...session,
-      enabled: true,
-      revision: Math.max(1, number(serverRevision)),
-      lastSyncedAt: updatedAt || new Date().toISOString(),
-      lastError: "",
-      conflictAt: "",
-    };
-    state.collaboration.receivedFrom = sourceCollaboration.currentEditor || "";
-    state.collaboration.receivedFromRole = sourceCollaboration.currentRole || "";
-    state.collaboration.currentEditor = "";
-    state.collaboration.currentRole = "";
-    state.collaboration.receivedAt = new Date().toISOString();
-    adminUnlocked = false;
-    adminLoginOpen = false;
-    try { sessionStorage.removeItem(adminSessionKey); } catch (_) { /* Session locale indisponible. */ }
-    persistRemoteState(`Passation distante reçue · révision ${state.collaboration.revision}`);
-    refresh({ inputs: true });
-  }
-
-  async function receiveRemoteLink(link, { promptForReplacement = true } = {}) {
-    if (remoteReceiveInProgress) return;
-    remoteReceiveInProgress = true;
-    const receiveButton = $("#receiveRemoteLinkButton");
-    if (receiveButton) receiveButton.disabled = true;
-    try {
-      const session = remoteSessionFromLink(link);
-      const result = await relayRequest(session, "GET");
-      const key = await remoteCryptoKey(session.key, ["decrypt"]);
-      const incoming = await decryptRemoteSnapshot(result.payload, key);
-      const incomingRevision = Math.max(1, number(incoming.collaboration?.revision) || 1);
-      const currentRevision = Math.max(1, number(state.collaboration?.revision) || 1);
-      const changesAnotherReport = incoming.reportUid && state.reportUid && incoming.reportUid !== state.reportUid && hasMeaningfulReportContent(state);
-      const olderThanCurrent = incoming.reportUid && incoming.reportUid === state.reportUid && incomingRevision < currentRevision;
-      if (promptForReplacement && (changesAnotherReport || olderThanCurrent)) {
-        const message = changesAnotherReport
-          ? "Cette passation concerne un autre rapport et remplacera le brouillon actuellement ouvert sur ce téléphone. Continuer ?"
-          : `La passation reçue est en révision ${incomingRevision}, alors que ce téléphone contient déjà la révision ${currentRevision}. Continuer remplacerait le brouillon local.`;
-        const accepted = await askConfirm({ title: "Recevoir la passation distante", message, confirmLabel: "Recevoir", danger: true });
-        if (!accepted) return;
-      }
-      applyRemoteReport(incoming, session, result.revision, result.updatedAt);
-      $("#remoteReceiveDialog")?.close();
-      showToast("Rapport reçu du serveur : vous pouvez compléter votre partie.", "success");
-    } catch (error) {
-      const message = error?.status === 404 ? "Cette passation n’est pas encore disponible sur le serveur." : (error?.message || "Réception distante impossible.");
-      const status = $("#remoteReceiveStatus");
-      if (status) status.textContent = message;
-      showToast(message, "warning");
-    } finally {
-      remoteReceiveInProgress = false;
-      if (receiveButton) receiveButton.disabled = false;
-    }
-  }
-
-  function openRemoteReceiveDialog() {
-    const input = $("#remoteReceiveLinkInput");
-    const status = $("#remoteReceiveStatus");
-    if (input) input.value = "";
-    if (status) status.textContent = "Coller le lien reçu. Son contenu reste chiffré pendant le transit.";
-    $("#remoteReceiveDialog")?.showModal();
-  }
-
-  async function refreshRemoteReport() {
-    const remote = state.collaboration?.remote;
-    if (!hasRemoteSession(remote)) {
-      showToast("Aucun serveur de passation n’est configuré sur ce téléphone.", "warning");
-      return;
-    }
-    const accepted = await askConfirm({ title: "Actualiser depuis le serveur", message: "La dernière version du serveur remplacera le brouillon ouvert sur ce téléphone. Les modifications locales non synchronisées seront conservées seulement dans le brouillon local actuel.", confirmLabel: "Actualiser" });
-    if (!accepted) return;
-    await receiveRemoteLink(buildRemoteLink(remote), { promptForReplacement: false });
-  }
-
-  async function consumeRemoteLinkFromLocation() {
-    if (!location.hash.includes(`${REMOTE_FRAGMENT_KEY}=`)) return;
-    const link = location.href;
-    try { history.replaceState(null, "", `${location.pathname}${location.search}`); } catch (_) { /* Sans incidence. */ }
-    await receiveRemoteLink(link);
-  }
-
-  function openHandoffDialog() {
-    const receivedOnThisDevice = Boolean(state.collaboration?.receivedAt);
-    const remote = state.collaboration?.remote || {};
-    $("#handoffEditorName").value = receivedOnThisDevice ? "" : (state.meta.reporter || state.collaboration?.currentEditor || "");
-    $("#handoffEditorRole").value = receivedOnThisDevice ? "" : (state.collaboration?.currentRole || "");
-    $("#handoffRecipient").value = "";
-    $("#handoffRelayEndpoint").value = remote.endpoint || "";
-    const output = $("#handoffLinkOutput");
-    if (output) { output.value = ""; output.classList.add("hidden"); }
-    $("#handoffStatus").textContent = hasRemoteSession(remote)
-      ? `${state.meta.reportNo || "Rapport"} · version serveur ${remote.revision || 0}. Le lien sécurisé peut être envoyé à distance au prochain intervenant.`
-      : "Saisir l’adresse du serveur de passation une seule fois sur ce premier téléphone. Elle sera ensuite portée par le lien sécurisé.";
-    $("#handoffDialog").showModal();
-  }
-
-  async function sendHandoff() {
-    const editor = editorValue("handoffEditorName");
-    const role = editorValue("handoffEditorRole");
-    const recipient = editorValue("handoffRecipient");
-    const endpoint = normaliseRelayEndpoint(editorValue("handoffRelayEndpoint") || state.collaboration?.remote?.endpoint);
-    if (!editor || !recipient) {
-      showToast("Renseigner votre nom et la personne ou l’étape suivante avant de transmettre.", "warning");
-      return;
-    }
-    if (!endpoint) {
-      showToast("Renseigner l’adresse HTTPS du serveur de passation.", "warning");
-      return;
-    }
-    const currentRemote = state.collaboration?.remote;
-    if (!hasRemoteSession(currentRemote) || normaliseRelayEndpoint(currentRemote.endpoint) !== endpoint) {
-      if (hasRemoteSession(currentRemote) && normaliseRelayEndpoint(currentRemote.endpoint) !== endpoint) {
-        const accepted = await askConfirm({ title: "Changer de serveur de passation", message: "Le rapport sera copié vers un nouveau serveur. Le précédent lien ne recevra plus les mises à jour suivantes.", confirmLabel: "Changer le serveur", danger: true });
-        if (!accepted) return;
-      }
-      try {
-        createRemoteSession(endpoint);
-      } catch (error) {
-        showToast(error?.message || "Le chiffrement requis pour la passation distante n’est pas disponible.", "warning");
-        return;
-      }
-    }
-    const remote = state.collaboration.remote;
-    state.collaboration.currentEditor = editor;
-    state.collaboration.currentRole = role;
-    state.collaboration.receivedAt = "";
-    state.collaboration.receivedFrom = "";
-    state.collaboration.receivedFromRole = "";
-    state.collaboration.revision = Math.max(1, number(state.collaboration.revision)) + 1;
-    state.collaboration.handoffs.unshift({ id: uid(), sentAt: new Date().toISOString(), editor, role, recipient, revision: state.collaboration.revision, mode: "distant" });
-    state.collaboration.handoffs = state.collaboration.handoffs.slice(0, 20);
-    if (!persistRemoteState(`Passation distante préparée · révision ${state.collaboration.revision}`)) return;
-    const sendButton = $("#sendHandoffButton");
-    if (sendButton) sendButton.disabled = true;
-    const outcome = await syncRemoteReport({ announce: true });
-    if (sendButton) sendButton.disabled = false;
-    if (!outcome.synced) return;
-    const link = buildRemoteLink(remote);
-    displayHandoffLink(link);
-    const shared = await shareRemoteLink(link);
-    $("#handoffStatus").textContent = shared.shared
-      ? "Lien envoyé : le destinataire ouvre l’application, reçoit le même rapport puis le complète."
-      : "Lien prêt à être envoyé. S’il ne s’ouvre pas automatiquement, le destinataire le colle dans « Ouvrir un lien reçu » de l’application.";
-    renderHandoffPanel();
-    showToast(shared.shared ? "Passation distante envoyée." : "Lien de passation prêt à copier et envoyer.", "success");
+    showToast("Sauvegarde locale téléchargée.", "success");
   }
 
   function startNewReport(source = state, { reuseResources = false } = {}) {
@@ -2672,6 +2329,7 @@
     });
     if (reuseResources) {
       state.personnel = clone(sourceCopy.personnel || []);
+      state.personnelRosters = clone(sourceCopy.personnelRosters || {});
       state.equipment = clone(sourceCopy.equipment || []);
       state.sncfMeans = clone(sourceCopy.sncfMeans || []);
     }
@@ -2749,6 +2407,7 @@
     }));
     $("#duplicateLastNightButton").addEventListener("click", duplicateLastNight);
     $("#openTaskCatalog").addEventListener("click", () => openTaskCatalog());
+    $("#quickAddTask")?.addEventListener("click", () => openTaskCatalog());
     $("#taskDialog").addEventListener("click", (event) => {
       const filter = event.target.closest("[data-catalog-category]");
       if (filter) { catalogCategory = filter.dataset.catalogCategory; renderTaskCatalog(); return; }
@@ -2805,6 +2464,9 @@
       }
       if (event.target.closest("#saveRowButton")) saveRow();
     });
+    $("#rosterRoleSelect")?.addEventListener("change", toggleRosterOtherRole);
+    $("#saveRosterRoleButton")?.addEventListener("click", addPersonnelRosterRole);
+    $("#rosterRoleDialog")?.addEventListener("close", () => { rosterFunctionCompany = ""; });
     $("#quickPersonnelRoster")?.addEventListener("click", async (event) => {
       const add = event.target.closest("[data-add-personnel-company]");
       if (add) {
@@ -2812,15 +2474,15 @@
         return;
       }
       const edit = event.target.closest("[data-edit-quick-personnel]");
-      const clear = event.target.closest("[data-clear-quick-personnel]");
-      if (edit || clear) {
-        const control = edit || clear;
+      const remove = event.target.closest("[data-remove-quick-personnel]");
+      if (edit || remove) {
+        const control = edit || remove;
         const criteria = { company: control.dataset.quickPersonnelCompany, role: control.dataset.quickPersonnelRole, team: control.dataset.quickPersonnelTeam };
         if (edit) {
           const row = roleRow("personnel", criteria);
           if (row) openRowDialog("personnel", row);
         } else {
-          await clearRoleCounter("personnel", criteria, `${control.dataset.quickPersonnelRole} · ${control.dataset.quickPersonnelCompany}`);
+          await removePersonnelRosterRole(control.dataset.quickPersonnelCompany, control.dataset.quickPersonnelRole);
         }
         return;
       }
@@ -2961,14 +2623,7 @@
     });
 
     $("#printButton").addEventListener("click", () => { renderPrintReport(); window.print(); });
-    $("#handoffButton")?.addEventListener("click", openHandoffDialog);
-    $("#handoffMenuButton")?.addEventListener("click", () => { $("#moreDialog").close(); openHandoffDialog(); });
-    $("#sendHandoffButton")?.addEventListener("click", () => { void sendHandoff(); });
-    $("#remoteRefreshButton")?.addEventListener("click", () => { void refreshRemoteReport(); });
-    $("#importHandoffButton")?.addEventListener("click", openRemoteReceiveDialog);
-    $("#receiveRemoteLinkButton")?.addEventListener("click", () => { void receiveRemoteLink(editorValue("remoteReceiveLinkInput")); });
-    $("#exportButton").addEventListener("click", () => { void exportState(false); });
-    $("#shareButton").addEventListener("click", () => { void exportState(true); });
+    $("#exportButton").addEventListener("click", exportState);
     $("#openAdminButton").addEventListener("click", openAdminAccess);
     $("#cancelAdminButton").addEventListener("click", closeAdminAccess);
     $("#confirmAdminButton").addEventListener("click", confirmAdminAccess);
@@ -3030,20 +2685,15 @@
       try {
         const parsed = JSON.parse(await file.text());
         if (parsed?.schema !== 1) throw new Error("format");
-        const incomingRevision = Math.max(1, number(parsed.collaboration?.revision) || 1);
-        const currentRevision = Math.max(1, number(state.collaboration?.revision) || 1);
         if (parsed.reportUid && state.reportUid && parsed.reportUid !== state.reportUid && hasMeaningfulReportContent(state)) {
-          const accepted = await askConfirm({ title: "Importer un autre rapport", message: "Cette passation concerne un autre numéro de rapport et remplacera le brouillon actuellement ouvert sur cet appareil. Continuer ?", confirmLabel: "Importer", danger: true });
-          if (!accepted) { event.target.value = ""; return; }
-        }
-        if (parsed.reportUid && parsed.reportUid === state.reportUid && incomingRevision < currentRevision) {
-          const accepted = await askConfirm({ title: "Révision plus ancienne", message: `Cette passation est en révision ${incomingRevision} alors que cet appareil contient déjà la révision ${currentRevision}. L’importation remplacerait la saisie locale. Continuer ?`, confirmLabel: "Importer quand même", danger: true });
+          const accepted = await askConfirm({ title: "Restaurer une autre sauvegarde", message: "Cette sauvegarde concerne un autre rapport et remplacera le brouillon actuellement ouvert sur cet appareil. Continuer ?", confirmLabel: "Restaurer", danger: true });
           if (!accepted) { event.target.value = ""; return; }
         }
         const currentSettings = clone(state.settings || {});
         const importedSettings = parsed.settings || {};
         state = parsed;
         delete state.transfer;
+        delete state.collaboration;
         state.settings = {
           ...currentSettings,
           ...importedSettings,
@@ -3052,17 +2702,10 @@
         };
         ensureSettings();
         ensureState();
-        state.collaboration.receivedFrom = parsed.collaboration?.currentEditor || "";
-        state.collaboration.receivedFromRole = parsed.collaboration?.currentRole || "";
-        // Le destinataire devient le prochain rédacteur : son identité n'est jamais
-        // préremplie avec celle de l'expéditeur lors de la passation suivante.
-        state.collaboration.currentEditor = "";
-        state.collaboration.currentRole = "";
-        state.collaboration.receivedAt = new Date().toISOString();
         adminUnlocked = false;
         adminLoginOpen = false;
         try { sessionStorage.removeItem(adminSessionKey); } catch (_) { /* Session locale indisponible. */ }
-        save(parsed.transfer?.handoff ? `Passation importée · révision ${state.collaboration.revision}` : "Saisie importée");
+        save("Sauvegarde locale restaurée");
         refresh({ inputs: true });
       } catch (_) { showToast("Ce fichier n’est pas une exportation compatible de rapport journalier.", "danger"); }
       event.target.value = "";
@@ -3084,7 +2727,6 @@
     setupSignatureCanvas();
     refresh();
     registerServiceWorker();
-    void consumeRemoteLinkFromLocation();
   }
 
   boot();

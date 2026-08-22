@@ -40,6 +40,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   border-bottom: 1px solid var(--line);
 }
 .brand { display: flex; align-items: center; gap: 10px; min-width: 0; font-weight: 750; font-size: 0.8rem; }
+.brand-app-mark { width: 34px; height: 34px; flex: 0 0 auto; border-radius: 9px; object-fit: contain; background: #fff; box-shadow: 0 1px 4px rgba(22, 58, 68, .14); }
 .brand-logo { width: 136px; height: 43px; object-fit: contain; object-position: left center; }
 .brand-context { padding-left: 10px; border-left: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
 .topbar-actions { display: flex; gap: 6px; align-items: center; }
@@ -116,6 +117,14 @@ h2 { margin-bottom: 0; font-size: 1.15rem; line-height: 1.2; }
 .quick-card { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-height: 67px; max-width: 100%; padding: 10px 11px; border: 1px solid #d9e1e4; border-radius: 10px; color: #26343b; background: #fbfcfc; font-size: .82rem; font-weight: 720; text-align: left; }
 .quick-card:hover { border-color: rgba(72, 175, 211, .65); background: #f1fbfe; }
 .quick-card .quick-category { color: var(--sncf); font-size: .69rem; font-weight: 850; text-transform: uppercase; letter-spacing: .04em; }
+.quick-actions-card { display: grid; gap: 11px; margin: 14px 0; padding: 14px; border: 1px solid #c9e1e8; border-radius: 14px; background: linear-gradient(135deg, #f2fbfd, #fff); }
+.quick-actions-card h2 { margin: 0; color: #294d58; font-size: 1rem; }
+.quick-actions-card .eyebrow { margin: 0 0 3px; color: var(--sncf); opacity: 1; }
+.quick-actions-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.quick-action-button { display: grid; gap: 4px; min-height: 62px; padding: 10px; border: 1px solid #cddde2; border-radius: 10px; color: #29434b; background: #fff; text-align: left; }
+.quick-action-button:hover { border-color: #48afd3; background: #f7fdff; }
+.quick-action-button strong { font-size: .79rem; }
+.quick-action-button span { color: #64757b; font-size: .68rem; line-height: 1.25; }
 .task-list { display: grid; gap: 10px; }
 .task-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
 .task-main { min-width: 0; }
@@ -274,6 +283,7 @@ h2 { margin-bottom: 0; font-size: 1.15rem; line-height: 1.2; }
 
 @media (max-width: 720px) {
   .topbar { height: 57px; }
+  .brand-app-mark { width: 30px; height: 30px; }
   .brand-logo { width: 112px; height: 38px; }
   .brand-context { display: none; }
   .topbar-actions { gap: 4px; }
@@ -288,6 +298,7 @@ h2 { margin-bottom: 0; font-size: 1.15rem; line-height: 1.2; }
   .section-heading { align-items: flex-start; }
   .section-heading > .primary-button { font-size: .8rem; padding: 10px; }
   .quick-catalog { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .quick-actions-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .catalog-options { grid-template-columns: 1fr; }
   .task-extra-grid { grid-template-columns: 1fr; }
   .resource-primary-grid, .possession-primary { grid-template-columns: 1fr 1fr; }
@@ -506,6 +517,7 @@ h2 { margin-bottom: 0; font-size: 1.15rem; line-height: 1.2; }
 .roster-add-function:hover { color: #fff; background: #2c8199; }
 .roster-role-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(184px, 1fr)); gap: 0; }
 .roster-role { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 7px; min-height: 51px; padding: 8px 10px; border-right: 1px solid #e0ecef; border-bottom: 1px solid #e0ecef; color: #34474e; font-size: .75rem; font-weight: 750; }
+.roster-empty { margin: 0; padding: 12px; color: #6a8088; font-size: .76rem; font-style: italic; }
 .roster-role-actions { display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
 .counter-control { display: inline-grid; grid-template-columns: 31px minmax(29px, auto) 31px; align-items: center; overflow: hidden; border: 1px solid #aacbd6; border-radius: 9px; background: #fff; }
 .counter-control button { width: 31px; height: 31px; border: 0; color: #1d5668; background: #eaf7fb; font-size: 1.15rem; line-height: 1; }
@@ -560,17 +572,6 @@ h2 { margin-bottom: 0; font-size: 1.15rem; line-height: 1.2; }
 .company-visa-card img { width: 100%; height: 52px; object-fit: contain; object-position: left center; }
 .visa-actions { display: flex; gap: 4px; }
 .company-visa-company-name { padding: 10px 11px; border: 1px solid #c9e0e7; border-radius: 10px; color: #284c57; background: #f5fbfd; font-size: .86rem; font-weight: 850; }
-.handoff-note { margin: 0; padding: 11px; border-left: 4px solid #48afd3; border-radius: 8px; color: #375862; background: #eaf8fc; font-size: .83rem; line-height: 1.4; }
-.handoff-panel { display: grid; gap: 11px; margin: 0 0 17px; padding: 15px; border: 1px solid #b9dfe9; border-radius: 13px; background: linear-gradient(135deg, #f1fbfe, #fff); }
-.handoff-panel-heading .eyebrow { margin-bottom: 4px; color: var(--sncf); opacity: 1; }
-.handoff-panel-heading h3 { margin: 0 0 5px; color: #294d58; font-size: 1rem; }
-.handoff-panel-heading .muted { margin: 0; font-size: .8rem; line-height: 1.4; }
-.handoff-summary { display: grid; gap: 3px; padding: 10px 11px; border: 1px solid #d0e4ea; border-radius: 9px; color: #47636d; background: #fff; font-size: .78rem; line-height: 1.35; }
-.handoff-summary strong { color: #1f5263; font-size: .83rem; }
-.handoff-summary small { color: #72858b; font-size: .71rem; }
-.handoff-panel-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.handoff-link-field { display: grid; gap: 5px; }
-.handoff-link-field textarea { width: 100%; min-height: 74px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .72rem; line-height: 1.35; }
 .data-list-caption { margin: -1px 0 2px; color: #62767e; font-size: .72rem; line-height: 1.35; }
 
 @media (max-width: 720px) {
@@ -588,8 +589,6 @@ h2 { margin-bottom: 0; font-size: 1.15rem; line-height: 1.2; }
   .roster-role-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .roster-role { grid-template-columns: 1fr; align-content: center; }
   .roster-role-actions { justify-content: flex-start; }
-  .handoff-panel-actions { display: grid; grid-template-columns: 1fr; }
-  .handoff-panel-actions .secondary-button, .handoff-panel-actions .text-button { width: 100%; }
   .time-matrix-head, .time-matrix label { grid-template-columns: minmax(100px, 1fr) minmax(70px, .8fr) minmax(70px, .8fr); gap: 6px; padding: 8px; }
   .arf-photo-grid { grid-template-columns: 1fr; }
   .company-visa-card { grid-template-columns: minmax(0, 1fr) auto; }
