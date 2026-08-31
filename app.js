@@ -3,7 +3,7 @@
   "use strict";
 
   const STORAGE_KEY = "ainm-rj-pwa-v1";
-  const APP_VERSION = "9.3";
+  const APP_VERSION = "9.4";
   const snapshotKey = "ainm-rj-pwa-last-snapshot";
   const adminSessionKey = "ainm-rj-pwa-admin-unlocked";
   const reportSequenceKey = "ainm-rj-pwa-report-serial-v2";
@@ -293,7 +293,7 @@
       materials: [],
       selfChecks: [],
       photos: [],
-      afterWorkSignature: { name: "", role: "Surveillant de travaux", signedAt: "", dataUrl: "" },
+      afterWorkSignature: { name: "", role: "Surveillant de travaux", signedAt: "", dataUrl: "", locked: false },
       companySignatures: [],
       settings: { mappings: {}, admin: { pinHash: "", configuredAt: "", includeCommonCosts: false } },
     };
@@ -319,7 +319,7 @@
     const previousAppVersion = Number(state.appVersion) || 0;
     state.meta ||= {};
     ["tasks", "personnel", "equipment", "possessions", "anomalies", "documents", "sncfMeans", "materials", "selfChecks", "photos"].forEach((key) => { if (!Array.isArray(state[key])) state[key] = []; });
-    state.afterWorkSignature ||= { name: "", role: "Surveillant de travaux", signedAt: "", dataUrl: "" };
+    state.afterWorkSignature ||= { name: "", role: "Surveillant de travaux", signedAt: "", dataUrl: "", locked: false };
     // Le représentant MOETx et le surveillant de travaux sont la même personne.
     // Les valeurs d'anciens brouillons sont reprises dans l'unique visa final.
     const legacyMoeRepresentative = String(state.meta.moeRepresentative || "").trim();
@@ -328,6 +328,7 @@
     if (!state.meta.reporter && state.afterWorkSignature.name) state.meta.reporter = state.afterWorkSignature.name;
     if (state.afterWorkSignature.name) state.meta.moeRepresentative = state.afterWorkSignature.name;
     if (!state.afterWorkSignature.role) state.afterWorkSignature.role = "Surveillant de travaux";
+    if (typeof state.afterWorkSignature.locked !== "boolean") state.afterWorkSignature.locked = Boolean(state.afterWorkSignature.dataUrl && state.afterWorkSignature.signedAt);
     if (!Array.isArray(state.companySignatures)) state.companySignatures = [];
     if (!state.sharepointArchive || typeof state.sharepointArchive !== "object") state.sharepointArchive = {};
     delete state.collaboration;
@@ -1564,18 +1565,22 @@
 
   function renderAfterWorkSignature() {
     const signature = state.afterWorkSignature || {};
+    const canvas = $("#afterWorkSignatureCanvas");
     const name = $("#afterWorkSignerName");
-    const role = $("#afterWorkSignerRole");
     if (name && document.activeElement !== name) name.value = signature.name || state.meta.reporter || "";
-    if (role && document.activeElement !== role) role.value = signature.role || "Surveillant de travaux";
     const status = $("#afterWorkSignatureStatus");
-    if (status) status.textContent = signature.signedAt && signature.dataUrl
-      ? `Signature enregistrée le ${formatDateTime(signature.signedAt)}${signature.name ? ` par ${signature.name}` : ""}.`
-      : "À signer — signer au doigt ou au stylet dans la zone ci-dessus, puis toucher Enregistrer.";
+    if (status) status.textContent = signature.locked && signature.dataUrl
+      ? "Signature enregistrée"
+      : (signature.dataUrl ? "Signature prête à enregistrer" : "À signer");
+    const wrap = canvas?.closest(".signature-canvas-wrap");
+    wrap?.classList.toggle("is-locked", Boolean(signature.locked && signature.dataUrl));
+    canvas?.setAttribute("aria-disabled", signature.locked && signature.dataUrl ? "true" : "false");
+    const saveButton = $("#saveAfterWorkSignatureButton");
+    if (saveButton) saveButton.textContent = signature.locked && signature.dataUrl ? "Signature enregistrée" : "Enregistrer";
     if (signatureCanvasReady) drawSignatureData(signature.dataUrl);
   }
 
-  function bindSignatureCapture(canvas, { onCapture }) {
+  function bindSignatureCapture(canvas, { onCapture, isLocked = () => false }) {
     if (!canvas || canvas.dataset.signatureBound === "true") return;
     let drawing = false;
     let pointerId = null;
@@ -1599,6 +1604,7 @@
       return drawingContext;
     };
     const begin = (clientX, clientY, nextPointerId = null) => {
+      if (isLocked()) return;
       drawing = true;
       canvas.dataset.drawing = "true";
       pointerId = nextPointerId;
@@ -1631,6 +1637,7 @@
 
     if ("PointerEvent" in window) {
       canvas.addEventListener("pointerdown", (event) => {
+        if (isLocked()) return;
         // Sur certains Android/WebViews, button vaut -1 pour un toucher : ne
         // filtrer que les clics souris secondaires.
         if (event.pointerType === "mouse" && event.button !== 0) return;
@@ -1657,6 +1664,7 @@
     } else {
       const touch = (event) => event.changedTouches?.[0] || event.touches?.[0];
       canvas.addEventListener("touchstart", (event) => {
+        if (isLocked()) return;
         const current = touch(event);
         if (!current) return;
         begin(current.clientX, current.clientY);
@@ -1670,7 +1678,7 @@
       }, { passive: false });
       canvas.addEventListener("touchend", (event) => { finish(); event.preventDefault(); }, { passive: false });
       canvas.addEventListener("touchcancel", (event) => { finish(); event.preventDefault(); }, { passive: false });
-      canvas.addEventListener("mousedown", (event) => { if (event.button === 0) begin(event.clientX, event.clientY); });
+      canvas.addEventListener("mousedown", (event) => { if (!isLocked() && event.button === 0) begin(event.clientX, event.clientY); });
       canvas.addEventListener("mousemove", (event) => { if (drawing) move(event.clientX, event.clientY); });
       window.addEventListener("mouseup", () => finish());
     }
@@ -1692,16 +1700,18 @@
       drawSignatureData(state.afterWorkSignature?.dataUrl || "");
     };
     bindSignatureCapture(canvas, {
+      isLocked: () => Boolean(state.afterWorkSignature?.locked && state.afterWorkSignature?.dataUrl),
       onCapture: (dataUrl) => {
+        if (state.afterWorkSignature.locked) return;
         state.afterWorkSignature.name ||= state.meta.reporter || "";
         state.afterWorkSignature.role ||= "Surveillant de travaux";
         state.meta.moeRepresentative = state.afterWorkSignature.name || state.meta.reporter || "";
         state.afterWorkSignature.dataUrl = dataUrl;
-        state.afterWorkSignature.signedAt = new Date().toISOString();
-        if (save("Visa du surveillant de travaux enregistré")) {
+        state.afterWorkSignature.signedAt = "";
+        if (save("Signature prête à enregistrer")) {
           renderAfterWorkSignature();
           renderPrintReport();
-          showToast("Signature du surveillant de travaux enregistrée.", "success");
+          showToast("Signature prête. Toucher Enregistrer pour la verrouiller.", "success");
         }
       },
     });
@@ -1784,7 +1794,7 @@
     target.innerHTML = companies.map((company) => {
       const signature = state.companySignatures.find((item) => item.company === company);
       const signed = Boolean(signature?.dataUrl);
-      return `<section class="company-visa-company ${signed ? "is-signed" : ""}"><header><strong>${escapeHtml(company)}</strong><button type="button" class="mini-button ${signed ? "signed" : ""}" data-edit-company-visa="${escapeHtml(signature.id)}">${signed ? "Modifier" : "Signer"}</button></header><article class="company-visa-card"><div><strong>${escapeHtml(signature.name || "Nom du responsable à renseigner dans le contexte")}</strong><span>${escapeHtml(signature.role || "Fonction à renseigner")}</span><small>${signature.signedAt && signed ? `Signé le ${escapeHtml(formatDateTime(signature.signedAt))}` : "À signer"}</small><span class="visa-status ${signed ? "signed" : "pending"}">${signed ? "✓ Signature enregistrée" : "À signer"}</span></div>${signed ? `<img src="${escapeHtml(signature.dataUrl)}" alt="Signature de ${escapeHtml(signature.name || company)}" />` : `<div class="company-visa-signature-empty">À signer</div>`}</article></section>`;
+      return `<section class="company-visa-company ${signed ? "is-signed" : ""}"><header><strong>${escapeHtml(company)}</strong><button type="button" class="mini-button ${signed ? "signed" : ""}" data-edit-company-visa="${escapeHtml(signature.id)}">${signed ? "Modifier" : "Signer"}</button></header><article class="company-visa-card" role="button" tabindex="0" data-edit-company-visa="${escapeHtml(signature.id)}"><div><strong>${escapeHtml(signature.name || "Nom du responsable à renseigner dans le contexte")}</strong><span>${escapeHtml(signature.role || "Fonction à renseigner")}</span><small>${signature.signedAt && signed ? `Signé le ${escapeHtml(formatDateTime(signature.signedAt))}` : "À signer"}</small><span class="visa-status ${signed ? "signed" : "pending"}">${signed ? "✓ Signature enregistrée" : "À signer"}</span></div>${signed ? `<img src="${escapeHtml(signature.dataUrl)}" alt="Signature de ${escapeHtml(signature.name || company)}" />` : `<div class="company-visa-signature-empty">À signer</div>`}</article></section>`;
     }).join("");
   }
 
@@ -3388,19 +3398,13 @@
       renderPrintReport();
       scheduleSignatureKeyboardDismissal(event.target);
     });
-    $("#afterWorkSignerRole").addEventListener("input", (event) => {
-      state.afterWorkSignature.role = event.target.value;
-      save();
-      renderAfterWorkSignature();
-      renderPrintReport();
-      scheduleSignatureKeyboardDismissal(event.target);
-    });
     $("#saveAfterWorkSignatureButton")?.addEventListener("click", () => {
       const signed = Boolean(state.afterWorkSignature.dataUrl);
       if (signed) state.afterWorkSignature.signedAt ||= new Date().toISOString();
       else state.afterWorkSignature.signedAt = "";
       state.afterWorkSignature.name ||= state.meta.reporter || "";
-      state.afterWorkSignature.role ||= "Surveillant de travaux";
+      state.afterWorkSignature.role = "Surveillant de travaux";
+      state.afterWorkSignature.locked = signed;
       state.meta.moeRepresentative = state.afterWorkSignature.name || state.meta.reporter || "";
       save(signed ? "Visa MOETx / surveillant enregistré" : "Visa MOETx / surveillant enregistré à signer");
       renderAfterWorkSignature();
@@ -3414,6 +3418,7 @@
       }
       state.afterWorkSignature.dataUrl = "";
       state.afterWorkSignature.signedAt = "";
+      state.afterWorkSignature.locked = false;
       renderAfterWorkSignature();
       renderPrintReport();
       showToast("Signature effacée. Toucher Enregistrer pour conserver la case À signer.", "warning");

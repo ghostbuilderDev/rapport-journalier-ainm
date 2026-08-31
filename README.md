@@ -1,6 +1,14 @@
-# Rapport journalier AINM — PWA terrain V9.3
+# Rapport journalier AINM — PWA terrain V9.4
 
 Application autonome, utilisable hors ligne, pour les rapports journaliers de travaux signalisation AINM.
+
+## Version V9.4
+
+- Toucher directement la **case de signature** d’une entreprise ouvre son visa ; le bouton reste disponible comme raccourci.
+- Le visa **MOETx / surveillant de travaux** ne demande plus qu’un seul nom. La fonction est conservée automatiquement comme « Surveillant de travaux » dans le rapport.
+- Après validation par **Enregistrer**, le tracé du visa MOETx / surveillant est verrouillé : un passage du doigt ne peut plus le modifier. Utiliser **Effacer la signature** pour le déverrouiller volontairement, puis enregistrer de nouveau.
+- Les informations explicatives inutiles sont retirées de l’écran de visa ; le statut reste simplement « À signer » ou « Signature enregistrée ».
+- Le cache PWA passe à V9.4.
 
 ## Version V9.3
 
@@ -95,10 +103,10 @@ Décompresser l’archive dans le dépôt puis exécuter :
 
 ```sh
 cd ~/projets
-unzip -o ~/storage/downloads/rapport-journalier-ainm-pwa-v9.3-enregistrement-numerotation.zip
+unzip -o ~/storage/downloads/rapport-journalier-ainm-pwa-v9.4-signatures-verrouillees.zip
 cd ~/projets/rapport-journalier-ainm-pwa
 git add -A
-git commit -m "Mise à jour V9.3 : enregistrement et numérotation"
+git commit -m "Mise à jour V9.4 : signatures verrouillées"
 git push
 ```
 

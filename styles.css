@@ -230,6 +230,8 @@ h2 { margin-bottom: 0; font-size: 1.15rem; line-height: 1.2; }
 .signature-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }
 .signature-canvas-wrap { overflow: hidden; border: 1px dashed #92bfce; border-radius: 11px; background: #fff; }
 #afterWorkSignatureCanvas, #companySignatureCanvas { display: block; width: 100%; height: 148px; touch-action: none; -webkit-user-select: none; user-select: none; cursor: crosshair; }
+.signature-canvas-wrap.is-locked { border-style: solid; border-color: #91cdae; background: #f7fffa; }
+.signature-canvas-wrap.is-locked canvas { pointer-events: none; touch-action: pan-y; cursor: default; }
 .signature-canvas-wrap .muted { padding: 6px 9px 9px; font-size: .75rem; }
 .signature-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .same-signer-note { display: grid; gap: 4px; padding: 11px 12px; border: 1px solid #c5e0e7; border-radius: 10px; color: #3d5961; background: #f4fbfd; font-size: .8rem; line-height: 1.42; }
@@ -632,6 +634,8 @@ h2 { margin-bottom: 0; font-size: 1.15rem; line-height: 1.2; }
 .company-visa-company.is-signed { border-color: #9ccfb4; background: linear-gradient(135deg, #f7fffa, #fff); }
 .company-visa-company > header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; color: #34515b; font-size: .83rem; }
 .company-visa-card { display: grid; grid-template-columns: minmax(0, 1fr) minmax(118px, .55fr); align-items: center; gap: 9px; padding: 8px 0; border-top: 1px solid #e4edef; }
+.company-visa-card[role="button"] { cursor: pointer; }
+.company-visa-card[role="button"]:focus-visible { outline: 3px solid #77bdcf; outline-offset: 3px; border-radius: 8px; }
 .company-visa-card strong, .company-visa-card span, .company-visa-card small { display: block; }
 .company-visa-card strong { color: #2a424a; font-size: .8rem; }
 .company-visa-card span, .company-visa-card small { margin-top: 2px; color: #667b83; font-size: .73rem; }

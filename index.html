@@ -19,7 +19,7 @@
             <img src="icons/rapport-journalier-ainm.png" alt="" aria-hidden="true" />
             <div><strong>AINM</strong><span>Travaux signalisation</span></div>
           </div>
-          <span class="startup-version"><span>Version</span><strong data-app-version>V9.1</strong></span>
+          <span class="startup-version"><span>Version</span><strong data-app-version>V9.4</strong></span>
         </div>
         <div class="startup-content">
           <p class="startup-kicker">Opérations · terrain · signalisation</p>
@@ -43,7 +43,7 @@
           <span class="brand-context">Rapport travaux</span>
         </div>
         <div class="topbar-actions">
-          <span class="app-version-badge" data-app-version aria-label="Version de l’application">V9.1</span>
+          <span class="app-version-badge" data-app-version aria-label="Version de l’application">V9.4</span>
           <span id="saveState" class="save-state" aria-live="polite">Brouillon local</span>
           <button class="icon-button" id="newReportButton" type="button" title="Nouveau rapport" aria-label="Nouveau rapport">＋</button>
           <button class="icon-button" id="moreButton" type="button" title="Actions" aria-label="Ouvrir les actions">•••</button>
@@ -301,17 +301,16 @@
           <div id="reviewChecks" class="review-checks"></div>
           <section class="company-visa-section" aria-label="Visas des entreprises intervenantes">
             <div class="section-heading">
-              <div><p class="eyebrow">Signatures finales</p><h3>Responsables des entreprises intervenantes</h3><p class="muted">Les responsables renseignés dans le contexte signent ici, en dernière étape du rapport.</p></div>
+              <div><p class="eyebrow">Signatures finales</p><h3>Responsables des entreprises intervenantes</h3></div>
             </div>
             <div id="companyVisaList" class="company-visa-list"></div>
           </section>
           <section class="after-work-signature" aria-label="Visa du représentant MOETx et du surveillant de travaux">
-            <div><p class="eyebrow">Visa final</p><h3>Visa représentant MOETx / surveillant de travaux</h3><p class="muted">Il s’agit du même visa. Le rédacteur signe une seule fois ; cette signature apparaît en bas du rapport PDF avec les visas des entreprises.</p></div>
+            <div><p class="eyebrow">Visa final</p><h3>Visa MOETx / surveillant de travaux</h3></div>
             <div class="signature-fields">
-              <label class="field"><span>Représentant MOETx / surveillant de travaux</span><input id="afterWorkSignerName" autocomplete="name" placeholder="Nom et prénom" /></label>
-              <label class="field"><span>Fonction</span><input id="afterWorkSignerRole" placeholder="Ex. Surveillant de travaux" /></label>
+              <label class="field"><span>Nom du responsable</span><input id="afterWorkSignerName" autocomplete="name" placeholder="Nom et prénom" /></label>
             </div>
-            <div class="signature-canvas-wrap"><canvas id="afterWorkSignatureCanvas" aria-label="Zone de signature du représentant MOETx et du surveillant de travaux"></canvas><p id="afterWorkSignatureStatus" class="muted">À signer — signer au doigt ou au stylet dans la zone ci-dessus.</p></div>
+            <div class="signature-canvas-wrap"><canvas id="afterWorkSignatureCanvas" aria-label="Zone de signature du représentant MOETx et du surveillant de travaux"></canvas><p id="afterWorkSignatureStatus" class="muted">À signer</p></div>
             <div class="signature-actions"><button id="saveAfterWorkSignatureButton" class="secondary-button" type="button">Enregistrer</button><button id="clearAfterWorkSignatureButton" class="text-button" type="button">Effacer la signature</button></div>
           </section>
           <div class="review-actions">
