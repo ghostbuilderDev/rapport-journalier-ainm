@@ -3,7 +3,7 @@
   "use strict";
 
   const STORAGE_KEY = "ainm-rj-pwa-v1";
-  const APP_VERSION = "8.9";
+  const APP_VERSION = "9.0";
   const snapshotKey = "ainm-rj-pwa-last-snapshot";
   const adminSessionKey = "ainm-rj-pwa-admin-unlocked";
   const reportSequenceKey = "ainm-rj-pwa-report-serial-v2";
@@ -83,9 +83,11 @@
   const SELFCHECK_TYPES = ["Contrôle visuel", "Contrôle de serrage", "Contrôle câblage", "Contrôle continuité / isolement", "Contrôle dimensionnel", "Contrôle sécurité", "Essai fonctionnel", "Autre"];
   const PHOTO_CONTEXT_OPTIONS = ["Avancement", "Anomalie", "Autocontrôle", "Sécurité", "Matériel", "Avant travaux", "Après travaux", "Autre"];
   const SNCF_MEANS_OPTIONS = ["RPTx", "CCH", "Adjoint S11", "Adjoint S6", "Agent d’activité", "Agent prestataire", "KV caténaire", "KVSE", "Surveillant caténaire", "Surveillant travaux SE", "Surveillant voie", "Agent RSO", "Agent signalisation", "Agent voie", "Agent SE", "Annonceur / ASP", "Agent lorry", "Autre"];
-  const SNCF_MEANS_PRESETS = ["RPTx", "Adjoint S11", "Adjoint S6", "KV caténaire", "KVSE", "Surveillant travaux SE", "Surveillant voie", "Agent RSO"];
-  const QUICK_COMPANY_ROLES = ["Chef de chantier", "Chef d’équipe", "Opérateur travaux", "Intérimaire"];
-  const QUICK_SAFETY_ROLES = ["Agent prestataire", "Sentinelle", "Annonceur", "Agent lorry"];
+  const SNCF_DEFAULT_ROLES = ["RPTx", "Adjoint S11"];
+  const QUICK_COMPANY_ROLES = ["Chef de chantier", "Opérateur travaux"];
+  const QUICK_SAFETY_ROLES = ["Agent prestataire", "Sentinelle"];
+  const LEGACY_QUICK_COMPANY_ROLES = ["Chef de chantier", "Chef d’équipe", "Opérateur travaux", "Intérimaire"];
+  const LEGACY_QUICK_SAFETY_ROLES = ["Agent prestataire", "Sentinelle", "Annonceur", "Agent lorry"];
   const QUICK_TEMPLATE_IDS = new Set([
     "pose-caniveau-pm-mm", "pose-caniveau-gm-tgm", "deroulage-240", "deroulage-95",
     "pose-intervalle-decharge", "depose-intervalle-decharge", "pose-ci-equilibrage", "depose-ci-equilibrage",
@@ -172,6 +174,7 @@
       personnelRosters: clone(state.personnelRosters || {}),
       equipment: clone(state.equipment || []),
       sncfMeans: clone(state.sncfMeans || []),
+      sncfRosterRoles: clone(state.sncfRosterRoles || []),
     };
     const history = readReportHistory().filter((item) => item.reportUid !== record.reportUid);
     history.unshift(record);
@@ -195,7 +198,7 @@
     const identity = allocateReportIdentity();
     return {
       schema: 1,
-      appVersion: 8.9,
+      appVersion: 9,
       updatedAt: new Date().toISOString(),
       reportSerial: identity.serial,
       reportUid: identity.uid,
@@ -232,6 +235,7 @@
       anomalies: [],
       documents: [],
       sncfMeans: [],
+      sncfRosterRoles: [...SNCF_DEFAULT_ROLES],
       materials: [],
       selfChecks: [],
       photos: [],
@@ -258,6 +262,7 @@
   };
   ensureSettings();
   const ensureState = () => {
+    const previousAppVersion = Number(state.appVersion) || 0;
     state.meta ||= {};
     ["tasks", "personnel", "equipment", "possessions", "anomalies", "documents", "sncfMeans", "materials", "selfChecks", "photos"].forEach((key) => { if (!Array.isArray(state[key])) state[key] = []; });
     state.afterWorkSignature ||= { name: "", role: "Surveillant de travaux", signedAt: "", dataUrl: "" };
@@ -288,11 +293,13 @@
     });
     state.personnel = state.personnel.filter((row) => number(row.count) > 0);
     state.sncfMeans = state.sncfMeans.filter((row) => number(row.count) > 0);
-    state.appVersion = Math.max(8.9, Number(state.appVersion) || 0);
     ["personnel", "sncfMeans"].forEach((key) => {
       state[key].forEach((row) => { row.role = canonicalSncfRole(row.role); });
     });
     ensurePersonnelRosters();
+    if (previousAppVersion < 9) trimLegacyRosterDefaults();
+    ensureSncfRosterRoles();
+    state.appVersion = Math.max(9, previousAppVersion);
     ensureCompanySignatureRecords();
     if (!state.reportSerial || !state.reportUid) {
       const identity = allocateReportIdentity();
@@ -829,6 +836,29 @@
     });
   }
 
+  function trimLegacyRosterDefaults() {
+    Object.entries(state.personnelRosters || {}).forEach(([company, roster]) => {
+      const legacyDefaults = isSafetyProvider(company) ? LEGACY_QUICK_SAFETY_ROLES : LEGACY_QUICK_COMPANY_ROLES;
+      const retainedDefaults = rosterDefaultsForCompany(company);
+      const activeRoles = state.personnel
+        .filter((row) => companyName(row) === canonicalCompany(company))
+        .map(roleName);
+      roster.roles = uniqueRosterRoles((roster.roles || []).filter((role) => (
+        !legacyDefaults.includes(role) || retainedDefaults.includes(role) || activeRoles.includes(role)
+      )));
+    });
+  }
+
+  function uniqueSncfRosterRoles(roles) {
+    return [...new Set(roles.map(canonicalSncfRole).map((role) => String(role || "").trim()).filter(Boolean))];
+  }
+
+  function ensureSncfRosterRoles() {
+    const existing = Array.isArray(state.sncfRosterRoles) ? state.sncfRosterRoles : SNCF_DEFAULT_ROLES;
+    const activeRoles = state.sncfMeans.map((row) => canonicalSncfRole(row.role));
+    state.sncfRosterRoles = uniqueSncfRosterRoles([...existing, ...activeRoles]);
+  }
+
   async function removePersonnelRosterRole(company, role) {
     const roster = ensurePersonnelRoster(company);
     const rows = state.personnel.filter((row) => companyName(row) === canonicalCompany(company) && roleName(row) === role);
@@ -886,6 +916,25 @@
     refresh();
   }
 
+  async function removeSncfRosterRole(role) {
+    const normalizedRole = canonicalSncfRole(role);
+    const rows = state.sncfMeans.filter((row) => canonicalSncfRole(row.role) === normalizedRole);
+    const count = rows.reduce((total, row) => total + number(row.count), 0);
+    if (count > 0) {
+      const accepted = await askConfirm({
+        title: "Retirer cette fonction SNCF",
+        message: `Retirer « ${normalizedRole} » et ${displayNumber(count, 0)} personne(s) du rapport ?`,
+        confirmLabel: "Retirer",
+        danger: true,
+      });
+      if (!accepted) return;
+    }
+    state.sncfRosterRoles = (state.sncfRosterRoles || []).filter((item) => canonicalSncfRole(item) !== normalizedRole);
+    if (rows.length) state.sncfMeans = state.sncfMeans.filter((row) => !rows.some((item) => item.id === row.id));
+    save("Fonction SNCF retirée du tableau");
+    refresh();
+  }
+
   function toggleRosterOtherRole() {
     const isOther = editorValue("rosterRoleSelect") === "Autre";
     $("#rosterRoleOtherField")?.classList.toggle("hidden", !isOther);
@@ -895,6 +944,8 @@
   function openPersonnelForCompany(company) {
     const roster = ensurePersonnelRoster(company);
     rosterFunctionCompany = canonicalCompany(company);
+    $("#rosterRoleDialogEyebrow").textContent = "Personnel entreprise";
+    $("#rosterRoleDialogTitle").textContent = "Ajouter une fonction";
     $("#rosterRoleCompanyName").textContent = rosterFunctionCompany;
     $("#rosterRoleCompanyType").textContent = roster.team || "Entreprise intervenante";
     $("#rosterRoleSelect").innerHTML = selectOptions(PERSONNEL_ROLES[roster.team] || ["Autre"], "", "Choisir une fonction");
@@ -911,6 +962,20 @@
       showToast("Choisir ou préciser une fonction.", "warning");
       return;
     }
+    if (rosterFunctionCompany === "SNCF") {
+      const normalizedRole = canonicalSncfRole(role);
+      ensureSncfRosterRoles();
+      if (state.sncfRosterRoles.includes(normalizedRole)) {
+        showToast("Cette fonction est déjà présente dans le tableau.", "warning");
+        return;
+      }
+      state.sncfRosterRoles.push(normalizedRole);
+      save("Fonction SNCF ajoutée au tableau");
+      $("#rosterRoleDialog").close();
+      rosterFunctionCompany = "";
+      refresh();
+      return;
+    }
     const roster = ensurePersonnelRoster(rosterFunctionCompany);
     if (roster.roles.includes(role)) {
       showToast("Cette fonction est déjà présente dans le tableau.", "warning");
@@ -924,7 +989,15 @@
   }
 
   function openSncfRoleEditor() {
-    openRowDialog("sncfMeans", { id: uid(), role: "", count: 1, observation: "" });
+    rosterFunctionCompany = "SNCF";
+    $("#rosterRoleDialogEyebrow").textContent = "Personnel SNCF";
+    $("#rosterRoleDialogTitle").textContent = "Ajouter une fonction";
+    $("#rosterRoleCompanyName").textContent = "Personnel SNCF";
+    $("#rosterRoleCompanyType").textContent = "Effectif de la séance";
+    $("#rosterRoleSelect").innerHTML = selectOptions(SNCF_MEANS_OPTIONS, "", "Choisir une fonction");
+    $("#rosterRoleOtherInput").value = "";
+    toggleRosterOtherRole();
+    $("#rosterRoleDialog").showModal();
   }
 
   function renderQuickPersonnelRoster() {
@@ -943,7 +1016,7 @@
       return `<section class="roster-company"><header><div class="roster-header-main"><strong>${escapeHtml(company)}</strong><span>${escapeHtml(team || "Entreprise intervenante")}</span></div><button type="button" class="roster-add-function" data-add-personnel-company="${escapeHtml(company)}">＋ Fonction</button></header>${roles.length ? `<div class="roster-role-grid">${roles.map((role) => {
         const count = roleCounter(state.personnel, role, company, team);
         const attributes = `data-quick-personnel-company="${escapeHtml(company)}" data-quick-personnel-role="${escapeHtml(role)}" data-quick-personnel-team="${escapeHtml(team)}"`;
-        return `<div class="roster-role"><span>${escapeHtml(role)}</span><div class="roster-role-actions"><div class="counter-control"><button type="button" aria-label="Retirer une personne : ${escapeHtml(role)}" ${attributes} data-counter-delta="-1">−</button><strong>${displayNumber(count, 0)}</strong><button type="button" aria-label="Ajouter une personne : ${escapeHtml(role)}" ${attributes} data-counter-delta="1">+</button></div><div class="roster-inline-actions">${count ? `<button type="button" class="roster-edit-button" ${attributes} data-edit-quick-personnel>Modifier</button>` : ""}<button type="button" class="roster-remove-button" title="Retirer la fonction du tableau" aria-label="Retirer la fonction ${escapeHtml(role)}" ${attributes} data-remove-quick-personnel>×</button></div></div></div>`;
+        return `<div class="roster-role"><span>${escapeHtml(role)}</span><div class="roster-role-actions"><div class="counter-control"><button type="button" aria-label="Retirer une personne : ${escapeHtml(role)}" ${attributes} data-counter-delta="-1">−</button><strong>${displayNumber(count, 0)}</strong><button type="button" aria-label="Ajouter une personne : ${escapeHtml(role)}" ${attributes} data-counter-delta="1">+</button></div><div class="roster-inline-actions">${count ? `<button type="button" class="roster-edit-button" title="Modifier les détails" aria-label="Modifier les détails de ${escapeHtml(role)}" ${attributes} data-edit-quick-personnel>Modifier</button>` : ""}<button type="button" class="roster-remove-button" title="Retirer la fonction du tableau" aria-label="Retirer la fonction ${escapeHtml(role)}" ${attributes} data-remove-quick-personnel>×</button></div></div></div>`;
       }).join("")}</div>` : `<p class="roster-empty">Aucune fonction dans ce tableau. Utiliser « + Fonction » pour la créer.</p>`}</section>`;
     }).join("");
   }
@@ -951,10 +1024,12 @@
   function renderQuickSncfRoster() {
     const target = $("#quickSncfRoster");
     if (!target) return;
-    target.innerHTML = `<section class="roster-company"><header><div class="roster-header-main"><strong>Personnel SNCF</strong><span>Effectif de la séance</span></div><button type="button" class="roster-add-function" data-add-sncf-function>＋ Fonction</button></header><div class="roster-role-grid">${SNCF_MEANS_PRESETS.map((role) => {
+    ensureSncfRosterRoles();
+    const roles = state.sncfRosterRoles;
+    target.innerHTML = `<section class="roster-company"><header><div class="roster-header-main"><strong>Personnel SNCF</strong><span>Effectif de la séance</span></div><button type="button" class="roster-add-function" data-add-sncf-function>＋ Fonction</button></header>${roles.length ? `<div class="roster-role-grid">${roles.map((role) => {
       const count = state.sncfMeans.filter((row) => canonicalSncfRole(row.role) === role).reduce((total, row) => total + number(row.count), 0);
-      return `<div class="roster-role"><span>${escapeHtml(role)}</span><div class="roster-role-actions"><div class="counter-control"><button type="button" aria-label="Retirer ${escapeHtml(role)}" data-quick-sncf-role="${escapeHtml(role)}" data-counter-delta="-1">−</button><strong>${displayNumber(count, 0)}</strong><button type="button" aria-label="Ajouter ${escapeHtml(role)}" data-quick-sncf-role="${escapeHtml(role)}" data-counter-delta="1">+</button></div>${count ? `<div class="roster-inline-actions"><button type="button" class="roster-edit-button" data-quick-sncf-role="${escapeHtml(role)}" data-edit-quick-sncf>Modifier</button><button type="button" class="roster-remove-button" aria-label="Retirer entièrement ${escapeHtml(role)}" data-quick-sncf-role="${escapeHtml(role)}" data-clear-quick-sncf>×</button></div>` : ""}</div></div>`;
-    }).join("")}</div></section>`;
+      return `<div class="roster-role"><span>${escapeHtml(role)}</span><div class="roster-role-actions"><div class="counter-control"><button type="button" aria-label="Retirer ${escapeHtml(role)}" data-quick-sncf-role="${escapeHtml(role)}" data-counter-delta="-1">−</button><strong>${displayNumber(count, 0)}</strong><button type="button" aria-label="Ajouter ${escapeHtml(role)}" data-quick-sncf-role="${escapeHtml(role)}" data-counter-delta="1">+</button></div><div class="roster-inline-actions">${count ? `<button type="button" class="roster-edit-button" title="Modifier les détails" aria-label="Modifier les détails de ${escapeHtml(role)}" data-quick-sncf-role="${escapeHtml(role)}" data-edit-quick-sncf>Modifier</button>` : ""}<button type="button" class="roster-remove-button" title="Retirer la fonction du tableau" aria-label="Retirer entièrement ${escapeHtml(role)}" data-quick-sncf-role="${escapeHtml(role)}" data-clear-quick-sncf>×</button></div></div></div>`;
+    }).join("")}</div>` : `<p class="roster-empty">Aucune fonction dans ce tableau. Utiliser « + Fonction » pour la créer.</p>`}</section>`;
   }
 
   function renderQuickEquipmentAdder() {
@@ -1185,7 +1260,7 @@
     const role = canonicalSncfRole(row.role || "");
     return `<div class="resource-editor">
       <h3 class="resource-editor-title">Personnel SNCF affecté</h3>
-      <section class="resource-shortcuts" aria-label="Raccourcis moyens SNCF"><span>Fonctions fréquentes</span><div>${SNCF_MEANS_PRESETS.map((preset, index) => `<button type="button" class="resource-preset ${role === preset ? "active" : ""}" data-sncf-preset="${index}">${escapeHtml(preset)}</button>`).join("")}</div></section>
+      <section class="resource-shortcuts" aria-label="Raccourcis moyens SNCF"><span>Fonctions génériques</span><div>${SNCF_DEFAULT_ROLES.map((preset, index) => `<button type="button" class="resource-preset ${role === preset ? "active" : ""}" data-sncf-preset="${index}">${escapeHtml(preset)}</button>`).join("")}</div></section>
       <div class="resource-primary-grid sncf-primary"><label class="field"><span>Fonction</span><select id="row_role">${selectOptions(SNCF_MEANS_OPTIONS, role, "Choisir une fonction")}</select></label><label class="field field-count"><span>Effectif</span>${countStepper("row_count", row.count)}</label><label class="field field-wide"><span>Mission / précision</span><input id="row_observation" value="${escapeHtml(row.observation ?? "")}" placeholder="Nom, mission ou commentaire utile" /></label></div>
       <div class="dialog-actions"><button id="saveRowButton" type="submit" value="save" class="primary-button">Enregistrer l’effectif SNCF</button></div>
     </div>`;
@@ -1197,7 +1272,7 @@
     pane?.addEventListener("click", (event) => {
       const shortcut = event.target.closest("[data-sncf-preset]");
       if (!shortcut) return;
-      const role = SNCF_MEANS_PRESETS[Number(shortcut.dataset.sncfPreset)];
+      const role = SNCF_DEFAULT_ROLES[Number(shortcut.dataset.sncfPreset)];
       if (!role) return;
       $("#row_role").value = role;
       $$('[data-sncf-preset]').forEach((button) => button.classList.toggle("active", button === shortcut));
@@ -1271,7 +1346,7 @@
     const target = $(`#${key}List`);
     const config = rowConfig[key];
     if (!target || !config) return;
-    if (key === "personnel") {
+    if (["personnel", "sncfMeans"].includes(key)) {
       target.innerHTML = "";
       return;
     }
@@ -1922,6 +1997,7 @@
       button.textContent = "Enregistrement…";
     }
     const listBeforeSave = clone(state[collectionKey]);
+    const sncfRosterBeforeSave = rowDraft.key === "sncfMeans" ? clone(state.sncfRosterRoles || []) : null;
     try {
       if (config.read) Object.assign(rowDraft.row, config.read());
       else config.fields.forEach(([name]) => { rowDraft.row[name] = $(`#row_${name}`)?.value.trim() || ""; });
@@ -1940,6 +2016,13 @@
           const roster = ensurePersonnelRoster(company, rowDraft.row.team);
           roster.team = rowDraft.row.team || roster.team;
           if (role && role !== "Fonction à préciser") roster.roles = uniqueRosterRoles([...roster.roles, role]);
+        }
+      }
+      if (rowDraft.key === "sncfMeans") {
+        const role = canonicalSncfRole(rowDraft.row.role);
+        if (role) {
+          ensureSncfRosterRoles();
+          if (!state.sncfRosterRoles.includes(role)) state.sncfRosterRoles.push(role);
         }
       }
       const capture = async (inputIds, property, label) => {
@@ -1963,6 +2046,7 @@
       else list.push(rowDraft.row);
       if (!save("Élément enregistré")) {
         state[collectionKey] = listBeforeSave;
+        if (sncfRosterBeforeSave) state.sncfRosterRoles = sncfRosterBeforeSave;
         return;
       }
       const savedTitle = config.title || "Élément";
@@ -2406,6 +2490,7 @@
       state.personnelRosters = clone(sourceCopy.personnelRosters || {});
       state.equipment = clone(sourceCopy.equipment || []);
       state.sncfMeans = clone(sourceCopy.sncfMeans || []);
+      state.sncfRosterRoles = clone(sourceCopy.sncfRosterRoles || []);
     }
     state.settings = currentSettings;
     ensureSettings();
@@ -2557,6 +2642,7 @@
     $("#rosterRoleSelect")?.addEventListener("change", toggleRosterOtherRole);
     $("#saveRosterRoleButton")?.addEventListener("click", addPersonnelRosterRole);
     $("#rosterRoleDialog")?.addEventListener("close", () => { rosterFunctionCompany = ""; });
+    $("#addSncfFunctionButton")?.addEventListener("click", openSncfRoleEditor);
     $("#quickPersonnelRoster")?.addEventListener("click", async (event) => {
       const add = event.target.closest("[data-add-personnel-company]");
       if (add) {
@@ -2596,7 +2682,7 @@
           const row = roleRow("sncfMeans", { role });
           if (row) openRowDialog("sncfMeans", row);
         } else {
-          await clearRoleCounter("sncfMeans", { role }, role);
+          await removeSncfRosterRole(role);
         }
         return;
       }

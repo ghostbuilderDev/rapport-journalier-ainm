@@ -19,7 +19,7 @@
             <img src="icons/rapport-journalier-ainm.png" alt="" aria-hidden="true" />
             <div><strong>AINM</strong><span>Travaux signalisation</span></div>
           </div>
-          <span class="startup-version"><span>Version</span><strong data-app-version>V8.9</strong></span>
+          <span class="startup-version"><span>Version</span><strong data-app-version>V9.0</strong></span>
         </div>
         <div class="startup-content">
           <p class="startup-kicker">Opérations · terrain · signalisation</p>
@@ -43,7 +43,7 @@
           <span class="brand-context">Rapport travaux</span>
         </div>
         <div class="topbar-actions">
-          <span class="app-version-badge" data-app-version aria-label="Version de l’application">V8.9</span>
+          <span class="app-version-badge" data-app-version aria-label="Version de l’application">V9.0</span>
           <span id="saveState" class="save-state" aria-live="polite">Brouillon local</span>
           <button class="icon-button" id="newReportButton" type="button" title="Nouveau rapport" aria-label="Nouveau rapport">＋</button>
           <button class="icon-button" id="moreButton" type="button" title="Actions" aria-label="Ouvrir les actions">•••</button>
@@ -238,7 +238,7 @@
           <section class="section-card compact-card">
             <div class="section-heading">
               <div><p class="eyebrow">SNCF</p><h2>Personnel SNCF affecté</h2></div>
-              <button class="text-button" data-add-row="sncfMeans" type="button">＋ Fonction</button>
+              <button id="addSncfFunctionButton" class="text-button" type="button">＋ Fonction</button>
             </div>
             <div id="quickSncfRoster" class="quick-roster quick-sncf-roster"></div>
             <div id="sncfMeansList" class="data-list"></div>
@@ -385,7 +385,7 @@
     <dialog id="rosterRoleDialog" class="dialog resource-dialog">
       <form method="dialog">
         <header class="dialog-header">
-          <div><p class="eyebrow">Personnel entreprise</p><h2>Ajouter une fonction</h2></div>
+          <div><p id="rosterRoleDialogEyebrow" class="eyebrow">Personnel entreprise</p><h2 id="rosterRoleDialogTitle">Ajouter une fonction</h2></div>
           <button class="icon-button" value="cancel" aria-label="Fermer" type="submit">×</button>
         </header>
         <div class="resource-editor">

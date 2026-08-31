@@ -1,6 +1,14 @@
-# Rapport journalier AINM — PWA terrain V8.9
+# Rapport journalier AINM — PWA terrain V9.0
 
 Application autonome, utilisable hors ligne, pour les rapports journaliers de travaux signalisation AINM.
+
+## Version V9.0
+
+- Les tableaux entreprise et SNCF retrouvent une présentation compacte en deux colonnes sur téléphone : compteur, modification par crayon et croix de retrait restent sur une seule ligne propre.
+- La croix rouge est toujours affichée, même lorsqu’une fonction est à **zéro**. Elle retire réellement cette fonction du tableau.
+- Les rôles affichés au départ sont réduits : entreprise travaux (**Chef de chantier**, **Opérateur travaux**), prestataire sécurité (**Agent prestataire**, **Sentinelle**) et SNCF (**RPTx**, **Adjoint S11**). Les autres rôles restent disponibles dans **+ Fonction**.
+- Le tableau détaillé SNCF en double est retiré : toutes les modifications se font depuis le même tableau clair.
+- Le cache PWA passe à V9.0 afin de charger cette simplification dès la réouverture.
 
 ## Version V8.9
 
@@ -64,10 +72,10 @@ Décompresser l’archive dans le dépôt puis exécuter :
 
 ```sh
 cd ~/projets
-unzip -o ~/storage/downloads/rapport-journalier-ainm-pwa-v8.9-accueil-version.zip
+unzip -o ~/storage/downloads/rapport-journalier-ainm-pwa-v9.0-effectifs-simplifies.zip
 cd ~/projets/rapport-journalier-ainm-pwa
 git add -A
-git commit -m "Mise à jour V8.9 : accueil et version"
+git commit -m "Mise à jour V9.0 : effectifs simplifiés"
 git push
 ```
 

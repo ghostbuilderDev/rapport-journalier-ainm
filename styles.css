@@ -569,19 +569,20 @@ h2 { margin-bottom: 0; font-size: 1.15rem; line-height: 1.2; }
 .roster-add-function, .roster-edit-button, .roster-remove-button { border: 0; cursor: pointer; font: inherit; }
 .roster-add-function { flex: 0 0 auto; padding: 6px 8px; border-radius: 8px; color: #1f6074; background: #e4f5fa; font-size: .7rem; font-weight: 850; white-space: nowrap; }
 .roster-add-function:hover { color: #fff; background: #2c8199; }
-.roster-role-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(264px, 1fr)); gap: 0; }
-.roster-role { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 8px; min-height: 82px; padding: 9px 10px; border-right: 1px solid #e0ecef; border-bottom: 1px solid #e0ecef; color: #34474e; font-size: .75rem; font-weight: 750; }
-.roster-role > span { min-width: 0; }
+.roster-role-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0; }
+.roster-role { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 6px; min-height: 0; padding: 8px; border-right: 1px solid #e0ecef; border-bottom: 1px solid #e0ecef; color: #34474e; font-size: .74rem; font-weight: 750; }
+.roster-role > span { min-width: 0; line-height: 1.2; }
 .roster-empty { margin: 0; padding: 12px; color: #6a8088; font-size: .76rem; font-style: italic; }
-.roster-role-actions { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 7px; min-width: 0; }
-.roster-inline-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 6px; }
-.counter-control { display: grid; width: 100%; min-width: 0; grid-template-columns: 36px minmax(36px, 1fr) 36px; align-items: center; overflow: hidden; border: 1px solid #aacbd6; border-radius: 9px; background: #fff; }
-.counter-control button { width: 36px; height: 34px; border: 0; color: #1d5668; background: #eaf7fb; font-size: 1.15rem; line-height: 1; }
+.roster-role-actions { display: flex; min-width: 0; align-items: center; gap: 5px; }
+.roster-inline-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 4px; }
+.counter-control { display: grid; width: auto; min-width: 0; flex: 1 1 0; grid-template-columns: 28px minmax(30px, 1fr) 28px; align-items: center; overflow: hidden; border: 1px solid #aacbd6; border-radius: 8px; background: #fff; }
+.counter-control button { width: 28px; height: 30px; border: 0; color: #1d5668; background: #eaf7fb; font-size: 1rem; line-height: 1; }
 .counter-control button:hover { color: #fff; background: #2c8199; }
-.counter-control strong { min-width: 0; color: #233f49; font-size: .82rem; text-align: center; }
-.roster-edit-button { padding: 6px 7px; border-radius: 7px; color: #526a72; background: #eef3f4; font-size: .66rem; font-weight: 820; white-space: nowrap; }
+.counter-control strong { min-width: 0; color: #233f49; font-size: .77rem; text-align: center; }
+.roster-edit-button { display: grid; width: 29px; height: 30px; padding: 0; place-items: center; border-radius: 7px; color: #526a72; background: #eef3f4; font-size: 0; }
+.roster-edit-button::before { content: "✎"; font-size: 1rem; font-weight: 850; line-height: 1; }
 .roster-edit-button:hover { color: #fff; background: #476b76; }
-.roster-remove-button { display: grid; width: 27px; height: 27px; place-items: center; border-radius: 7px; color: #8f3d38; background: #fff1ef; font-size: 1rem; line-height: 1; }
+.roster-remove-button { display: grid; width: 29px; height: 30px; place-items: center; border-radius: 7px; color: #8f3d38; background: #fff1ef; font-size: .95rem; line-height: 1; }
 .roster-remove-button:hover { color: #fff; background: #bb544d; }
 .counter-input { width: 100%; grid-template-columns: 38px minmax(0, 1fr) 38px; }
 .counter-input button { width: 38px; height: 42px; }
@@ -648,7 +649,6 @@ h2 { margin-bottom: 0; font-size: 1.15rem; line-height: 1.2; }
   .quick-equipment-fields { grid-template-columns: 1fr 1fr; }
   .quick-equipment-fields .secondary-button { grid-column: 1 / -1; width: 100%; }
   .roster-role-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .roster-role { align-content: start; }
   .time-matrix-head, .time-matrix label { grid-template-columns: minmax(100px, 1fr) minmax(70px, .8fr) minmax(70px, .8fr); gap: 6px; padding: 8px; }
   .arf-photo-grid { grid-template-columns: 1fr; }
   .company-visa-card { grid-template-columns: minmax(0, 1fr) minmax(108px, .5fr); }
@@ -656,10 +656,16 @@ h2 { margin-bottom: 0; font-size: 1.15rem; line-height: 1.2; }
 }
 
 @media (max-width: 560px) {
+  .roster-role { gap: 5px; padding: 7px; }
+  .roster-role-actions, .roster-inline-actions { gap: 3px; }
+  .counter-control { grid-template-columns: 24px minmax(26px, 1fr) 24px; border-radius: 7px; }
+  .counter-control button { width: 24px; height: 28px; font-size: .95rem; }
+  .roster-edit-button, .roster-remove-button { width: 26px; height: 28px; }
+  .roster-edit-button::before { font-size: .9rem; }
+}
+
+@media (max-width: 340px) {
   .roster-role-grid { grid-template-columns: 1fr; }
-  .roster-role { min-height: 0; padding: 10px 12px; }
-  .roster-role-actions { gap: 8px; }
-  .counter-control button { min-height: 38px; }
 }
 
 /* Rendu V5 restauré pour l'impression et l'enregistrement PDF. */
