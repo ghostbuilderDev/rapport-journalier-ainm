@@ -218,6 +218,12 @@ h2 { margin-bottom: 0; font-size: 1.15rem; line-height: 1.2; }
 .review-check.issue { color: #7c4703; background: #fff3de; }
 .review-check strong { font-weight: 850; }
 .review-actions { display: flex; flex-wrap: wrap; gap: 9px; }
+.sharepoint-button { padding: 11px 14px; border: 0; border-radius: 10px; color: #fff; background: #087b6f; box-shadow: 0 4px 10px rgba(8, 101, 91, .2); font-weight: 850; transition: .15s ease; }
+.sharepoint-button:hover { background: #06675e; transform: translateY(-1px); }
+.sharepoint-button:disabled { cursor: wait; opacity: .66; transform: none; }
+.sharepoint-archive-status { margin: 10px 0 0; color: #537078; font-size: .76rem; line-height: 1.42; }
+.sharepoint-archive-status.is-success { color: #156641; }
+.sharepoint-archive-status.is-warning { color: #8a560b; }
 .after-work-signature { display: grid; gap: 13px; margin: 0 0 17px; padding: 15px; border: 1px solid #b9dbe6; border-radius: 13px; background: linear-gradient(135deg, #f4fbfd, #fff); }
 .after-work-signature h3 { margin-bottom: 5px; font-size: .98rem; }
 .after-work-signature .eyebrow { margin-bottom: 4px; color: var(--sncf); opacity: 1; }
@@ -226,6 +232,8 @@ h2 { margin-bottom: 0; font-size: 1.15rem; line-height: 1.2; }
 #afterWorkSignatureCanvas, #companySignatureCanvas { display: block; width: 100%; height: 148px; touch-action: none; -webkit-user-select: none; user-select: none; cursor: crosshair; }
 .signature-canvas-wrap .muted { padding: 6px 9px 9px; font-size: .75rem; }
 .signature-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.same-signer-note { display: grid; gap: 4px; padding: 11px 12px; border: 1px solid #c5e0e7; border-radius: 10px; color: #3d5961; background: #f4fbfd; font-size: .8rem; line-height: 1.42; }
+.same-signer-note strong { color: #254953; font-size: .82rem; }
 .valuation-details { margin-top: 19px; border-top: 1px solid var(--line); padding-top: 15px; }
 .valuation-details summary { color: var(--sncf); font-weight: 800; cursor: pointer; }
 .valuation-table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: .79rem; }

@@ -3,7 +3,7 @@
   "use strict";
 
   const STORAGE_KEY = "ainm-rj-pwa-v1";
-  const APP_VERSION = "9.0";
+  const APP_VERSION = "9.1";
   const snapshotKey = "ainm-rj-pwa-last-snapshot";
   const adminSessionKey = "ainm-rj-pwa-admin-unlocked";
   const reportSequenceKey = "ainm-rj-pwa-report-serial-v2";
@@ -13,6 +13,12 @@
   const MAX_PHOTOS = 12;
   const MAX_TASK_PHOTOS = 4;
   const MAX_DOCUMENT_PHOTOS = 4;
+  // Même passerelle d'archivage que Briefing au pied de l'opération. Elle
+  // reçoit le PDF final et le dépose dans l'espace SharePoint configuré.
+  const SHAREPOINT_ARCHIVE_GATEWAY_URL = "https://script.google.com/macros/s/AKfycbz8O7ZV2kawKNPqv7bv1jML9R8yqrKjlZzop9wE1a8uqLO7i4aiamy_LgNwU5g7VDdP/exec";
+  const SHAREPOINT_ARCHIVE_KEY = "ainm-rj-sharepoint-archive-v1";
+  const SHAREPOINT_ARCHIVE_POLL_INTERVAL_MS = 3000;
+  const SHAREPOINT_ARCHIVE_CONFIRMATION_WINDOW_MS = 300000;
   const LEGACY_COMBINED_COMPANY = "BOUYGUES ENERGIES & SERVICES / TSO SIGNALISATION";
   const billingEvidence = window.RJ_BILLING_EVIDENCE || { series300Profiles: {}, manualRecords: [], billedTimeArticleBases: [] };
   const basePriceCatalog = Array.isArray(window.RJ_PRICE_CATALOG) ? window.RJ_PRICE_CATALOG : [];
@@ -198,7 +204,7 @@
     const identity = allocateReportIdentity();
     return {
       schema: 1,
-      appVersion: 9,
+      appVersion: 10,
       updatedAt: new Date().toISOString(),
       reportSerial: identity.serial,
       reportUid: identity.uid,
@@ -266,11 +272,16 @@
     state.meta ||= {};
     ["tasks", "personnel", "equipment", "possessions", "anomalies", "documents", "sncfMeans", "materials", "selfChecks", "photos"].forEach((key) => { if (!Array.isArray(state[key])) state[key] = []; });
     state.afterWorkSignature ||= { name: "", role: "Surveillant de travaux", signedAt: "", dataUrl: "" };
-    // Les versions précédentes appelaient ce visa « après travaux ». Il devient
-    // le visa du surveillant de travaux, sans perdre une signature déjà saisie.
+    // Le représentant MOETx et le surveillant de travaux sont la même personne.
+    // Les valeurs d'anciens brouillons sont reprises dans l'unique visa final.
+    const legacyMoeRepresentative = String(state.meta.moeRepresentative || "").trim();
+    if (!state.afterWorkSignature.name && legacyMoeRepresentative) state.afterWorkSignature.name = legacyMoeRepresentative;
     if (!state.afterWorkSignature.name && state.meta.reporter) state.afterWorkSignature.name = state.meta.reporter;
+    if (!state.meta.reporter && state.afterWorkSignature.name) state.meta.reporter = state.afterWorkSignature.name;
+    if (state.afterWorkSignature.name) state.meta.moeRepresentative = state.afterWorkSignature.name;
     if (!state.afterWorkSignature.role) state.afterWorkSignature.role = "Surveillant de travaux";
     if (!Array.isArray(state.companySignatures)) state.companySignatures = [];
+    if (!state.sharepointArchive || typeof state.sharepointArchive !== "object") state.sharepointArchive = {};
     delete state.collaboration;
     ["location", "executionNotes", "nextWorks"].forEach((key) => { if (typeof state.meta[key] !== "string") state.meta[key] = ""; });
     if (!Array.isArray(state.meta.participatingCompanies)) {
@@ -299,7 +310,7 @@
     ensurePersonnelRosters();
     if (previousAppVersion < 9) trimLegacyRosterDefaults();
     ensureSncfRosterRoles();
-    state.appVersion = Math.max(9, previousAppVersion);
+    state.appVersion = Math.max(10, previousAppVersion);
     ensureCompanySignatureRecords();
     if (!state.reportSerial || !state.reportUid) {
       const identity = allocateReportIdentity();
@@ -324,6 +335,7 @@
   let companyVisaDraft = null;
   let signatureKeyboardTimer = null;
   let adminLoginOpen = false;
+  let sharePointArchiveInProgress = false;
   let adminUnlocked = (() => {
     try { return sessionStorage.getItem(adminSessionKey) === "1"; } catch (_) { return false; }
   })();
@@ -1492,9 +1504,9 @@
     if (name && document.activeElement !== name) name.value = signature.name || state.meta.reporter || "";
     if (role && document.activeElement !== role) role.value = signature.role || "Surveillant de travaux";
     const status = $("#afterWorkSignatureStatus");
-    if (status) status.textContent = signature.signedAt
-      ? `Signature du surveillant enregistrée le ${formatDateTime(signature.signedAt)}${signature.name ? ` par ${signature.name}` : ""}.`
-      : "Signer au doigt ou au stylet dans la zone ci-dessus.";
+    if (status) status.textContent = signature.signedAt && signature.dataUrl
+      ? `Signature enregistrée le ${formatDateTime(signature.signedAt)}${signature.name ? ` par ${signature.name}` : ""}.`
+      : "À signer — signer au doigt ou au stylet dans la zone ci-dessus, puis toucher Enregistrer.";
     if (signatureCanvasReady) drawSignatureData(signature.dataUrl);
   }
 
@@ -1618,6 +1630,7 @@
       onCapture: (dataUrl) => {
         state.afterWorkSignature.name ||= state.meta.reporter || "";
         state.afterWorkSignature.role ||= "Surveillant de travaux";
+        state.meta.moeRepresentative = state.afterWorkSignature.name || state.meta.reporter || "";
         state.afterWorkSignature.dataUrl = dataUrl;
         state.afterWorkSignature.signedAt = new Date().toISOString();
         if (save("Visa du surveillant de travaux enregistré")) {
@@ -1682,7 +1695,7 @@
         companyVisaDraft.dataUrl = dataUrl;
         companyVisaDraft.signedAt = new Date().toISOString();
         const status = $("#companyVisaSignatureStatus");
-        if (status) status.textContent = `Signature capturée le ${formatDateTime(companyVisaDraft.signedAt)}. Appuyer sur « Enregistrer le visa » pour la valider.`;
+        if (status) status.textContent = `Signature capturée le ${formatDateTime(companyVisaDraft.signedAt)}. Appuyer sur « Enregistrer » pour la valider.`;
       },
     });
     companySignatureCanvasReady = true;
@@ -1706,7 +1719,7 @@
     target.innerHTML = companies.map((company) => {
       const signature = state.companySignatures.find((item) => item.company === company);
       const signed = Boolean(signature?.dataUrl);
-      return `<section class="company-visa-company ${signed ? "is-signed" : ""}"><header><strong>${escapeHtml(company)}</strong><button type="button" class="mini-button ${signed ? "signed" : ""}" data-edit-company-visa="${escapeHtml(signature.id)}">${signed ? "Modifier le visa" : "Signer"}</button></header><article class="company-visa-card"><div><strong>${escapeHtml(signature.name || "Nom du responsable à renseigner dans le contexte")}</strong><span>${escapeHtml(signature.role || "Fonction à renseigner")}</span><small>${signature.signedAt ? `Signé le ${escapeHtml(formatDateTime(signature.signedAt))}` : "Visa final à compléter"}</small><span class="visa-status ${signed ? "signed" : "pending"}">${signed ? "✓ Signature enregistrée" : "Signature à réaliser"}</span></div>${signed ? `<img src="${escapeHtml(signature.dataUrl)}" alt="Signature de ${escapeHtml(signature.name || company)}" />` : `<div class="company-visa-signature-empty">Zone de signature<br>à compléter</div>`}</article></section>`;
+      return `<section class="company-visa-company ${signed ? "is-signed" : ""}"><header><strong>${escapeHtml(company)}</strong><button type="button" class="mini-button ${signed ? "signed" : ""}" data-edit-company-visa="${escapeHtml(signature.id)}">${signed ? "Modifier" : "Signer"}</button></header><article class="company-visa-card"><div><strong>${escapeHtml(signature.name || "Nom du responsable à renseigner dans le contexte")}</strong><span>${escapeHtml(signature.role || "Fonction à renseigner")}</span><small>${signature.signedAt && signed ? `Signé le ${escapeHtml(formatDateTime(signature.signedAt))}` : "À signer"}</small><span class="visa-status ${signed ? "signed" : "pending"}">${signed ? "✓ Signature enregistrée" : "À signer"}</span></div>${signed ? `<img src="${escapeHtml(signature.dataUrl)}" alt="Signature de ${escapeHtml(signature.name || company)}" />` : `<div class="company-visa-signature-empty">À signer</div>`}</article></section>`;
     }).join("");
   }
 
@@ -1716,7 +1729,7 @@
     companyVisaDraft.company = selectedCompany;
     companySignatureCanvasReady = false;
     $("#companyVisaDialogTitle").textContent = "Visa final du responsable";
-    $("#companyVisaEditor").innerHTML = `<div class="resource-editor"><div class="company-visa-company-name">${escapeHtml(companyVisaDraft.company)}</div><div class="resource-primary-grid"><label class="field"><span>Nom et prénom</span><input id="companyVisaName" value="${escapeHtml(companyVisaDraft.name || "")}" autocomplete="name" placeholder="Nom du responsable" /></label><label class="field"><span>Fonction</span><input id="companyVisaRole" value="${escapeHtml(companyVisaDraft.role || "")}" placeholder="Chef de chantier, chef d’équipe…" /></label></div><div class="signature-canvas-wrap"><canvas id="companySignatureCanvas" aria-label="Zone de signature du responsable entreprise"></canvas><p id="companyVisaSignatureStatus" class="muted">${companyVisaDraft.signedAt ? `Signée le ${escapeHtml(formatDateTime(companyVisaDraft.signedAt))}.` : "Signer au doigt ou au stylet dans la zone ci-dessus."}</p></div><button id="clearCompanyVisaSignatureButton" class="text-button" type="button">Effacer la signature</button><div class="dialog-actions"><button id="saveCompanyVisaButton" type="submit" value="save" class="primary-button">Enregistrer le visa</button></div></div>`;
+    $("#companyVisaEditor").innerHTML = `<div class="resource-editor"><div class="company-visa-company-name">${escapeHtml(companyVisaDraft.company)}</div><div class="resource-primary-grid"><label class="field"><span>Nom et prénom</span><input id="companyVisaName" value="${escapeHtml(companyVisaDraft.name || "")}" autocomplete="name" placeholder="Nom du responsable" /></label><label class="field"><span>Fonction</span><input id="companyVisaRole" value="${escapeHtml(companyVisaDraft.role || "")}" placeholder="Chef de chantier, chef d’équipe…" /></label></div><div class="signature-canvas-wrap"><canvas id="companySignatureCanvas" aria-label="Zone de signature du responsable entreprise"></canvas><p id="companyVisaSignatureStatus" class="muted">${companyVisaDraft.signedAt && companyVisaDraft.dataUrl ? `Signée le ${escapeHtml(formatDateTime(companyVisaDraft.signedAt))}.` : "À signer — signer au doigt ou au stylet dans la zone ci-dessus."}</p></div><button id="clearCompanyVisaSignatureButton" class="text-button" type="button">Effacer la signature</button><div class="dialog-actions"><button id="saveCompanyVisaButton" type="submit" value="save" class="primary-button">Enregistrer</button></div></div>`;
     $("#companyVisaDialog").showModal();
     window.setTimeout(setupCompanySignatureCanvas, 0);
   }
@@ -1725,24 +1738,18 @@
     if (!companyVisaDraft) return;
     companyVisaDraft.name = editorValue("companyVisaName");
     companyVisaDraft.role = editorValue("companyVisaRole");
-    if (!companyVisaDraft.name) {
-      showToast("Renseigner le nom du responsable avant d’enregistrer le visa.", "warning");
-      return;
-    }
-    if (!companyVisaDraft.dataUrl) {
-      showToast("Signer dans la zone avant d’enregistrer le visa.", "warning");
-      return;
-    }
+    if (!companyVisaDraft.dataUrl) companyVisaDraft.signedAt = "";
     const index = state.companySignatures.findIndex((signature) => signature.id === companyVisaDraft.id);
     if (index >= 0) state.companySignatures.splice(index, 1, companyVisaDraft);
     else state.companySignatures.push(companyVisaDraft);
-    save("Visa entreprise enregistré");
+    const signed = Boolean(companyVisaDraft.dataUrl);
+    save(signed ? "Visa entreprise enregistré" : "Visa entreprise enregistré à signer");
     $("#companyVisaDialog").close();
     companyVisaDraft = null;
     renderCompanySignerSetup();
     renderCompanyVisas();
     renderPrintReport();
-    showToast("Visa entreprise enregistré.", "success");
+    showToast(signed ? "Visa entreprise enregistré." : "Case vide enregistrée : À signer.", "success");
   }
 
   function validation() {
@@ -1882,6 +1889,7 @@
     renderAfterWorkSignature();
     renderCompanyVisas();
     renderReview();
+    renderSharePointArchiveStatus();
     renderPrintReport();
   }
 
@@ -2134,10 +2142,10 @@
     const documentPhotos = state.documents.flatMap((document) => (document.attachments || []).map((photo) => ({ ...photo, label: `Document · ${document.name || "—"}${document.reference ? ` · ${document.reference}` : ""}` })));
     const trackedPhotoSection = [...arfPhotos, ...anomalyPhotos, ...taskPhotos, ...documentPhotos].length ? `<section class="print-section"><h2>Photos ARF, prestations et pièces jointes</h2><div class="print-photo-grid">${[...arfPhotos, ...anomalyPhotos, ...taskPhotos, ...documentPhotos].map((photo) => `<figure class="print-photo"><img src="${escapeHtml(photo.dataUrl)}" alt="${escapeHtml(photo.label)}"><figcaption><strong>${escapeHtml(photo.label)}</strong><br>${formatDateTime(photo.capturedAt)}</figcaption></figure>`).join("")}</div></section>` : "";
     const supervisorSignature = state.afterWorkSignature || {};
-    const supervisorName = supervisorSignature.name || state.meta.reporter || "Nom / prénom à renseigner";
+    const supervisorName = supervisorSignature.name || state.meta.reporter || state.meta.moeRepresentative || "Nom / prénom à renseigner";
     const supervisorRole = supervisorSignature.role || "Surveillant de travaux";
-    const supervisorVisaMarkup = `<div class="signature-box signature-after-work"><strong>Visa du surveillant de travaux</strong>${escapeHtml([supervisorName, supervisorRole].filter(Boolean).join(" · "))}${supervisorSignature.signedAt ? `<small>Signée le ${escapeHtml(formatDateTime(supervisorSignature.signedAt))}</small>` : ""}${supervisorSignature.dataUrl ? `<img class="print-signature-image" src="${escapeHtml(supervisorSignature.dataUrl)}" alt="Signature du surveillant de travaux">` : "<span>Signature à renseigner</span>"}</div>`;
-    const companyVisaMarkup = (state.companySignatures || []).map((visa) => `<div class="signature-box signature-after-work"><strong>${escapeHtml(visa.company || "Entreprise intervenante")}</strong>${escapeHtml([visa.name, visa.role].filter(Boolean).join(" · ") || "Nom / fonction à renseigner")}${visa.signedAt ? `<small>Signée le ${escapeHtml(formatDateTime(visa.signedAt))}</small>` : ""}${visa.dataUrl ? `<img class="print-signature-image" src="${escapeHtml(visa.dataUrl)}" alt="Visa ${escapeHtml(visa.company || "entreprise")}">` : "<span>Signature à renseigner</span>"}</div>`).join("");
+    const supervisorVisaMarkup = `<div class="signature-box signature-after-work"><strong>Visa représentant MOETx / surveillant de travaux</strong>${escapeHtml([supervisorName, supervisorRole].filter(Boolean).join(" · "))}${supervisorSignature.signedAt && supervisorSignature.dataUrl ? `<small>Signée le ${escapeHtml(formatDateTime(supervisorSignature.signedAt))}</small>` : ""}${supervisorSignature.dataUrl ? `<img class="print-signature-image" src="${escapeHtml(supervisorSignature.dataUrl)}" alt="Visa représentant MOETx et surveillant de travaux">` : "<span>À signer</span>"}</div>`;
+    const companyVisaMarkup = (state.companySignatures || []).map((visa) => `<div class="signature-box signature-after-work"><strong>${escapeHtml(visa.company || "Entreprise intervenante")}</strong>${escapeHtml([visa.name, visa.role].filter(Boolean).join(" · ") || "Nom / fonction à renseigner")}${visa.signedAt && visa.dataUrl ? `<small>Signée le ${escapeHtml(formatDateTime(visa.signedAt))}</small>` : ""}${visa.dataUrl ? `<img class="print-signature-image" src="${escapeHtml(visa.dataUrl)}" alt="Visa ${escapeHtml(visa.company || "entreprise")}">` : "<span>À signer</span>"}</div>`).join("");
 
     $("#printReport").innerHTML = `
       <article class="print-page">
@@ -2161,7 +2169,7 @@
         ${(state.meta.executionNotes || state.meta.nextWorks) ? `<section class="print-section"><h2>Synthèse et suite de l’opération</h2><div class="print-info-grid"><div><strong>Faits marquants / aléas / décisions</strong>${escapeHtml(state.meta.executionNotes || "—")}</div><div><strong>Travaux restant à réaliser / prochaine séance</strong>${escapeHtml(state.meta.nextWorks || "—")}</div></div></section>` : ""}
         ${photoSection}
         ${trackedPhotoSection}
-        <section class="print-section print-final-signatures"><h2>Signatures finales</h2><div class="print-signatures"><div class="signature-box"><strong>Lieu / date</strong>${escapeHtml(formatDate(state.meta.date))}</div><div class="signature-box"><strong>Visa représentant MOETx SNCF</strong>${escapeHtml(state.meta.moeRepresentative || "Nom / prénom à renseigner")}</div>${supervisorVisaMarkup}${companyVisaMarkup}</div></section>
+        <section class="print-section print-final-signatures"><h2>Signatures finales</h2><div class="print-signatures"><div class="signature-box"><strong>Lieu / date</strong>${escapeHtml(formatDate(state.meta.date))}</div>${supervisorVisaMarkup}${companyVisaMarkup}</div></section>
         <p class="print-footer">Rapport opérationnel généré depuis l’application rapport journalier AINM.</p>
       </article>
       ${includeValuation ? `<article class="print-page print-internal">
@@ -2243,7 +2251,7 @@
     const identityCards = [
       ["Opération / chantier", state.meta.operation || "—"], ["Lieu / secteur", state.meta.location || "—"], ["N° rapport", state.meta.reportNo || "—"], ["N° commande", state.meta.orderNo || "—"],
       ["Entreprise principale", enterpriseName() || "—"], ["Date et séance", `${formatDate(state.meta.date)} · ${session}`], ["Durée effective", state.meta.workDuration ? `${displayNumber(state.meta.workDuration)} h` : "—"], ["Météo / température", [state.meta.weather, state.meta.temperature !== "" ? `${state.meta.temperature} °C` : ""].filter(Boolean).join(" · ") || "—"],
-      ["Rédacteur", state.meta.reporter || "—"], ["Représentant MOETx SNCF", state.meta.moeRepresentative || "—"], ["Représentant entreprise", state.meta.companyRepresentative || "—"], ["Statut", status],
+      ["Surveillant / représentant MOETx", state.afterWorkSignature?.name || state.meta.reporter || state.meta.moeRepresentative || "—"], ["Représentant entreprise", state.meta.companyRepresentative || "—"], ["Statut", status],
     ];
     const notes = [
       ["Objectif / consigne de la séance", state.meta.objective || "Non renseigné."],
@@ -2287,7 +2295,7 @@
     addRows("Moyens SNCF engagés", "Moyens et fonctions SNCF mobilisés pendant la séance", ["Fonction", "Nombre", "Observation"], state.sncfMeans.map((row) => `<tr><td>${escapeHtml(canonicalSncfRole(row.role) || "—")}</td><td class="rj-archive-number">${escapeHtml(displayNumber(row.count, 0))}</td><td>${escapeHtml(row.observation || "—")}</td></tr>`), 10);
 
     const signature = state.afterWorkSignature || {};
-    pages.push(archiveReportPage("Visas et signatures", "Validation de fin de séance et visas des acteurs", `<section class="rj-archive-signatures"><section><strong>Rédacteur / surveillant</strong><span>${escapeHtml(state.meta.reporter || "Nom à renseigner")}</span><div class="rj-archive-signature-line"></div></section><section><strong>Représentant MOETx SNCF</strong><span>${escapeHtml(state.meta.moeRepresentative || "Nom à renseigner")}</span><div class="rj-archive-signature-line"></div></section><section><strong>Représentant entreprise</strong><span>${escapeHtml(state.meta.companyRepresentative || "Nom à renseigner")}</span><div class="rj-archive-signature-line"></div></section><section><strong>Visa après travaux</strong><span>${escapeHtml([signature.name, signature.role].filter(Boolean).join(" · ") || "Nom / fonction à renseigner")}${signature.signedAt ? `<small>Signée le ${escapeHtml(formatDateTime(signature.signedAt))}</small>` : ""}${signature.dataUrl ? `<img src="${escapeHtml(signature.dataUrl)}" alt="Signature après travaux">` : `<div class="rj-archive-signature-line"></div>`}</section></section><p class="rj-archive-legal">Rapport n° ${escapeHtml(state.meta.reportNo || "—")} · Les visas matérialisent la prise de connaissance des informations consignées.</p>`));
+    pages.push(archiveReportPage("Visas et signatures", "Validation de fin de séance et visas des acteurs", `<section class="rj-archive-signatures"><section><strong>Visa représentant MOETx / surveillant de travaux</strong><span>${escapeHtml([signature.name || state.meta.reporter || state.meta.moeRepresentative, signature.role || "Surveillant de travaux"].filter(Boolean).join(" · ") || "Nom / fonction à renseigner")}${signature.signedAt && signature.dataUrl ? `<small>Signée le ${escapeHtml(formatDateTime(signature.signedAt))}</small>` : ""}${signature.dataUrl ? `<img src="${escapeHtml(signature.dataUrl)}" alt="Visa représentant MOETx et surveillant de travaux">` : `<div class="rj-archive-signature-line">À signer</div>`}</section><section><strong>Représentant entreprise</strong><span>${escapeHtml(state.meta.companyRepresentative || "Nom à renseigner")}</span><div class="rj-archive-signature-line"></div></section></section><p class="rj-archive-legal">Rapport n° ${escapeHtml(state.meta.reportNo || "—")} · Les visas matérialisent la prise de connaissance des informations consignées.</p>`));
     return pages;
   }
 
@@ -2439,6 +2447,505 @@
     window.setTimeout(() => URL.revokeObjectURL(url), 1200);
   }
 
+  function sharePointGatewayUrl() {
+    const value = String(SHAREPOINT_ARCHIVE_GATEWAY_URL || "").trim();
+    return /^https:\/\/script\.google\.com\//i.test(value) && /\/exec(?:\?|$)/i.test(value) ? value : "";
+  }
+
+  function updateSharePointArchiveStatus(message, tone = "") {
+    const target = $("#sharepointArchiveStatus");
+    if (!target) return;
+    target.className = `sharepoint-archive-status${tone ? ` is-${tone}` : ""}`;
+    target.textContent = message;
+  }
+
+  function renderSharePointArchiveStatus() {
+    const archive = state.sharepointArchive || {};
+    if (archive.status === "archived") {
+      updateSharePointArchiveStatus(`Archivé sur SharePoint le ${formatDateTime(archive.archivedAt || archive.sentAt)}. Le brouillon local est conservé.`, "success");
+    } else if (archive.status === "transmitted") {
+      updateSharePointArchiveStatus(`Transmission envoyée le ${formatDateTime(archive.sentAt)}. Confirmation SharePoint en cours ; le brouillon et les signatures restent sur le téléphone.`, "warning");
+    } else if (archive.status === "confirmation-pending") {
+      updateSharePointArchiveStatus(`PDF transmis le ${formatDateTime(archive.sentAt)}. La confirmation SharePoint reste à vérifier.`, "warning");
+    } else if (archive.status === "failed") {
+      updateSharePointArchiveStatus(`Archivage non confirmé : ${archive.error || "réessayer la transmission"}.`, "warning");
+    } else {
+      updateSharePointArchiveStatus("Prêt pour l’archivage SharePoint. Le brouillon et les signatures restent sur le téléphone.");
+    }
+  }
+
+  function setSharePointArchiveBusy(active, message = "") {
+    const button = $("#archiveSharePointButton");
+    if (button) {
+      button.disabled = active;
+      button.textContent = active ? "Archivage en cours…" : "Archiver sur SharePoint";
+    }
+    if (message) updateSharePointArchiveStatus(message, active ? "warning" : "");
+  }
+
+  function safeArchiveFilename(value, fallback = "rapport") {
+    return String(value || fallback)
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-zA-Z0-9_-]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 70) || fallback;
+  }
+
+  function sharePointPdfFilename() {
+    return `Rapport_journalier_${safeArchiveFilename(state.meta.date, "date")}_${safeArchiveFilename(state.meta.operation, "chantier")}_${safeArchiveFilename(state.meta.reportNo, "AINM-RJ")}.pdf`;
+  }
+
+  function blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = String(reader.result || "");
+        const comma = result.indexOf(",");
+        if (comma < 0) { reject(new Error("Conversion du PDF impossible.")); return; }
+        resolve(result.slice(comma + 1));
+      };
+      reader.onerror = () => reject(new Error("Lecture du PDF impossible."));
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  function pdfPlainText(value) {
+    return String(value ?? "")
+      .replace(/[–—]/g, "-")
+      .replace(/…/g, "...")
+      .replace(/[«»]/g, '"')
+      .replace(/[’]/g, "'")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^\x20-\x7E\n]/g, " ")
+      .replace(/[ \t]+/g, " ")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+  }
+
+  function pdfWrapText(text, font, size, maxWidth) {
+    const clean = pdfPlainText(text);
+    if (!clean) return ["-"];
+    const lines = [];
+    clean.split(/\n/).forEach((paragraph, paragraphIndex) => {
+      if (!paragraph.trim()) {
+        if (paragraphIndex) lines.push("");
+        return;
+      }
+      let line = "";
+      paragraph.split(/\s+/).forEach((word) => {
+        const candidate = line ? `${line} ${word}` : word;
+        if (!line || font.widthOfTextAtSize(candidate, size) <= maxWidth) {
+          line = candidate;
+          return;
+        }
+        lines.push(line);
+        if (font.widthOfTextAtSize(word, size) <= maxWidth) {
+          line = word;
+          return;
+        }
+        let part = "";
+        for (const character of word) {
+          const next = `${part}${character}`;
+          if (part && font.widthOfTextAtSize(next, size) > maxWidth) {
+            lines.push(part);
+            part = character;
+          } else part = next;
+        }
+        line = part;
+      });
+      if (line) lines.push(line);
+    });
+    return lines.length ? lines : ["-"];
+  }
+
+  function dataUrlToBytes(dataUrl) {
+    const comma = String(dataUrl || "").indexOf(",");
+    if (comma < 0) throw new Error("Image invalide.");
+    const binary = atob(String(dataUrl).slice(comma + 1));
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+    return bytes;
+  }
+
+  async function embedPdfImage(pdf, dataUrl) {
+    const source = String(dataUrl || "");
+    const bytes = dataUrlToBytes(source);
+    if (/^data:image\/png/i.test(source)) return pdf.embedPng(bytes);
+    if (/^data:image\/jpe?g/i.test(source)) return pdf.embedJpg(bytes);
+    throw new Error("Format d'image non pris en charge.");
+  }
+
+  function allArchivePhotos() {
+    const items = [];
+    const seen = new Set();
+    const add = (photo, label) => {
+      if (!photo?.dataUrl || seen.has(photo.dataUrl)) return;
+      seen.add(photo.dataUrl);
+      items.push({ dataUrl: photo.dataUrl, label: label || "Photo terrain", capturedAt: photo.capturedAt || "" });
+    };
+    state.photos.forEach((photo) => add(photo, [photo.phase === "avant" ? "Avant travaux" : "Après travaux", photo.category, photo.zone, photo.caption].filter(Boolean).join(" - ")));
+    state.possessions.forEach((row) => {
+      add(row.arfStartPhoto, `ARF début${row.voie ? ` - voie ${row.voie}` : ""}`);
+      add(row.arfEndPhoto, `ARF fin${row.voie ? ` - voie ${row.voie}` : ""}`);
+    });
+    state.anomalies.forEach((row) => add(row.photo, `Anomalie - ${row.type || "à préciser"}${row.zone ? ` - ${row.zone}` : ""}`));
+    state.tasks.forEach((row) => (row.photos || []).forEach((photo) => add(photo, `Prestation - ${row.label || "à préciser"}${row.voie ? ` - voie ${row.voie}` : ""}`)));
+    state.documents.forEach((row) => (row.attachments || []).forEach((photo) => add(photo, `Document - ${row.name || "à préciser"}${row.reference ? ` - ${row.reference}` : ""}`)));
+    return items;
+  }
+
+  async function createSharePointArchivePdf() {
+    if (!window.PDFLib?.PDFDocument || !window.PDFLib?.StandardFonts || !window.PDFLib?.rgb) {
+      throw new Error("Le module PDF d’archivage est indisponible. Rouvrez l’application avec une connexion puis réessayez.");
+    }
+
+    const { PDFDocument, StandardFonts, rgb } = window.PDFLib;
+    const pdf = await PDFDocument.create();
+    const regular = await pdf.embedFont(StandardFonts.Helvetica);
+    const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+    const pageWidth = 595.28;
+    const pageHeight = 841.89;
+    const margin = 34;
+    const textColor = rgb(0.12, 0.17, 0.19);
+    const mutedColor = rgb(0.32, 0.4, 0.43);
+    const lineColor = rgb(0.78, 0.84, 0.85);
+    const barColor = rgb(0.13, 0.23, 0.26);
+    let page;
+    let y;
+
+    const textWidth = (value, font, size) => font.widthOfTextAtSize(pdfPlainText(value), size);
+    const newPage = () => {
+      page = pdf.addPage([pageWidth, pageHeight]);
+      page.drawRectangle({ x: 0, y: pageHeight - 42, width: pageWidth, height: 42, color: barColor });
+      page.drawText("AINM TRAVAUX SIGNALISATION", { x: margin, y: pageHeight - 25, size: 10, font: bold, color: rgb(1, 1, 1) });
+      const reference = pdfPlainText(state.meta.reportNo || "RAPPORT JOURNALIER");
+      page.drawText(reference, { x: Math.max(margin, pageWidth - margin - textWidth(reference, bold, 7.5)), y: pageHeight - 24, size: 7.5, font: bold, color: rgb(0.86, 0.96, 0.98) });
+      y = pageHeight - 61;
+    };
+    const ensureSpace = (height) => { if (!page || y - height < margin) newPage(); };
+    const section = (title) => {
+      ensureSpace(24);
+      page.drawRectangle({ x: margin, y: y - 15, width: pageWidth - (margin * 2), height: 15, color: barColor });
+      page.drawText(pdfPlainText(title).toUpperCase(), { x: margin + 7, y: y - 10.5, size: 7.5, font: bold, color: rgb(1, 1, 1) });
+      y -= 20;
+    };
+    const entry = (title, value) => {
+      const bodyLines = pdfWrapText(value || "-", regular, 7.5, pageWidth - (margin * 2) - 16);
+      let remaining = [...bodyLines];
+      let continued = false;
+      while (remaining.length) {
+        if (!page || y - margin < 28) newPage();
+        const availableHeight = y - margin;
+        const maxLines = Math.max(1, Math.floor((availableHeight - 15) / 9.5));
+        const lines = remaining.splice(0, maxLines);
+        const height = Math.max(27, 13 + (lines.length * 9.5));
+        page.drawRectangle({ x: margin, y: y - height, width: pageWidth - (margin * 2), height, color: rgb(1, 1, 1), borderColor: lineColor, borderWidth: 0.6 });
+        page.drawText(pdfPlainText(`${title}${continued ? " - suite" : ""}`), { x: margin + 7, y: y - 10, size: 7.2, font: bold, color: mutedColor });
+        let lineY = y - 21;
+        lines.forEach((line) => {
+          if (line) page.drawText(line, { x: margin + 7, y: lineY, size: 7.5, font: regular, color: textColor });
+          lineY -= 9.5;
+        });
+        y -= height + 4;
+        continued = true;
+      }
+    };
+    const entries = (title, rows) => {
+      section(title);
+      if (!rows.length) entry("Information", "Aucune donnée saisie.");
+      else rows.forEach(([rowTitle, rowValue]) => entry(rowTitle, rowValue));
+    };
+
+    newPage();
+    page.drawText("RAPPORT JOURNALIER DE CHANTIER", { x: margin, y: y - 18, size: 16, font: bold, color: textColor });
+    y -= 29;
+    page.drawText("Dossier d’archivage terrain", { x: margin, y: y - 10, size: 8.5, font: regular, color: mutedColor });
+    y -= 19;
+    entries("Identification de la séance", [
+      ["Opération / chantier", state.meta.operation || "À renseigner"],
+      ["Référence du rapport", state.meta.reportNo || "À renseigner"],
+      ["Date et séance", `${formatDate(state.meta.date)} - ${state.meta.shiftType === "nuit" ? "Nuit" : "Journée"} ${state.meta.shiftStart || "--:--"} à ${state.meta.shiftEnd || "--:--"}`],
+      ["Lieu / secteur", state.meta.location || "À renseigner"],
+      ["Entreprises intervenantes", participatingCompanyNames().join(" - ") || "À renseigner"],
+      ["Surveillant de travaux / représentant MOETx", state.afterWorkSignature?.name || state.meta.reporter || state.meta.moeRepresentative || "À renseigner"],
+      ["Objectif / consigne", state.meta.objective || "À renseigner"],
+    ]);
+    entries("Travaux exécutés", state.tasks.map((task) => {
+      const template = templateById.get(task.templateId);
+      return [task.label || template?.reportLabel || "Prestation", [reportTaskQuantity(task, template), reportTaskLocation(task), task.note].filter(Boolean).join(" - ")];
+    }));
+    entries("Personnel des entreprises", state.personnel.map((row) => [
+      `${companyName(row)} - ${roleName(row)}`,
+      `${displayNumber(row.count, 0)} personne(s)${row.team ? ` - ${row.team}` : ""}${row.lead ? ` - ${row.lead}` : ""}${row.observation ? ` - ${row.observation}` : ""}`,
+    ]));
+    entries("Engins et mobiles travaux", state.equipment.map((row) => [
+      `${equipmentName(row)} - ${companyName(row)}`,
+      `${displayNumber(row.count, 0)} unité(s)${row.zone ? ` - ${row.zone}` : ""}${row.pk ? ` - PK ${row.pk}` : ""}${row.identification ? ` - ${row.identification}` : ""}${row.observation ? ` - ${row.observation}` : ""}`,
+    ]));
+    entries("Interceptions et consignations", state.possessions.map((row) => [
+      [row.kind, row.voie ? `Voie ${row.voie}` : "", row.zone].filter(Boolean).join(" - ") || "Interception / consignation",
+      `Prévu ${row.plannedStart || "--:--"}-${row.plannedEnd || "--:--"} | Accordé ${row.agreedStart || "--:--"}-${row.agreedEnd || "--:--"} | ARF / réel ${row.actualStart || "--:--"}-${row.actualEnd || "--:--"} | Intervention ${row.interventionStart || "--:--"}-${row.interventionEnd || "--:--"}${row.observation ? ` - ${row.observation}` : ""}`,
+    ]));
+    entries("Qualité, sécurité et anomalies", state.anomalies.map((row) => [
+      [row.type || "Anomalie", row.severity, row.zone].filter(Boolean).join(" - "),
+      [row.detail, row.action && `Mesure / suite : ${row.action}`, row.responsible && `Responsable : ${row.responsible}`, row.dueDate && `Échéance : ${formatDate(row.dueDate)}`].filter(Boolean).join(" - ") || "À préciser",
+    ]));
+    entries("Rapports et pièces fournies", state.documents.map((row) => [
+      row.name || "Document",
+      [row.reference, row.observation, row.attachments?.length ? `${row.attachments.length} pièce(s) image` : ""].filter(Boolean).join(" - ") || "À préciser",
+    ]));
+    entries("Personnel SNCF affecté", state.sncfMeans.map((row) => [
+      canonicalSncfRole(row.role) || "Fonction SNCF",
+      `${displayNumber(row.count, 0)} personne(s)${row.observation ? ` - ${row.observation}` : ""}`,
+    ]));
+    entries("Matériaux et contrôles", [
+      ...state.materials.map((row) => [row.name || row.type || "Matériau", [row.quantity ? `${displayNumber(row.quantity)} ${row.unit || ""}` : "", row.zone, row.reference, row.observation].filter(Boolean).join(" - ") || "À préciser"]),
+      ...state.selfChecks.map((row) => [row.type || "Contrôle", [row.status, row.zone, row.reference, row.responsible, row.observation].filter(Boolean).join(" - ") || "À préciser"]),
+    ]);
+    entries("Faits marquants et suite de l’opération", [
+      ["Faits marquants / aléas / décisions", state.meta.executionNotes || "Aucun élément complémentaire renseigné."],
+      ["Travaux restant / prochaine séance", state.meta.nextWorks || "Aucun élément complémentaire renseigné."],
+    ]);
+
+    const photos = allArchivePhotos();
+    section("Photos et pièces jointes");
+    if (!photos.length) entry("Photos", "Aucune photo jointe.");
+    for (let index = 0; index < photos.length; index += 2) {
+      const row = photos.slice(index, index + 2);
+      const cardHeight = 148;
+      ensureSpace(cardHeight + 6);
+      for (let column = 0; column < row.length; column += 1) {
+        const photo = row[column];
+        const gap = 10;
+        const cardWidth = (pageWidth - (margin * 2) - gap) / 2;
+        const x = margin + (column * (cardWidth + gap));
+        page.drawRectangle({ x, y: y - cardHeight, width: cardWidth, height: cardHeight, color: rgb(1, 1, 1), borderColor: lineColor, borderWidth: 0.6 });
+        try {
+          const image = await embedPdfImage(pdf, photo.dataUrl);
+          const maxWidth = cardWidth - 12;
+          const maxHeight = 99;
+          const factor = Math.min(maxWidth / image.width, maxHeight / image.height);
+          const width = image.width * factor;
+          const height = image.height * factor;
+          page.drawImage(image, { x: x + ((cardWidth - width) / 2), y: y - 8 - height, width, height });
+        } catch (_) {
+          page.drawText("Photo non integree", { x: x + 8, y: y - 25, size: 7.5, font: regular, color: mutedColor });
+        }
+        const photoLabel = pdfWrapText(`${photo.label || "Photo terrain"}${photo.capturedAt ? ` - ${formatDateTime(photo.capturedAt)}` : ""}`, regular, 6.6, cardWidth - 12).slice(0, 3);
+        let labelY = y - 113;
+        photoLabel.forEach((line) => { page.drawText(line, { x: x + 6, y: labelY, size: 6.6, font: regular, color: textColor }); labelY -= 8; });
+      }
+      y -= cardHeight + 6;
+    }
+
+    section("Signatures finales");
+    const supervisor = state.afterWorkSignature || {};
+    const signatures = [
+      {
+        title: "Visa representant MOETx / surveillant de travaux",
+        detail: [supervisor.name || state.meta.reporter || state.meta.moeRepresentative, supervisor.role || "Surveillant de travaux"].filter(Boolean).join(" - ") || "Nom / fonction a renseigner",
+        dataUrl: supervisor.dataUrl,
+        signedAt: supervisor.signedAt,
+      },
+      ...(state.companySignatures || []).map((visa) => ({
+        title: visa.company || "Entreprise intervenante",
+        detail: [visa.name, visa.role].filter(Boolean).join(" - ") || "Nom / fonction a renseigner",
+        dataUrl: visa.dataUrl,
+        signedAt: visa.signedAt,
+      })),
+    ];
+    for (let index = 0; index < signatures.length; index += 2) {
+      const row = signatures.slice(index, index + 2);
+      const cardHeight = 122;
+      ensureSpace(cardHeight + 6);
+      for (let column = 0; column < row.length; column += 1) {
+        const visa = row[column];
+        const gap = 10;
+        const cardWidth = (pageWidth - (margin * 2) - gap) / 2;
+        const x = margin + (column * (cardWidth + gap));
+        page.drawRectangle({ x, y: y - cardHeight, width: cardWidth, height: cardHeight, color: rgb(1, 1, 1), borderColor: lineColor, borderWidth: 0.7 });
+        const titleLines = pdfWrapText(visa.title, bold, 7.2, cardWidth - 12).slice(0, 2);
+        let titleY = y - 11;
+        titleLines.forEach((line) => { page.drawText(line, { x: x + 6, y: titleY, size: 7.2, font: bold, color: textColor }); titleY -= 8.5; });
+        const detailLines = pdfWrapText(visa.detail, regular, 6.8, cardWidth - 12).slice(0, 2);
+        let detailY = titleY - 2;
+        detailLines.forEach((line) => { page.drawText(line, { x: x + 6, y: detailY, size: 6.8, font: regular, color: mutedColor }); detailY -= 8; });
+        if (visa.dataUrl) {
+          try {
+            const image = await embedPdfImage(pdf, visa.dataUrl);
+            const maxWidth = cardWidth - 14;
+            const maxHeight = 47;
+            const factor = Math.min(maxWidth / image.width, maxHeight / image.height);
+            const width = image.width * factor;
+            const height = image.height * factor;
+            page.drawImage(image, { x: x + 7, y: y - cardHeight + 9, width, height });
+            if (visa.signedAt) page.drawText(`Signe le ${pdfPlainText(formatDateTime(visa.signedAt))}`, { x: x + 7, y: y - cardHeight + 5, size: 5.8, font: regular, color: mutedColor });
+          } catch (_) {
+            page.drawText("Signature non integree", { x: x + 7, y: y - cardHeight + 18, size: 6.7, font: regular, color: mutedColor });
+          }
+        } else {
+          page.drawText("A SIGNER", { x: x + 7, y: y - cardHeight + 27, size: 8, font: bold, color: rgb(0.62, 0.42, 0.04) });
+        }
+      }
+      y -= cardHeight + 6;
+    }
+
+    const pdfPages = pdf.getPages();
+    pdfPages.forEach((currentPage, index) => {
+      currentPage.drawLine({ start: { x: margin, y: 23 }, end: { x: pageWidth - margin, y: 23 }, thickness: 0.5, color: lineColor });
+      currentPage.drawText("Rapport journalier AINM - archivage SharePoint", { x: margin, y: 12, size: 6.5, font: regular, color: mutedColor });
+      const numberText = `${index + 1}/${pdfPages.length}`;
+      currentPage.drawText(numberText, { x: pageWidth - margin - textWidth(numberText, regular, 6.5), y: 12, size: 6.5, font: regular, color: mutedColor });
+    });
+
+    pdf.setTitle(`Rapport journalier ${state.meta.reportNo || "AINM"}`);
+    pdf.setAuthor("AINM travaux signalisation");
+    pdf.setSubject("Rapport journalier de chantier");
+    return { blob: new Blob([await pdf.save()], { type: "application/pdf" }), filename: sharePointPdfFilename() };
+  }
+
+  function submitSharePointArchive(fields) {
+    return new Promise((resolve, reject) => {
+      const gatewayUrl = sharePointGatewayUrl();
+      if (!gatewayUrl) { reject(new Error("La passerelle SharePoint n’est pas configurée.")); return; }
+      const frame = document.createElement("iframe");
+      frame.name = `ainmSharePointFrame_${uid()}`;
+      frame.hidden = true;
+      frame.setAttribute("aria-hidden", "true");
+      const form = document.createElement("form");
+      form.method = "POST";
+      form.action = gatewayUrl;
+      form.target = frame.name;
+      form.enctype = "application/x-www-form-urlencoded";
+      form.hidden = true;
+      Object.entries(fields).forEach(([name, value]) => {
+        const input = document.createElement("input");
+        input.type = "hidden";
+        input.name = name;
+        input.value = value == null ? "" : String(value);
+        form.append(input);
+      });
+      document.body.append(frame, form);
+      try {
+        form.submit();
+        window.setTimeout(() => resolve({ ok: true, state: "queued", requestId: fields.requestId }), 1500);
+        window.setTimeout(() => { form.remove(); frame.remove(); }, 60000);
+      } catch (error) {
+        form.remove();
+        frame.remove();
+        reject(error);
+      }
+    });
+  }
+
+  function readSharePointArchiveStatus(requestId, timeoutMs = 10000) {
+    return new Promise((resolve, reject) => {
+      const gatewayUrl = sharePointGatewayUrl();
+      if (!gatewayUrl) { reject(new Error("La passerelle SharePoint n’est pas configurée.")); return; }
+      const callback = `__ainmSharePointStatus_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+      const script = document.createElement("script");
+      let timer = null;
+      let settled = false;
+      const cleanup = () => {
+        if (timer) window.clearTimeout(timer);
+        try { delete window[callback]; } catch (_) { window[callback] = undefined; }
+        script.remove();
+      };
+      const finish = (error, result) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        if (error) reject(error); else resolve(result);
+      };
+      window[callback] = (result) => finish(null, result);
+      script.async = true;
+      script.onerror = () => finish(new Error("La confirmation SharePoint n’a pas pu être lue."));
+      script.src = `${gatewayUrl}?action=status&requestId=${encodeURIComponent(requestId)}&callback=${encodeURIComponent(callback)}&_=${Date.now()}`;
+      timer = window.setTimeout(() => finish(new Error("La confirmation SharePoint n’a pas répondu.")), timeoutMs);
+      document.head.append(script);
+    });
+  }
+
+  async function monitorSharePointArchive(requestId) {
+    const startedAt = Date.now();
+    while (Date.now() - startedAt < SHAREPOINT_ARCHIVE_CONFIRMATION_WINDOW_MS) {
+      await new Promise((resolve) => window.setTimeout(resolve, SHAREPOINT_ARCHIVE_POLL_INTERVAL_MS));
+      try {
+        const result = await readSharePointArchiveStatus(requestId);
+        if (result?.state === "archived") {
+          if (state.sharepointArchive?.requestId === requestId) {
+            state.sharepointArchive = { ...state.sharepointArchive, status: "archived", archivedAt: new Date().toISOString() };
+            save("Rapport archivé sur SharePoint");
+            renderSharePointArchiveStatus();
+            showToast("Rapport archivé sur SharePoint. Le brouillon local est conservé.", "success");
+          }
+          return;
+        }
+        if (result?.state === "failed" || result?.ok === false) {
+          if (state.sharepointArchive?.requestId === requestId) {
+            state.sharepointArchive = { ...state.sharepointArchive, status: "failed", error: result.error || "La passerelle a refusé l’archivage." };
+            save("Archivage SharePoint à vérifier");
+            renderSharePointArchiveStatus();
+          }
+          return;
+        }
+      } catch (_) {
+        // Une confirmation JSONP peut échouer temporairement sur le réseau
+        // mobile. La transmission reste enregistrée et le brouillon intact.
+      }
+    }
+    if (state.sharepointArchive?.requestId === requestId && state.sharepointArchive.status === "transmitted") {
+      state.sharepointArchive = { ...state.sharepointArchive, status: "confirmation-pending" };
+      save("Confirmation SharePoint à vérifier");
+      renderSharePointArchiveStatus();
+    }
+  }
+
+  async function archiveReportOnSharePoint() {
+    if (sharePointArchiveInProgress) return;
+    if (!sharePointGatewayUrl()) {
+      showToast("La passerelle SharePoint n’est pas configurée.", "warning");
+      return;
+    }
+    sharePointArchiveInProgress = true;
+    setSharePointArchiveBusy(true, "Création du PDF pour SharePoint…");
+    const requestId = `RJ-${globalThis.crypto?.randomUUID?.() || uid()}`;
+    try {
+      const pdf = await createSharePointArchivePdf();
+      setSharePointArchiveBusy(true, "Transmission sécurisée vers SharePoint…");
+      const queued = await submitSharePointArchive({
+        action: "submit",
+        requestId,
+        filename: pdf.filename,
+        pdfBase64: await blobToBase64(pdf.blob),
+        chantier: state.meta.operation || "",
+        date: state.meta.date || "",
+        entreprise: participatingCompanyNames().join(" - "),
+        documentType: "rapport-journalier-ainm",
+      });
+      if (!queued?.ok || queued.state !== "queued") throw new Error(queued?.error || "La passerelle n’a pas accepté le rapport.");
+      state.sharepointArchive = { requestId, filename: pdf.filename, sentAt: new Date().toISOString(), status: "transmitted" };
+      try { localStorage.setItem(SHAREPOINT_ARCHIVE_KEY, JSON.stringify(state.sharepointArchive)); } catch (_) { /* Information facultative. */ }
+      save("Rapport transmis à SharePoint");
+      setSharePointArchiveBusy(false);
+      renderSharePointArchiveStatus();
+      showToast("Rapport transmis à SharePoint. Le brouillon et les signatures sont conservés.", "success");
+      void monitorSharePointArchive(requestId);
+    } catch (error) {
+      const message = error?.message || "Archivage SharePoint impossible.";
+      state.sharepointArchive = { requestId, sentAt: new Date().toISOString(), status: "failed", error: message };
+      save("Archivage SharePoint non confirmé");
+      setSharePointArchiveBusy(false);
+      renderSharePointArchiveStatus();
+      showToast(`${message} Le brouillon et les signatures sont conservés.`, "warning");
+    } finally {
+      sharePointArchiveInProgress = false;
+      setSharePointArchiveBusy(false);
+    }
+  }
+
   function exportState() {
     const baseName = (state.meta.reportNo || "brouillon").replace(/[^a-zA-Z0-9_-]+/g, "-");
     const filename = `rapport-journalier-${baseName}.json`;
@@ -2531,7 +3038,10 @@
       const handler = () => {
         const value = element.type === "checkbox" ? element.checked : element.value;
         setPath(state, element.dataset.path, value);
-        if (element.dataset.path === "meta.reporter" && !state.afterWorkSignature.dataUrl) state.afterWorkSignature.name = value;
+        if (element.dataset.path === "meta.reporter") {
+          state.afterWorkSignature.name = value;
+          state.meta.moeRepresentative = value;
+        }
         save();
         refresh({ inputs: false });
       };
@@ -2749,6 +3259,7 @@
     $("#afterWorkSignerName").addEventListener("input", (event) => {
       state.afterWorkSignature.name = event.target.value;
       state.meta.reporter = event.target.value;
+      state.meta.moeRepresentative = event.target.value;
       const reporter = $("#reporterInput");
       if (reporter && reporter !== document.activeElement) reporter.value = event.target.value;
       save();
@@ -2764,17 +3275,16 @@
       scheduleSignatureKeyboardDismissal(event.target);
     });
     $("#saveAfterWorkSignatureButton")?.addEventListener("click", () => {
-      if (!state.afterWorkSignature.dataUrl) {
-        showToast("Signer dans la zone avant de valider le visa du surveillant.", "warning");
-        return;
-      }
-      state.afterWorkSignature.signedAt ||= new Date().toISOString();
+      const signed = Boolean(state.afterWorkSignature.dataUrl);
+      if (signed) state.afterWorkSignature.signedAt ||= new Date().toISOString();
+      else state.afterWorkSignature.signedAt = "";
       state.afterWorkSignature.name ||= state.meta.reporter || "";
       state.afterWorkSignature.role ||= "Surveillant de travaux";
-      save("Visa du surveillant de travaux validé");
+      state.meta.moeRepresentative = state.afterWorkSignature.name || state.meta.reporter || "";
+      save(signed ? "Visa MOETx / surveillant enregistré" : "Visa MOETx / surveillant enregistré à signer");
       renderAfterWorkSignature();
       renderPrintReport();
-      showToast("Signature du surveillant de travaux enregistrée.", "success");
+      showToast(signed ? "Signature MOETx / surveillant enregistrée." : "Case vide enregistrée : À signer.", "success");
     });
     $("#clearAfterWorkSignatureButton").addEventListener("click", async () => {
       if (state.afterWorkSignature.dataUrl) {
@@ -2783,9 +3293,9 @@
       }
       state.afterWorkSignature.dataUrl = "";
       state.afterWorkSignature.signedAt = "";
-      save("Signature effacée");
       renderAfterWorkSignature();
       renderPrintReport();
+      showToast("Signature effacée. Toucher Enregistrer pour conserver la case À signer.", "warning");
     });
 
     $("#companyVisaList")?.addEventListener("click", async (event) => {
@@ -2802,7 +3312,7 @@
       companyVisaDraft.signedAt = "";
       drawCompanySignatureData();
       const status = $("#companyVisaSignatureStatus");
-      if (status) status.textContent = "Signer au doigt ou au stylet dans la zone ci-dessus.";
+      if (status) status.textContent = "Signature effacée. Toucher Enregistrer pour conserver la case À signer.";
     });
     $("#companyVisaForm")?.addEventListener("click", (event) => {
       if (!event.target.closest("#saveCompanyVisaButton")) return;
@@ -2824,6 +3334,7 @@
     });
 
     $("#printButton").addEventListener("click", () => { renderPrintReport(); window.print(); });
+    $("#archiveSharePointButton")?.addEventListener("click", () => { void archiveReportOnSharePoint(); });
     $("#exportButton").addEventListener("click", exportState);
     $("#openAdminButton").addEventListener("click", openAdminAccess);
     $("#cancelAdminButton").addEventListener("click", closeAdminAccess);

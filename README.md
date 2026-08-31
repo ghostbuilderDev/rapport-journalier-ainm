@@ -1,6 +1,14 @@
-# Rapport journalier AINM — PWA terrain V9.0
+# Rapport journalier AINM — PWA terrain V9.1
 
 Application autonome, utilisable hors ligne, pour les rapports journaliers de travaux signalisation AINM.
+
+## Version V9.1
+
+- Le **représentant MOETx** et le **surveillant de travaux** utilisent désormais un seul visa et une seule signature, visible en bas du PDF.
+- Une signature peut être effacée puis enregistrée volontairement vide : la case reste présente avec le statut **À signer**.
+- Les boutons de visa sont simplifiés en **Enregistrer**.
+- Le bouton **Archiver sur SharePoint** produit un PDF d’archivage et l’envoie par la même passerelle SharePoint que Briefing au pied de l’opération. Le brouillon local et les signatures restent conservés sur le téléphone.
+- Le cache PWA passe à V9.1 et inclut le module PDF d’archivage hors ligne.
 
 ## Version V9.0
 
@@ -59,7 +67,7 @@ Application autonome, utilisable hors ligne, pour les rapports journaliers de tr
 2. Utiliser la zone **Saisie rapide** pour les éléments de la séance.
 3. Ajouter les photos, contrôles, anomalies et pièces utiles.
 4. Faire signer les responsables des entreprises dans la dernière étape.
-5. Toucher **Imprimer le rapport PDF**.
+5. Toucher **Imprimer le rapport PDF** pour l’édition locale, ou **Archiver sur SharePoint** pour déposer directement le PDF.
 6. Toucher **Sauvegarder la saisie** avant de quitter l’application lorsque tu souhaites conserver une copie externe.
 
 ## Règle de numérotation
@@ -72,10 +80,10 @@ Décompresser l’archive dans le dépôt puis exécuter :
 
 ```sh
 cd ~/projets
-unzip -o ~/storage/downloads/rapport-journalier-ainm-pwa-v9.0-effectifs-simplifies.zip
+unzip -o ~/storage/downloads/rapport-journalier-ainm-pwa-v9.1-visas-sharepoint.zip
 cd ~/projets/rapport-journalier-ainm-pwa
 git add -A
-git commit -m "Mise à jour V9.0 : effectifs simplifiés"
+git commit -m "Mise à jour V9.1 : visas et SharePoint"
 git push
 ```
 
