@@ -3,6 +3,7 @@
   "use strict";
 
   const STORAGE_KEY = "ainm-rj-pwa-v1";
+  const APP_VERSION = "8.6";
   const snapshotKey = "ainm-rj-pwa-last-snapshot";
   const adminSessionKey = "ainm-rj-pwa-admin-unlocked";
   const reportSequenceKey = "ainm-rj-pwa-report-serial-v2";
@@ -194,7 +195,7 @@
     const identity = allocateReportIdentity();
     return {
       schema: 1,
-      appVersion: 8.5,
+      appVersion: 8.6,
       updatedAt: new Date().toISOString(),
       reportSerial: identity.serial,
       reportUid: identity.uid,
@@ -234,7 +235,7 @@
       materials: [],
       selfChecks: [],
       photos: [],
-      afterWorkSignature: { name: "", role: "", signedAt: "", dataUrl: "" },
+      afterWorkSignature: { name: "", role: "Surveillant de travaux", signedAt: "", dataUrl: "" },
       companySignatures: [],
       settings: { mappings: {}, admin: { pinHash: "", configuredAt: "", includeCommonCosts: false } },
     };
@@ -259,7 +260,11 @@
   const ensureState = () => {
     state.meta ||= {};
     ["tasks", "personnel", "equipment", "possessions", "anomalies", "documents", "sncfMeans", "materials", "selfChecks", "photos"].forEach((key) => { if (!Array.isArray(state[key])) state[key] = []; });
-    state.afterWorkSignature ||= { name: "", role: "", signedAt: "", dataUrl: "" };
+    state.afterWorkSignature ||= { name: "", role: "Surveillant de travaux", signedAt: "", dataUrl: "" };
+    // Les versions précédentes appelaient ce visa « après travaux ». Il devient
+    // le visa du surveillant de travaux, sans perdre une signature déjà saisie.
+    if (!state.afterWorkSignature.name && state.meta.reporter) state.afterWorkSignature.name = state.meta.reporter;
+    if (!state.afterWorkSignature.role) state.afterWorkSignature.role = "Surveillant de travaux";
     if (!Array.isArray(state.companySignatures)) state.companySignatures = [];
     delete state.collaboration;
     ["location", "executionNotes", "nextWorks"].forEach((key) => { if (typeof state.meta[key] !== "string") state.meta[key] = ""; });
@@ -283,7 +288,7 @@
     });
     state.personnel = state.personnel.filter((row) => number(row.count) > 0);
     state.sncfMeans = state.sncfMeans.filter((row) => number(row.count) > 0);
-    state.appVersion = Math.max(8.5, Number(state.appVersion) || 0);
+    state.appVersion = Math.max(8.6, Number(state.appVersion) || 0);
     ["personnel", "sncfMeans"].forEach((key) => {
       state[key].forEach((row) => { row.role = canonicalSncfRole(row.role); });
     });
@@ -301,6 +306,7 @@
   ensureState();
   let taskDraft = null;
   let rowDraft = null;
+  let rowSaveInProgress = false;
   let rosterFunctionCompany = "";
   let catalogSearch = "";
   let catalogCategory = "Toutes";
@@ -973,7 +979,7 @@
       <label id="row_companyOtherField" class="field ${company === "Autre" ? "" : "hidden"}"><span>Autre entreprise</span><input id="row_companyOther" value="${escapeHtml(companyOther)}" placeholder="Nom de l’entreprise" autocomplete="organization" /></label>
       <label id="row_roleOtherField" class="field ${row.role === "Autre" ? "" : "hidden"}"><span>Autre fonction</span><input id="row_roleOther" value="${escapeHtml(row.roleOther ?? "")}" placeholder="Préciser la fonction" /></label>
       <details class="optional-details"><summary>Complément équipe</summary><label class="field"><span>Chef d’équipe / précision</span><input id="row_lead" value="${escapeHtml(row.lead ?? "")}" placeholder="Nom ou précision utile" /></label><label class="field"><span>Observation</span><textarea id="row_observation" rows="3" placeholder="Particularité, coactivité, absence ou renfort…">${escapeHtml(row.observation ?? "")}</textarea></label></details>
-      <div class="dialog-actions"><button id="saveRowButton" type="button" class="primary-button">Enregistrer l’effectif</button></div>
+      <div class="dialog-actions"><button id="saveRowButton" type="submit" value="save" class="primary-button">Enregistrer l’effectif</button></div>
     </div>`;
   }
 
@@ -1036,7 +1042,7 @@
       <label id="row_companyOtherField" class="field ${company === "Autre" ? "" : "hidden"}"><span>Autre entreprise</span><input id="row_companyOther" value="${escapeHtml(row.companyOther ?? "")}" placeholder="Nom de l’entreprise" autocomplete="organization" /></label>
       <label id="row_typeOtherField" class="field ${isOtherEquipmentType(type) ? "" : "hidden"}"><span>Préciser le type d’engin</span><input id="row_typeOther" value="${escapeHtml(row.typeOther ?? "")}" placeholder="Ex. portique, wagon outillé…" /></label>
       <details class="optional-details"><summary>Identification et sécurité</summary><div class="task-extra-grid"><label class="field"><span>Identification</span><input id="row_identification" value="${escapeHtml(row.identification ?? "")}" placeholder="Ex. Pelle RR ETF 01 / immatriculation" /></label><label class="field"><span>PK / secteur</span><input id="row_pk" value="${escapeHtml(row.pk ?? "")}" placeholder="Ex. PK 79,240" /></label><label id="row_railRoadDetails" class="field ${family === "Rail-route / LAM" ? "" : "hidden"}"><span>Mise en voie</span><select id="row_miseEnVoie">${selectOptions(["Plateforme aménagée", "Sans plateforme aménagée", "Déjà en voie", "Non concerné"], row.miseEnVoie || "", "Choisir le mode")}</select></label></div><label class="field"><span>Observation / mesure de sécurité</span><textarea id="row_observation" rows="3" placeholder="Remorque, stabilisateurs, limite de circulation, coactivité, consigne…">${escapeHtml(row.observation ?? "")}</textarea></label></details>
-      <div class="dialog-actions"><button id="saveRowButton" type="button" class="primary-button">Enregistrer l’engin</button></div>
+      <div class="dialog-actions"><button id="saveRowButton" type="submit" value="save" class="primary-button">Enregistrer l’engin</button></div>
     </div>`;
   }
 
@@ -1078,7 +1084,7 @@
       <section class="time-matrix" aria-label="Tableau des horaires"><div class="time-matrix-head"><span>Étape</span><span>Début</span><span>Fin</span></div><label><strong>Prévue</strong><input id="row_plannedStart" type="time" value="${escapeHtml(row.plannedStart ?? start)}" /><input id="row_plannedEnd" type="time" value="${escapeHtml(row.plannedEnd ?? end)}" /></label><label><strong>Accordée</strong><input id="row_agreedStart" type="time" value="${escapeHtml(row.agreedStart ?? start)}" /><input id="row_agreedEnd" type="time" value="${escapeHtml(row.agreedEnd ?? end)}" /></label><label><strong>ARF / réelle</strong><input id="row_actualStart" type="time" value="${escapeHtml(row.actualStart ?? start)}" /><input id="row_actualEnd" type="time" value="${escapeHtml(row.actualEnd ?? end)}" /></label><label><strong>Intervention</strong><input id="row_interventionStart" type="time" value="${escapeHtml(row.interventionStart ?? "")}" /><input id="row_interventionEnd" type="time" value="${escapeHtml(row.interventionEnd ?? "")}" /></label></section>
       <section class="arf-photo-capture"><div><strong>Photos ARF</strong><p>Joindre le document de début et de fin directement à cette ligne.</p></div><div class="arf-photo-grid"><section class="photo-capture-item"><strong>ARF début</strong>${photoPreview(row.arfStartPhoto, "Photo ARF début")}${imageAttachmentControls("row_arfStartCamera", "row_arfStartFile", { multiple: false })}</section><section class="photo-capture-item"><strong>ARF fin</strong>${photoPreview(row.arfEndPhoto, "Photo ARF fin")}${imageAttachmentControls("row_arfEndCamera", "row_arfEndFile", { multiple: false })}</section></div></section>
       <label class="field"><span>Observation</span><textarea id="row_observation" rows="3" placeholder="Motif de décalage ou consigne utile…">${escapeHtml(row.observation ?? "")}</textarea></label>
-      <div class="dialog-actions"><button id="saveRowButton" type="button" class="primary-button">Enregistrer les horaires</button></div>
+      <div class="dialog-actions"><button id="saveRowButton" type="submit" value="save" class="primary-button">Enregistrer les horaires</button></div>
     </div>`;
   }
 
@@ -1109,7 +1115,7 @@
       <label class="field"><span>Mesure prise / suite</span><textarea id="row_action" rows="4" placeholder="Action immédiate, mesure conservatoire ou prochaine étape.">${escapeHtml(row.action ?? "")}</textarea></label>
       <section class="attachment-section"><strong>Photos associées</strong>${photoPreview}${imageAttachmentControls("row_anomalyCamera", "row_anomalyFile", { multiple: false })}</section>
       <details class="optional-details"><summary>Responsable et échéance</summary><div class="task-extra-grid"><label class="field"><span>Responsable</span><input id="row_responsible" value="${escapeHtml(row.responsible ?? "")}" placeholder="Nom ou entreprise responsable" /></label><label class="field"><span>Échéance</span><input id="row_dueDate" type="date" value="${escapeHtml(row.dueDate ?? "")}" /></label></div></details>
-      <div class="dialog-actions"><button id="saveRowButton" type="button" class="primary-button">Enregistrer le point de suivi</button></div>
+      <div class="dialog-actions"><button id="saveRowButton" type="submit" value="save" class="primary-button">Enregistrer le point de suivi</button></div>
     </div>`;
   }
 
@@ -1126,7 +1132,7 @@
       <div class="resource-primary-grid"><label class="field"><span>Famille</span><select id="row_type">${selectOptions(MATERIAL_TYPES, row.type || "", "Choisir une famille")}</select></label><label class="field"><span>Libellé / référence</span><input id="row_name" value="${escapeHtml(row.name ?? "")}" placeholder="Ex. Câble 240 mm² aluminium" /></label><label class="field field-count"><span>Quantité</span><input id="row_quantity" type="number" min="0" step="0.01" inputmode="decimal" value="${escapeHtml(row.quantity ?? "")}" placeholder="Qté" /></label><label class="field"><span>Unité</span><select id="row_unit">${selectOptions(MATERIAL_UNITS, row.unit || "", "Unité")}</select></label></div>
       <div class="task-extra-grid"><label class="field"><span>Voie / PK / zone</span><input id="row_zone" value="${escapeHtml(row.zone ?? "")}" placeholder="Ex. V2 – PK 80+240" /></label><label class="field"><span>Lot / référence fournisseur</span><input id="row_reference" value="${escapeHtml(row.reference ?? "")}" placeholder="Optionnel" /></label></div>
       <label class="field"><span>Observation</span><textarea id="row_observation" rows="3" placeholder="Utilisation, dépose, stockage, réserve…">${escapeHtml(row.observation ?? "")}</textarea></label>
-      <div class="dialog-actions"><button id="saveRowButton" type="button" class="primary-button">Enregistrer le matériau</button></div>
+      <div class="dialog-actions"><button id="saveRowButton" type="submit" value="save" class="primary-button">Enregistrer le matériau</button></div>
     </div>`;
   }
 
@@ -1140,7 +1146,7 @@
       <div class="resource-primary-grid"><label class="field"><span>Type de contrôle</span><select id="row_type">${selectOptions(SELFCHECK_TYPES, row.type || "", "Choisir un contrôle")}</select></label><label class="field"><span>Résultat</span><select id="row_status">${selectOptions(["Conforme", "Avec réserve", "Non conforme", "Non réalisé"], row.status || "", "Choisir un résultat")}</select></label><label class="field"><span>Voie / PK / zone</span><input id="row_zone" value="${escapeHtml(row.zone ?? "")}" placeholder="Ex. V1 – PK 80+120" /></label><label class="field"><span>Référence / fiche</span><input id="row_reference" value="${escapeHtml(row.reference ?? "")}" placeholder="N° fiche ou PV" /></label></div>
       <div class="task-extra-grid"><label class="field"><span>Réalisé par</span><input id="row_responsible" value="${escapeHtml(row.responsible ?? "")}" placeholder="Nom / fonction" /></label><label class="field"><span>Heure / date</span><input id="row_checkedAt" value="${escapeHtml(row.checkedAt ?? "")}" placeholder="Ex. 02:15" /></label></div>
       <label class="field"><span>Observation / réserve</span><textarea id="row_observation" rows="3" placeholder="Résultat détaillé, réserve ou action associée.">${escapeHtml(row.observation ?? "")}</textarea></label>
-      <div class="dialog-actions"><button id="saveRowButton" type="button" class="primary-button">Enregistrer le contrôle</button></div>
+      <div class="dialog-actions"><button id="saveRowButton" type="submit" value="save" class="primary-button">Enregistrer le contrôle</button></div>
     </div>`;
   }
 
@@ -1154,7 +1160,7 @@
       <h3 class="resource-editor-title">Personnel SNCF affecté</h3>
       <section class="resource-shortcuts" aria-label="Raccourcis moyens SNCF"><span>Fonctions fréquentes</span><div>${SNCF_MEANS_PRESETS.map((preset, index) => `<button type="button" class="resource-preset ${role === preset ? "active" : ""}" data-sncf-preset="${index}">${escapeHtml(preset)}</button>`).join("")}</div></section>
       <div class="resource-primary-grid sncf-primary"><label class="field"><span>Fonction</span><select id="row_role">${selectOptions(SNCF_MEANS_OPTIONS, role, "Choisir une fonction")}</select></label><label class="field field-count"><span>Effectif</span>${countStepper("row_count", row.count)}</label><label class="field field-wide"><span>Mission / précision</span><input id="row_observation" value="${escapeHtml(row.observation ?? "")}" placeholder="Nom, mission ou commentaire utile" /></label></div>
-      <div class="dialog-actions"><button id="saveRowButton" type="button" class="primary-button">Enregistrer l’effectif SNCF</button></div>
+      <div class="dialog-actions"><button id="saveRowButton" type="submit" value="save" class="primary-button">Enregistrer l’effectif SNCF</button></div>
     </div>`;
   }
 
@@ -1181,7 +1187,7 @@
       <div class="resource-banner document-banner"><span class="resource-symbol">D</span><div><strong>Document, fiche ou rapport</strong><p>Tracer uniquement la pièce utile à l’archivage et sa référence. Elle apparaîtra dans la section dédiée du PDF.</p></div></div>
       <div class="resource-primary-grid document-primary"><label class="field"><span>Document / fiche</span><input id="row_name" value="${escapeHtml(row.name ?? "")}" placeholder="Ex. Fiche de libération" /></label><label class="field"><span>Référence</span><input id="row_reference" value="${escapeHtml(row.reference ?? "")}" placeholder="N° ou lien" /></label><label class="field field-wide"><span>Observation / réserve</span><input id="row_observation" value="${escapeHtml(row.observation ?? "")}" placeholder="Contenu ou réserve éventuelle" /></label></div>
       <section class="attachment-section"><strong>Photo ou pièce image</strong><p>Prendre une photo ou choisir une image depuis les fichiers du téléphone.</p>${renderImageAttachmentPreviews(row.attachments || [], "data-remove-document-attachment")}${imageAttachmentControls("row_documentCamera", "row_documentFile")}</section>
-      <div class="dialog-actions"><button id="saveRowButton" type="button" class="primary-button">Enregistrer le document</button></div>
+      <div class="dialog-actions"><button id="saveRowButton" type="submit" value="save" class="primary-button">Enregistrer le document</button></div>
     </div>`;
   }
 
@@ -1371,35 +1377,26 @@
     const signature = state.afterWorkSignature || {};
     const name = $("#afterWorkSignerName");
     const role = $("#afterWorkSignerRole");
-    if (name && document.activeElement !== name) name.value = signature.name || "";
-    if (role && document.activeElement !== role) role.value = signature.role || "";
+    if (name && document.activeElement !== name) name.value = signature.name || state.meta.reporter || "";
+    if (role && document.activeElement !== role) role.value = signature.role || "Surveillant de travaux";
     const status = $("#afterWorkSignatureStatus");
     if (status) status.textContent = signature.signedAt
-      ? `Signée le ${formatDateTime(signature.signedAt)}${signature.name ? ` par ${signature.name}` : ""}.`
-      : "Signer au doigt dans la zone ci-dessus.";
+      ? `Signature du surveillant enregistrée le ${formatDateTime(signature.signedAt)}${signature.name ? ` par ${signature.name}` : ""}.`
+      : "Signer au doigt ou au stylet dans la zone ci-dessus.";
     if (signatureCanvasReady) drawSignatureData(signature.dataUrl);
   }
 
-  function setupSignatureCanvas() {
-    const canvas = $("#afterWorkSignatureCanvas");
-    if (!canvas || signatureCanvasReady) return;
+  function bindSignatureCapture(canvas, { onCapture }) {
+    if (!canvas || canvas.dataset.signatureBound === "true") return;
     let drawing = false;
     let pointerId = null;
     let lastPoint = null;
-    const resize = () => {
-      if (drawing) return;
-      const rect = canvas.getBoundingClientRect();
-      const ratio = Math.max(1, window.devicePixelRatio || 1);
-      canvas.width = Math.max(300, Math.floor(rect.width || 300) * ratio);
-      canvas.height = 148 * ratio;
-      canvas.dataset.ratio = String(ratio);
-      drawSignatureData(state.afterWorkSignature?.dataUrl || "");
-    };
-    const point = (event) => {
+
+    const point = (clientX, clientY) => {
       const rect = canvas.getBoundingClientRect();
       return {
-        x: Math.max(0, Math.min(rect.width || 300, event.clientX - rect.left)),
-        y: Math.max(0, Math.min(rect.height || 148, event.clientY - rect.top)),
+        x: Math.max(0, Math.min(rect.width || 300, clientX - rect.left)),
+        y: Math.max(0, Math.min(rect.height || 148, clientY - rect.top)),
       };
     };
     const context = () => {
@@ -1407,53 +1404,117 @@
       const ratio = Number(canvas.dataset.ratio || 1);
       drawingContext.setTransform(ratio, 0, 0, ratio, 0, 0);
       drawingContext.strokeStyle = "#17272c";
-      drawingContext.lineWidth = 2.2;
+      drawingContext.lineWidth = 2.4;
       drawingContext.lineCap = "round";
       drawingContext.lineJoin = "round";
       return drawingContext;
     };
-    canvas.addEventListener("pointerdown", (event) => {
-      if (event.button !== undefined && event.button !== 0) return;
+    const begin = (clientX, clientY, nextPointerId = null) => {
       drawing = true;
-      pointerId = event.pointerId;
-      lastPoint = point(event);
-      try { canvas.setPointerCapture?.(event.pointerId); } catch (_) { /* Certains WebViews ne capturent pas le pointeur. */ }
+      canvas.dataset.drawing = "true";
+      pointerId = nextPointerId;
+      lastPoint = point(clientX, clientY);
       const drawingContext = context();
       drawingContext.beginPath();
       drawingContext.moveTo(lastPoint.x, lastPoint.y);
-      drawingContext.arc(lastPoint.x, lastPoint.y, 0.8, 0, Math.PI * 2);
+      drawingContext.arc(lastPoint.x, lastPoint.y, 1, 0, Math.PI * 2);
       drawingContext.fillStyle = "#17272c";
       drawingContext.fill();
-      event.preventDefault();
-    });
-    canvas.addEventListener("pointermove", (event) => {
-      if (!drawing || (pointerId !== null && event.pointerId !== pointerId)) return;
-      const next = point(event);
+    };
+    const move = (clientX, clientY) => {
+      if (!drawing || !lastPoint) return;
+      const next = point(clientX, clientY);
       const drawingContext = context();
       drawingContext.beginPath();
       drawingContext.moveTo(lastPoint.x, lastPoint.y);
       drawingContext.lineTo(next.x, next.y);
       drawingContext.stroke();
       lastPoint = next;
-      event.preventDefault();
-    });
-    const finish = (event) => {
-      if (!drawing) return;
-      if (event && pointerId !== null && event.pointerId !== pointerId) return;
-      drawing = false;
-      const finishedPointer = pointerId;
-      pointerId = null;
-      try { if (finishedPointer !== null && canvas.hasPointerCapture?.(finishedPointer)) canvas.releasePointerCapture(finishedPointer); } catch (_) { /* Sans incidence. */ }
-      state.afterWorkSignature.dataUrl = canvas.toDataURL("image/png");
-      state.afterWorkSignature.signedAt = new Date().toISOString();
-      save("Visa après travaux signé");
-      renderAfterWorkSignature();
-      renderPrintReport();
     };
-    canvas.addEventListener("pointerup", finish);
-    canvas.addEventListener("pointercancel", finish);
-    canvas.addEventListener("lostpointercapture", finish);
+    const finish = () => {
+      if (!drawing) return;
+      drawing = false;
+      canvas.dataset.drawing = "false";
+      pointerId = null;
+      lastPoint = null;
+      try { onCapture(canvas.toDataURL("image/png")); } catch (_) { showToast("La signature n’a pas pu être enregistrée. Réessayez dans la zone de signature.", "warning"); }
+    };
+
+    if ("PointerEvent" in window) {
+      canvas.addEventListener("pointerdown", (event) => {
+        // Sur certains Android/WebViews, button vaut -1 pour un toucher : ne
+        // filtrer que les clics souris secondaires.
+        if (event.pointerType === "mouse" && event.button !== 0) return;
+        if (event.isPrimary === false) return;
+        begin(event.clientX, event.clientY, event.pointerId);
+        try { canvas.setPointerCapture?.(event.pointerId); } catch (_) { /* Capture facultative. */ }
+        event.preventDefault();
+      });
+      canvas.addEventListener("pointermove", (event) => {
+        if (!drawing || (pointerId !== null && event.pointerId !== pointerId)) return;
+        move(event.clientX, event.clientY);
+        event.preventDefault();
+      });
+      const finishPointer = (event) => {
+        if (!drawing || (pointerId !== null && event.pointerId !== pointerId)) return;
+        const finishedPointer = pointerId;
+        finish();
+        try { if (finishedPointer !== null && canvas.hasPointerCapture?.(finishedPointer)) canvas.releasePointerCapture(finishedPointer); } catch (_) { /* Sans incidence. */ }
+        event?.preventDefault?.();
+      };
+      canvas.addEventListener("pointerup", finishPointer);
+      canvas.addEventListener("pointercancel", finishPointer);
+      canvas.addEventListener("lostpointercapture", finishPointer);
+    } else {
+      const touch = (event) => event.changedTouches?.[0] || event.touches?.[0];
+      canvas.addEventListener("touchstart", (event) => {
+        const current = touch(event);
+        if (!current) return;
+        begin(current.clientX, current.clientY);
+        event.preventDefault();
+      }, { passive: false });
+      canvas.addEventListener("touchmove", (event) => {
+        const current = touch(event);
+        if (!current) return;
+        move(current.clientX, current.clientY);
+        event.preventDefault();
+      }, { passive: false });
+      canvas.addEventListener("touchend", (event) => { finish(); event.preventDefault(); }, { passive: false });
+      canvas.addEventListener("touchcancel", (event) => { finish(); event.preventDefault(); }, { passive: false });
+      canvas.addEventListener("mousedown", (event) => { if (event.button === 0) begin(event.clientX, event.clientY); });
+      canvas.addEventListener("mousemove", (event) => { if (drawing) move(event.clientX, event.clientY); });
+      window.addEventListener("mouseup", () => finish());
+    }
+    canvas.addEventListener("contextmenu", (event) => event.preventDefault());
     canvas.style.touchAction = "none";
+    canvas.dataset.signatureBound = "true";
+  }
+
+  function setupSignatureCanvas() {
+    const canvas = $("#afterWorkSignatureCanvas");
+    if (!canvas || signatureCanvasReady) return;
+    const resize = () => {
+      if (canvas.dataset.drawing === "true") return;
+      const rect = canvas.getBoundingClientRect();
+      const ratio = Math.max(1, window.devicePixelRatio || 1);
+      canvas.width = Math.max(300, Math.floor(rect.width || 300) * ratio);
+      canvas.height = 148 * ratio;
+      canvas.dataset.ratio = String(ratio);
+      drawSignatureData(state.afterWorkSignature?.dataUrl || "");
+    };
+    bindSignatureCapture(canvas, {
+      onCapture: (dataUrl) => {
+        state.afterWorkSignature.name ||= state.meta.reporter || "";
+        state.afterWorkSignature.role ||= "Surveillant de travaux";
+        state.afterWorkSignature.dataUrl = dataUrl;
+        state.afterWorkSignature.signedAt = new Date().toISOString();
+        if (save("Visa du surveillant de travaux enregistré")) {
+          renderAfterWorkSignature();
+          renderPrintReport();
+          showToast("Signature du surveillant de travaux enregistrée.", "success");
+        }
+      },
+    });
     signatureCanvasReady = true;
     resize();
     window.addEventListener("resize", resize);
@@ -1503,70 +1564,15 @@
       resizeCompanySignatureCanvas();
       return;
     }
-    let drawing = false;
-    let pointerId = null;
-    let lastPoint = null;
-    const point = (event) => {
-      const rect = canvas.getBoundingClientRect();
-      return {
-        x: Math.max(0, Math.min(rect.width || 300, event.clientX - rect.left)),
-        y: Math.max(0, Math.min(rect.height || 148, event.clientY - rect.top)),
-      };
-    };
-    const context = () => {
-      const drawingContext = canvas.getContext("2d");
-      const ratio = Number(canvas.dataset.ratio || 1);
-      drawingContext.setTransform(ratio, 0, 0, ratio, 0, 0);
-      drawingContext.strokeStyle = "#17272c";
-      drawingContext.lineWidth = 2.2;
-      drawingContext.lineCap = "round";
-      drawingContext.lineJoin = "round";
-      return drawingContext;
-    };
-    canvas.addEventListener("pointerdown", (event) => {
-      if (event.button !== undefined && event.button !== 0) return;
-      drawing = true;
-      canvas.dataset.drawing = "true";
-      pointerId = event.pointerId;
-      lastPoint = point(event);
-      try { canvas.setPointerCapture?.(event.pointerId); } catch (_) { /* Certains WebViews ne capturent pas le pointeur. */ }
-      const drawingContext = context();
-      drawingContext.beginPath();
-      drawingContext.moveTo(lastPoint.x, lastPoint.y);
-      drawingContext.arc(lastPoint.x, lastPoint.y, 0.8, 0, Math.PI * 2);
-      drawingContext.fillStyle = "#17272c";
-      drawingContext.fill();
-      event.preventDefault();
+    bindSignatureCapture(canvas, {
+      onCapture: (dataUrl) => {
+        if (!companyVisaDraft) return;
+        companyVisaDraft.dataUrl = dataUrl;
+        companyVisaDraft.signedAt = new Date().toISOString();
+        const status = $("#companyVisaSignatureStatus");
+        if (status) status.textContent = `Signature capturée le ${formatDateTime(companyVisaDraft.signedAt)}. Appuyer sur « Enregistrer le visa » pour la valider.`;
+      },
     });
-    canvas.addEventListener("pointermove", (event) => {
-      if (!drawing || (pointerId !== null && event.pointerId !== pointerId)) return;
-      const next = point(event);
-      const drawingContext = context();
-      drawingContext.beginPath();
-      drawingContext.moveTo(lastPoint.x, lastPoint.y);
-      drawingContext.lineTo(next.x, next.y);
-      drawingContext.stroke();
-      lastPoint = next;
-      event.preventDefault();
-    });
-    const finish = (event) => {
-      if (!drawing) return;
-      if (event && pointerId !== null && event.pointerId !== pointerId) return;
-      drawing = false;
-      canvas.dataset.drawing = "false";
-      const finishedPointer = pointerId;
-      pointerId = null;
-      try { if (finishedPointer !== null && canvas.hasPointerCapture?.(finishedPointer)) canvas.releasePointerCapture(finishedPointer); } catch (_) { /* Sans incidence. */ }
-      if (!companyVisaDraft) return;
-      companyVisaDraft.dataUrl = canvas.toDataURL("image/png");
-      companyVisaDraft.signedAt = new Date().toISOString();
-      const status = $("#companyVisaSignatureStatus");
-      if (status) status.textContent = `Signature capturée le ${formatDateTime(companyVisaDraft.signedAt)}.`;
-    };
-    canvas.addEventListener("pointerup", finish);
-    canvas.addEventListener("pointercancel", finish);
-    canvas.addEventListener("lostpointercapture", finish);
-    canvas.style.touchAction = "none";
     companySignatureCanvasReady = true;
     resizeCompanySignatureCanvas();
     window.requestAnimationFrame(resizeCompanySignatureCanvas);
@@ -1587,7 +1593,8 @@
     }
     target.innerHTML = companies.map((company) => {
       const signature = state.companySignatures.find((item) => item.company === company);
-      return `<section class="company-visa-company"><header><strong>${escapeHtml(company)}</strong><button type="button" class="mini-button ${signature.dataUrl ? "signed" : ""}" data-edit-company-visa="${escapeHtml(signature.id)}">${signature.dataUrl ? "Modifier le visa" : "Signer"}</button></header><article class="company-visa-card"><div><strong>${escapeHtml(signature.name || "Nom du responsable à renseigner dans le contexte")}</strong><span>${escapeHtml(signature.role || "Fonction à renseigner")}</span><small>${signature.signedAt ? `Signé le ${escapeHtml(formatDateTime(signature.signedAt))}` : "Visa final à compléter"}</small></div>${signature.dataUrl ? `<img src="${escapeHtml(signature.dataUrl)}" alt="Visa de ${escapeHtml(signature.name || company)}" />` : ""}</article></section>`;
+      const signed = Boolean(signature?.dataUrl);
+      return `<section class="company-visa-company ${signed ? "is-signed" : ""}"><header><strong>${escapeHtml(company)}</strong><button type="button" class="mini-button ${signed ? "signed" : ""}" data-edit-company-visa="${escapeHtml(signature.id)}">${signed ? "Modifier le visa" : "Signer"}</button></header><article class="company-visa-card"><div><strong>${escapeHtml(signature.name || "Nom du responsable à renseigner dans le contexte")}</strong><span>${escapeHtml(signature.role || "Fonction à renseigner")}</span><small>${signature.signedAt ? `Signé le ${escapeHtml(formatDateTime(signature.signedAt))}` : "Visa final à compléter"}</small><span class="visa-status ${signed ? "signed" : "pending"}">${signed ? "✓ Signature enregistrée" : "Signature à réaliser"}</span></div>${signed ? `<img src="${escapeHtml(signature.dataUrl)}" alt="Signature de ${escapeHtml(signature.name || company)}" />` : `<div class="company-visa-signature-empty">Zone de signature<br>à compléter</div>`}</article></section>`;
     }).join("");
   }
 
@@ -1597,7 +1604,7 @@
     companyVisaDraft.company = selectedCompany;
     companySignatureCanvasReady = false;
     $("#companyVisaDialogTitle").textContent = "Visa final du responsable";
-    $("#companyVisaEditor").innerHTML = `<div class="resource-editor"><div class="company-visa-company-name">${escapeHtml(companyVisaDraft.company)}</div><div class="resource-primary-grid"><label class="field"><span>Nom et prénom</span><input id="companyVisaName" value="${escapeHtml(companyVisaDraft.name || "")}" autocomplete="name" placeholder="Nom du responsable" /></label><label class="field"><span>Fonction</span><input id="companyVisaRole" value="${escapeHtml(companyVisaDraft.role || "")}" placeholder="Chef de chantier, chef d’équipe…" /></label></div><div class="signature-canvas-wrap"><canvas id="companySignatureCanvas" aria-label="Zone de signature du responsable entreprise"></canvas><p id="companyVisaSignatureStatus" class="muted">${companyVisaDraft.signedAt ? `Signée le ${escapeHtml(formatDateTime(companyVisaDraft.signedAt))}.` : "Signer au doigt dans la zone ci-dessus."}</p></div><button id="clearCompanyVisaSignatureButton" class="text-button" type="button">Effacer la signature</button><div class="dialog-actions"><button id="saveCompanyVisaButton" type="button" class="primary-button">Enregistrer le visa</button></div></div>`;
+    $("#companyVisaEditor").innerHTML = `<div class="resource-editor"><div class="company-visa-company-name">${escapeHtml(companyVisaDraft.company)}</div><div class="resource-primary-grid"><label class="field"><span>Nom et prénom</span><input id="companyVisaName" value="${escapeHtml(companyVisaDraft.name || "")}" autocomplete="name" placeholder="Nom du responsable" /></label><label class="field"><span>Fonction</span><input id="companyVisaRole" value="${escapeHtml(companyVisaDraft.role || "")}" placeholder="Chef de chantier, chef d’équipe…" /></label></div><div class="signature-canvas-wrap"><canvas id="companySignatureCanvas" aria-label="Zone de signature du responsable entreprise"></canvas><p id="companyVisaSignatureStatus" class="muted">${companyVisaDraft.signedAt ? `Signée le ${escapeHtml(formatDateTime(companyVisaDraft.signedAt))}.` : "Signer au doigt ou au stylet dans la zone ci-dessus."}</p></div><button id="clearCompanyVisaSignatureButton" class="text-button" type="button">Effacer la signature</button><div class="dialog-actions"><button id="saveCompanyVisaButton" type="submit" value="save" class="primary-button">Enregistrer le visa</button></div></div>`;
     $("#companyVisaDialog").showModal();
     window.setTimeout(setupCompanySignatureCanvas, 0);
   }
@@ -1623,6 +1630,7 @@
     renderCompanySignerSetup();
     renderCompanyVisas();
     renderPrintReport();
+    showToast("Visa entreprise enregistré.", "success");
   }
 
   function validation() {
@@ -1856,56 +1864,84 @@
         if (type === "textarea") return `<label class="field"><span>${escapeHtml(label)}</span><textarea id="row_${name}" rows="3" placeholder="${escapeHtml(placeholder)}">${escapeHtml(value)}</textarea></label>`;
         if (type === "select") return `<label class="field"><span>${escapeHtml(label)}</span><select id="row_${name}"><option value="">À renseigner</option>${placeholder.map((option) => `<option value="${escapeHtml(option)}" ${value === option ? "selected" : ""}>${escapeHtml(option)}</option>`).join("")}</select></label>`;
         return `<label class="field"><span>${escapeHtml(label)}</span><input id="row_${name}" type="${type}" ${type === "number" ? "step=0.1 inputmode=decimal" : ""} value="${escapeHtml(value)}" placeholder="${escapeHtml(placeholder)}"></label>`;
-      }).join("")}<div class="dialog-actions"><button id="saveRowButton" type="button" class="primary-button">Enregistrer</button></div></div>`;
+      }).join("")}<div class="dialog-actions"><button id="saveRowButton" type="submit" value="save" class="primary-button">Enregistrer</button></div></div>`;
     }
     $("#rowDialog").showModal();
   }
 
   async function saveRow() {
-    if (!rowDraft) return;
+    if (!rowDraft || rowSaveInProgress) return;
     const config = rowConfig[rowDraft.key];
-    if (config.read) Object.assign(rowDraft.row, config.read());
-    else config.fields.forEach(([name]) => { rowDraft.row[name] = $(`#row_${name}`).value.trim(); });
-    if (rowDraft.key === "personnel") {
-      const company = companyName(rowDraft.row);
-      const role = roleName(rowDraft.row);
-      if (rowDraft.row.role === "Autre" && role !== "Fonction à préciser") {
-        rowDraft.row.role = role;
-        rowDraft.row.roleOther = "";
-      }
-      if (company && company !== "Autre entreprise" && company !== "SNCF") {
-        if (!participatingCompanyNames().includes(company)) {
-          state.meta.participatingCompanies.push(company);
-          syncPrimaryEnterprise();
+    if (!config || !Array.isArray(state[rowDraft.key])) {
+      showToast("Cette fiche ne peut pas être enregistrée. Fermez-la puis recommencez.", "warning");
+      return;
+    }
+    rowSaveInProgress = true;
+    const button = $("#saveRowButton");
+    const initialLabel = button?.textContent || "Enregistrer";
+    if (button) {
+      button.disabled = true;
+      button.textContent = "Enregistrement…";
+    }
+    const listBeforeSave = clone(state[rowDraft.key]);
+    try {
+      if (config.read) Object.assign(rowDraft.row, config.read());
+      else config.fields.forEach(([name]) => { rowDraft.row[name] = $(`#row_${name}`)?.value.trim() || ""; });
+      if (rowDraft.key === "personnel") {
+        const company = companyName(rowDraft.row);
+        const role = roleName(rowDraft.row);
+        if (rowDraft.row.role === "Autre" && role !== "Fonction à préciser") {
+          rowDraft.row.role = role;
+          rowDraft.row.roleOther = "";
         }
-        const roster = ensurePersonnelRoster(company, rowDraft.row.team);
-        roster.team = rowDraft.row.team || roster.team;
-        if (role && role !== "Fonction à préciser") roster.roles = uniqueRosterRoles([...roster.roles, role]);
+        if (company && company !== "Autre entreprise" && company !== "SNCF") {
+          if (!participatingCompanyNames().includes(company)) {
+            state.meta.participatingCompanies.push(company);
+            syncPrimaryEnterprise();
+          }
+          const roster = ensurePersonnelRoster(company, rowDraft.row.team);
+          roster.team = rowDraft.row.team || roster.team;
+          if (role && role !== "Fonction à préciser") roster.roles = uniqueRosterRoles([...roster.roles, role]);
+        }
+      }
+      const capture = async (inputIds, property, label) => {
+        const file = inputIds.flatMap((inputId) => [...($(`#${inputId}`)?.files || [])])[0];
+        if (!file) return;
+        try {
+          rowDraft.row[property] = { id: uid(), label, capturedAt: new Date().toISOString(), dataUrl: await compactPhoto(file) };
+        } catch (_) {
+          showToast(`La photo « ${label} » n’a pas pu être enregistrée.`, "warning");
+        }
+      };
+      if (rowDraft.key === "possession") {
+        await capture(["row_arfStartCamera", "row_arfStartFile"], "arfStartPhoto", "ARF début");
+        await capture(["row_arfEndCamera", "row_arfEndFile"], "arfEndPhoto", "ARF fin");
+      }
+      if (rowDraft.key === "anomaly") await capture(["row_anomalyCamera", "row_anomalyFile"], "photo", "Anomalie");
+      if (rowDraft.key === "document") await appendImageAttachments(rowDraft.row, "attachments", ["row_documentCamera", "row_documentFile"], MAX_DOCUMENT_PHOTOS, "Pièce jointe document");
+      const list = state[rowDraft.key];
+      const index = list.findIndex((item) => item.id === rowDraft.row.id);
+      if (index >= 0) list.splice(index, 1, rowDraft.row);
+      else list.push(rowDraft.row);
+      if (!save("Élément enregistré")) {
+        state[rowDraft.key] = listBeforeSave;
+        return;
+      }
+      const savedTitle = config.title || "Élément";
+      $("#rowDialog")?.close("saved");
+      rowDraft = null;
+      refresh();
+      showToast(`${savedTitle} enregistré.`, "success");
+    } catch (error) {
+      console.error("Impossible d’enregistrer la ligne du rapport", error);
+      showToast("Impossible d’enregistrer cette ligne. Vérifiez les champs puis réessayez.", "warning");
+    } finally {
+      rowSaveInProgress = false;
+      if (button?.isConnected && rowDraft) {
+        button.disabled = false;
+        button.textContent = initialLabel;
       }
     }
-    const capture = async (inputIds, property, label) => {
-      const file = inputIds.flatMap((inputId) => [...($(`#${inputId}`)?.files || [])])[0];
-      if (!file) return;
-      try {
-        rowDraft.row[property] = { id: uid(), label, capturedAt: new Date().toISOString(), dataUrl: await compactPhoto(file) };
-      } catch (_) {
-        showToast(`La photo « ${label} » n’a pas pu être enregistrée.`, "warning");
-      }
-    };
-    if (rowDraft.key === "possession") {
-      await capture(["row_arfStartCamera", "row_arfStartFile"], "arfStartPhoto", "ARF début");
-      await capture(["row_arfEndCamera", "row_arfEndFile"], "arfEndPhoto", "ARF fin");
-    }
-    if (rowDraft.key === "anomaly") await capture(["row_anomalyCamera", "row_anomalyFile"], "photo", "Anomalie");
-    if (rowDraft.key === "document") await appendImageAttachments(rowDraft.row, "attachments", ["row_documentCamera", "row_documentFile"], MAX_DOCUMENT_PHOTOS, "Pièce jointe document");
-    const list = state[rowDraft.key];
-    const index = list.findIndex((item) => item.id === rowDraft.row.id);
-    if (index >= 0) list.splice(index, 1, rowDraft.row);
-    else list.push(rowDraft.row);
-    save("Élément enregistré");
-    $("#rowDialog").close();
-    rowDraft = null;
-    refresh();
   }
 
   function renderMappingDialog() {
@@ -1975,10 +2011,10 @@
     const taskPhotos = state.tasks.flatMap((task) => (task.photos || []).map((photo) => ({ ...photo, label: `Prestation · ${task.label || "—"}${task.voie ? ` · Voie ${task.voie}` : ""}` })));
     const documentPhotos = state.documents.flatMap((document) => (document.attachments || []).map((photo) => ({ ...photo, label: `Document · ${document.name || "—"}${document.reference ? ` · ${document.reference}` : ""}` })));
     const trackedPhotoSection = [...arfPhotos, ...anomalyPhotos, ...taskPhotos, ...documentPhotos].length ? `<section class="print-section"><h2>Photos ARF, prestations et pièces jointes</h2><div class="print-photo-grid">${[...arfPhotos, ...anomalyPhotos, ...taskPhotos, ...documentPhotos].map((photo) => `<figure class="print-photo"><img src="${escapeHtml(photo.dataUrl)}" alt="${escapeHtml(photo.label)}"><figcaption><strong>${escapeHtml(photo.label)}</strong><br>${formatDateTime(photo.capturedAt)}</figcaption></figure>`).join("")}</div></section>` : "";
-    const signature = state.afterWorkSignature || {};
-    const signatureMarkup = signature.dataUrl
-      ? `<img class="print-signature-image" src="${escapeHtml(signature.dataUrl)}" alt="Signature après travaux">`
-      : `<span>Signature à renseigner</span>`;
+    const supervisorSignature = state.afterWorkSignature || {};
+    const supervisorName = supervisorSignature.name || state.meta.reporter || "Nom / prénom à renseigner";
+    const supervisorRole = supervisorSignature.role || "Surveillant de travaux";
+    const supervisorVisaMarkup = `<div class="signature-box signature-after-work"><strong>Visa du surveillant de travaux</strong>${escapeHtml([supervisorName, supervisorRole].filter(Boolean).join(" · "))}${supervisorSignature.signedAt ? `<small>Signée le ${escapeHtml(formatDateTime(supervisorSignature.signedAt))}</small>` : ""}${supervisorSignature.dataUrl ? `<img class="print-signature-image" src="${escapeHtml(supervisorSignature.dataUrl)}" alt="Signature du surveillant de travaux">` : "<span>Signature à renseigner</span>"}</div>`;
     const companyVisaMarkup = (state.companySignatures || []).map((visa) => `<div class="signature-box signature-after-work"><strong>${escapeHtml(visa.company || "Entreprise intervenante")}</strong>${escapeHtml([visa.name, visa.role].filter(Boolean).join(" · ") || "Nom / fonction à renseigner")}${visa.signedAt ? `<small>Signée le ${escapeHtml(formatDateTime(visa.signedAt))}</small>` : ""}${visa.dataUrl ? `<img class="print-signature-image" src="${escapeHtml(visa.dataUrl)}" alt="Visa ${escapeHtml(visa.company || "entreprise")}">` : "<span>Signature à renseigner</span>"}</div>`).join("");
 
     $("#printReport").innerHTML = `
@@ -2003,7 +2039,7 @@
         ${(state.meta.executionNotes || state.meta.nextWorks) ? `<section class="print-section"><h2>Synthèse et suite de l’opération</h2><div class="print-info-grid"><div><strong>Faits marquants / aléas / décisions</strong>${escapeHtml(state.meta.executionNotes || "—")}</div><div><strong>Travaux restant à réaliser / prochaine séance</strong>${escapeHtml(state.meta.nextWorks || "—")}</div></div></section>` : ""}
         ${photoSection}
         ${trackedPhotoSection}
-        <section class="print-section print-final-signatures"><h2>Signatures finales</h2><div class="print-signatures"><div class="signature-box"><strong>Lieu / date</strong>${escapeHtml(formatDate(state.meta.date))}</div><div class="signature-box"><strong>Visa représentant MOETx SNCF</strong>${escapeHtml(state.meta.moeRepresentative || "Nom / prénom à renseigner")}</div>${companyVisaMarkup}<div class="signature-box signature-after-work"><strong>Visa après travaux</strong>${escapeHtml([signature.name, signature.role].filter(Boolean).join(" · ") || "Nom / fonction à renseigner")}${signature.signedAt ? `<small>Signée le ${escapeHtml(formatDateTime(signature.signedAt))}</small>` : ""}${signatureMarkup}</div></div></section>
+        <section class="print-section print-final-signatures"><h2>Signatures finales</h2><div class="print-signatures"><div class="signature-box"><strong>Lieu / date</strong>${escapeHtml(formatDate(state.meta.date))}</div><div class="signature-box"><strong>Visa représentant MOETx SNCF</strong>${escapeHtml(state.meta.moeRepresentative || "Nom / prénom à renseigner")}</div>${supervisorVisaMarkup}${companyVisaMarkup}</div></section>
         <p class="print-footer">Rapport opérationnel généré depuis l’application rapport journalier AINM.</p>
       </article>
       ${includeValuation ? `<article class="print-page print-internal">
@@ -2371,6 +2407,7 @@
       const handler = () => {
         const value = element.type === "checkbox" ? element.checked : element.value;
         setPath(state, element.dataset.path, value);
+        if (element.dataset.path === "meta.reporter" && !state.afterWorkSignature.dataUrl) state.afterWorkSignature.name = value;
         save();
         refresh({ inputs: false });
       };
@@ -2462,7 +2499,21 @@
         $("#rowEditorPane").innerHTML = rowConfig.document.editor(rowDraft.row);
         return;
       }
-      if (event.target.closest("#saveRowButton")) saveRow();
+    });
+    // Les trois formulaires « interceptions », « anomalies » et « rapports »
+    // sont dans une boîte modale. Cette double prise en charge (clic et
+    // validation clavier) évite le comportement aléatoire de certains WebViews
+    // Android avec les boutons dans un <form method="dialog">.
+    $("#rowForm")?.addEventListener("click", (event) => {
+      if (!event.target.closest("#saveRowButton")) return;
+      event.preventDefault();
+      event.stopPropagation();
+      void saveRow();
+    });
+    $("#rowForm")?.addEventListener("submit", (event) => {
+      if (event.submitter?.id !== "saveRowButton") return;
+      event.preventDefault();
+      void saveRow();
     });
     $("#rosterRoleSelect")?.addEventListener("change", toggleRosterOtherRole);
     $("#saveRosterRoleButton")?.addEventListener("click", addPersonnelRosterRole);
@@ -2571,6 +2622,9 @@
     });
     $("#afterWorkSignerName").addEventListener("input", (event) => {
       state.afterWorkSignature.name = event.target.value;
+      state.meta.reporter = event.target.value;
+      const reporter = $("#reporterInput");
+      if (reporter && reporter !== document.activeElement) reporter.value = event.target.value;
       save();
       renderAfterWorkSignature();
       renderPrintReport();
@@ -2583,18 +2637,20 @@
     });
     $("#saveAfterWorkSignatureButton")?.addEventListener("click", () => {
       if (!state.afterWorkSignature.dataUrl) {
-        showToast("Signer dans la zone avant de valider le visa après travaux.", "warning");
+        showToast("Signer dans la zone avant de valider le visa du surveillant.", "warning");
         return;
       }
       state.afterWorkSignature.signedAt ||= new Date().toISOString();
-      save("Visa après travaux validé");
+      state.afterWorkSignature.name ||= state.meta.reporter || "";
+      state.afterWorkSignature.role ||= "Surveillant de travaux";
+      save("Visa du surveillant de travaux validé");
       renderAfterWorkSignature();
       renderPrintReport();
-      showToast("Signature après travaux enregistrée.", "success");
+      showToast("Signature du surveillant de travaux enregistrée.", "success");
     });
     $("#clearAfterWorkSignatureButton").addEventListener("click", async () => {
       if (state.afterWorkSignature.dataUrl) {
-        const accepted = await askConfirm({ title: "Effacer la signature", message: "Effacer la signature après travaux ?", confirmLabel: "Effacer", danger: true });
+        const accepted = await askConfirm({ title: "Effacer la signature", message: "Effacer la signature du surveillant de travaux ?", confirmLabel: "Effacer", danger: true });
         if (!accepted) return;
       }
       state.afterWorkSignature.dataUrl = "";
@@ -2612,14 +2668,24 @@
       }
     });
     $("#companyVisaDialog")?.addEventListener("click", (event) => {
-      if (event.target.closest("#saveCompanyVisaButton")) { saveCompanyVisa(); return; }
       if (!event.target.closest("#clearCompanyVisaSignatureButton")) return;
       if (!companyVisaDraft) return;
       companyVisaDraft.dataUrl = "";
       companyVisaDraft.signedAt = "";
       drawCompanySignatureData();
       const status = $("#companyVisaSignatureStatus");
-      if (status) status.textContent = "Signer au doigt dans la zone ci-dessus.";
+      if (status) status.textContent = "Signer au doigt ou au stylet dans la zone ci-dessus.";
+    });
+    $("#companyVisaForm")?.addEventListener("click", (event) => {
+      if (!event.target.closest("#saveCompanyVisaButton")) return;
+      event.preventDefault();
+      event.stopPropagation();
+      saveCompanyVisa();
+    });
+    $("#companyVisaForm")?.addEventListener("submit", (event) => {
+      if (event.submitter?.id !== "saveCompanyVisaButton") return;
+      event.preventDefault();
+      saveCompanyVisa();
     });
 
     $("#printButton").addEventListener("click", () => { renderPrintReport(); window.print(); });
@@ -2714,7 +2780,19 @@
 
   function registerServiceWorker() {
     if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
-      navigator.serviceWorker.register("service-worker.js").catch(() => {});
+      navigator.serviceWorker.register(`service-worker.js?v=${APP_VERSION}`, { updateViaCache: "none" }).then((registration) => {
+        registration.update().catch(() => {});
+        const activateUpdate = () => {
+          if (registration.waiting) registration.waiting.postMessage({ type: "SKIP_WAITING" });
+        };
+        activateUpdate();
+        registration.addEventListener("updatefound", () => {
+          const worker = registration.installing;
+          worker?.addEventListener("statechange", () => {
+            if (worker.state === "installed") activateUpdate();
+          });
+        });
+      }).catch(() => {});
     }
   }
 

@@ -1,6 +1,14 @@
-# Rapport journalier AINM — PWA terrain V8.5
+# Rapport journalier AINM — PWA terrain V8.6
 
 Application autonome, utilisable hors ligne, pour les rapports journaliers de travaux signalisation AINM.
+
+## Version V8.6
+
+- Les formulaires **Interceptions et consignations**, **Anomalies constatées** et **Rapports fournis** utilisent désormais un enregistrement fiable par clic ou validation du clavier. Une confirmation visible indique que la ligne est bien ajoutée.
+- Les signatures fonctionnent au doigt, au stylet et avec le secours tactile des Android/WebViews plus anciens.
+- Le rédacteur signe désormais explicitement en tant que **surveillant de travaux** ; son visa est repris tout en bas du PDF.
+- Chaque responsable d’entreprise conserve son visa dans sa propre case, avec miniature de signature et statut visible même sur téléphone.
+- Le cache PWA passe à V8.6 afin de charger la mise à jour dès la réouverture de l’application.
 
 ## Version V8.5
 
@@ -37,10 +45,10 @@ Décompresser l’archive dans le dépôt puis exécuter :
 
 ```sh
 cd ~/projets
-unzip -o ~/storage/downloads/rapport-journalier-ainm-pwa-v8.5-tableaux-entreprises-logo.zip
+unzip -o ~/storage/downloads/rapport-journalier-ainm-pwa-v8.6-correctifs-enregistrement-signatures.zip
 cd ~/projets/rapport-journalier-ainm-pwa
 git add -A
-git commit -m "Mise à jour V8.5 : tableaux entreprises et logo"
+git commit -m "Mise à jour V8.6 : enregistrement et signatures"
 git push
 ```
 

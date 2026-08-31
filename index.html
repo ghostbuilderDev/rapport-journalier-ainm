@@ -280,14 +280,14 @@
             </div>
             <div id="companyVisaList" class="company-visa-list"></div>
           </section>
-          <section class="after-work-signature" aria-label="Visa après travaux">
-            <div><p class="eyebrow">Visa après travaux</p><h3>Signature de l’invité / intervenant</h3><p class="muted">Ajoutée au rapport terrain, en complément des visas MOETx et entreprise.</p></div>
+          <section class="after-work-signature" aria-label="Visa du surveillant de travaux">
+            <div><p class="eyebrow">Visa final</p><h3>Signature du surveillant de travaux</h3><p class="muted">Le rédacteur de la séance signe ici. Cette signature est visible en bas du rapport PDF, avec les visas des entreprises.</p></div>
             <div class="signature-fields">
-              <label class="field"><span>Nom et prénom</span><input id="afterWorkSignerName" autocomplete="name" placeholder="Nom du signataire" /></label>
-              <label class="field"><span>Fonction / entreprise</span><input id="afterWorkSignerRole" placeholder="Ex. Chef de chantier – TSO" /></label>
+              <label class="field"><span>Surveillant de travaux / rédacteur</span><input id="afterWorkSignerName" autocomplete="name" placeholder="Nom et prénom du rédacteur" /></label>
+              <label class="field"><span>Fonction</span><input id="afterWorkSignerRole" placeholder="Ex. Surveillant de travaux" /></label>
             </div>
-            <div class="signature-canvas-wrap"><canvas id="afterWorkSignatureCanvas" aria-label="Zone de signature après travaux"></canvas><p id="afterWorkSignatureStatus" class="muted">Signer au doigt dans la zone ci-dessus.</p></div>
-            <div class="signature-actions"><button id="saveAfterWorkSignatureButton" class="secondary-button" type="button">Valider la signature</button><button id="clearAfterWorkSignatureButton" class="text-button" type="button">Effacer la signature</button></div>
+            <div class="signature-canvas-wrap"><canvas id="afterWorkSignatureCanvas" aria-label="Zone de signature du surveillant de travaux"></canvas><p id="afterWorkSignatureStatus" class="muted">Signer au doigt ou au stylet dans la zone ci-dessus.</p></div>
+            <div class="signature-actions"><button id="saveAfterWorkSignatureButton" class="secondary-button" type="button">Enregistrer la signature</button><button id="clearAfterWorkSignatureButton" class="text-button" type="button">Effacer la signature</button></div>
           </section>
           <div class="review-actions">
             <button id="printButton" class="primary-button" type="button">Imprimer le rapport PDF</button>
