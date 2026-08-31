@@ -19,7 +19,7 @@
             <img src="icons/rapport-journalier-ainm.png" alt="" aria-hidden="true" />
             <div><strong>AINM</strong><span>Travaux signalisation</span></div>
           </div>
-          <span class="startup-version"><span>Version</span><strong data-app-version>V9.4</strong></span>
+          <span class="startup-version"><span>Version</span><strong data-app-version>V9.5</strong></span>
         </div>
         <div class="startup-content">
           <p class="startup-kicker">Opérations · terrain · signalisation</p>
@@ -43,7 +43,7 @@
           <span class="brand-context">Rapport travaux</span>
         </div>
         <div class="topbar-actions">
-          <span class="app-version-badge" data-app-version aria-label="Version de l’application">V9.4</span>
+          <span class="app-version-badge" data-app-version aria-label="Version de l’application">V9.5</span>
           <span id="saveState" class="save-state" aria-live="polite">Brouillon local</span>
           <button class="icon-button" id="newReportButton" type="button" title="Nouveau rapport" aria-label="Nouveau rapport">＋</button>
           <button class="icon-button" id="moreButton" type="button" title="Actions" aria-label="Ouvrir les actions">•••</button>
@@ -346,11 +346,11 @@
               <label class="admin-common-option"><input id="includeCommonCostsCheckbox" type="checkbox" /> <span>Inclure les dispositions communes PCLE à titre indicatif (7 % GC, 7 % signalisation et 5 % installations)</span></label>
               <section class="admin-numbering">
                 <p class="eyebrow">Numérotation des rapports</p>
-                <p class="muted">Le réglage concerne le prochain rapport. Le rapport en cours garde toujours sa référence.</p>
+                <p class="muted">Le réglage applique le numéro au rapport actuellement ouvert. Le rapport suivant recevra automatiquement le numéro suivant.</p>
                 <div class="admin-actions">
-                  <label class="field"><span>Prochain numéro</span><input id="nextReportSerialInput" type="number" min="1" inputmode="numeric" /></label>
-                  <button id="saveNextReportSerialButton" class="secondary-button" type="button">Appliquer</button>
-                  <button id="resetReportSerialButton" class="text-button danger-text" type="button">Repartir à 1</button>
+                  <label class="field"><span>N° du rapport actif</span><input id="nextReportSerialInput" type="number" min="1" inputmode="numeric" /></label>
+                  <button id="saveNextReportSerialButton" class="secondary-button" type="button">Appliquer au rapport</button>
+                  <button id="resetReportSerialButton" class="text-button danger-text" type="button">Repartir au n° 1</button>
                 </div>
               </section>
               <div class="admin-actions">

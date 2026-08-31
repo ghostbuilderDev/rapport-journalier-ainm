@@ -1,6 +1,13 @@
-# Rapport journalier AINM — PWA terrain V9.4
+# Rapport journalier AINM — PWA terrain V9.5
 
 Application autonome, utilisable hors ligne, pour les rapports journaliers de travaux signalisation AINM.
+
+## Version V9.5
+
+- Dans l’espace administrateur, **Appliquer au rapport** change maintenant immédiatement le numéro du rapport ouvert et génère une nouvelle référence unique.
+- **Repartir au n° 1** transforme immédiatement le rapport affiché en rapport n° 1 ; le suivant sera automatiquement le n° 2. Le n° 5 ne peut donc plus réapparaître après fermeture et réouverture.
+- Le réglage de numérotation est présenté comme le **n° du rapport actif**, pour éviter toute ambiguïté avec le rapport suivant.
+- Le cache PWA passe à V9.5.
 
 ## Version V9.4
 
@@ -103,10 +110,10 @@ Décompresser l’archive dans le dépôt puis exécuter :
 
 ```sh
 cd ~/projets
-unzip -o ~/storage/downloads/rapport-journalier-ainm-pwa-v9.4-signatures-verrouillees.zip
+unzip -o ~/storage/downloads/rapport-journalier-ainm-pwa-v9.5-numerotation-active.zip
 cd ~/projets/rapport-journalier-ainm-pwa
 git add -A
-git commit -m "Mise à jour V9.4 : signatures verrouillées"
+git commit -m "Mise à jour V9.5 : numérotation active"
 git push
 ```
 

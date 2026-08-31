@@ -1,4 +1,4 @@
-const CACHE = "rj-ainm-v9-4";
+const CACHE = "rj-ainm-v9-5";
 const ASSETS = [
   "./",
   "index.html",

@@ -3,7 +3,7 @@
   "use strict";
 
   const STORAGE_KEY = "ainm-rj-pwa-v1";
-  const APP_VERSION = "9.4";
+  const APP_VERSION = "9.5";
   const snapshotKey = "ainm-rj-pwa-last-snapshot";
   const adminSessionKey = "ainm-rj-pwa-admin-unlocked";
   const reportSequenceKey = "ainm-rj-pwa-report-serial-v2";
@@ -151,23 +151,50 @@
     } catch (_) { /* Stockage local indisponible : le suffixe appareil reste distinctif. */ }
   }
 
+  function identityForReportSerial(serial) {
+    const safeSerial = Math.max(1, Math.floor(number(serial)) || 1);
+    const code = deviceCode();
+    return {
+      serial: safeSerial,
+      uid: `${code}-${String(safeSerial).padStart(6, "0")}-${uid()}`,
+      reportNo: `AINM-RJ-${String(safeSerial).padStart(6, "0")}-${code}`,
+    };
+  }
+
   function allocateReportIdentity() {
     let serial = 1;
     try {
       serial = Math.max(1, Math.floor(number(localStorage.getItem(reportSequenceKey))) || 1);
       localStorage.setItem(reportSequenceKey, String(serial + 1));
     } catch (_) { /* Voir commentaire dans reserveReportSerial. */ }
-    const code = deviceCode();
-    return {
-      serial,
-      uid: `${code}-${String(serial).padStart(6, "0")}-${uid()}`,
-      reportNo: `AINM-RJ-${String(serial).padStart(6, "0")}-${code}`,
-    };
+    return identityForReportSerial(serial);
   }
 
   function nextReportSerial() {
     try { return Math.max(1, Math.floor(number(localStorage.getItem(reportSequenceKey))) || 1); }
     catch (_) { return Math.max(1, Math.floor(number(state?.reportSerial)) + 1); }
+  }
+
+  // Le réglage administrateur concerne le rapport affiché : il ne suffit pas
+  // de modifier le compteur du prochain rapport, car le brouillon courant est
+  // lui aussi conservé dans le stockage local au redémarrage.
+  function setActiveReportSerial(serial) {
+    const identity = identityForReportSerial(serial);
+    const previousReportNo = state.meta?.reportNo || "";
+    const alreadyNumbered = state.reportSerial === identity.serial && state.meta?.reportNo === identity.reportNo;
+    state.meta ||= {};
+    state.reportSerial = identity.serial;
+    state.meta.reportNo = identity.reportNo;
+    if (!alreadyNumbered) {
+      state.reportUid = identity.uid;
+      if (previousReportNo && previousReportNo !== identity.reportNo) state.meta.previousReportNo = previousReportNo;
+    }
+    try {
+      localStorage.setItem(reportSequenceKey, String(identity.serial + 1));
+    } catch (_) {
+      throw new Error("storage");
+    }
+    return identity;
   }
 
   function reportPdfFilename(report = state) {
@@ -1912,7 +1939,7 @@
     $("#adminEvidenceNote").textContent = `${billingEvidence.sourceLabel || "Référentiel de décompte"} : ${billingEvidence.billedTimeArticleBases?.length || 0} postes PB2, ${billingEvidence.billedSeries300Articles?.length || 0} articles Série 300 et les postes PB1 observés sont intégrés.`;
     $("#includeCommonCostsCheckbox").checked = Boolean(state.settings.admin.includeCommonCosts);
     const nextInput = $("#nextReportSerialInput");
-    if (nextInput) nextInput.value = String(nextReportSerial());
+    if (nextInput) nextInput.value = String(Math.max(1, Math.floor(number(state.reportSerial)) || nextReportSerial()));
     $("#adminValuationStats").innerHTML = `<span class="admin-stat"><strong>${breakdown.priced.length}</strong> ligne(s) valorisée(s)</span><span class="admin-stat"><strong>${open}</strong> à contrôler</span><span class="admin-stat"><strong>${euros(breakdown.total)}</strong> HT indicatif</span>`;
     renderValuationPreview();
   }
@@ -3478,27 +3505,31 @@
     $("#saveNextReportSerialButton")?.addEventListener("click", async () => {
       if (!isAdminView()) return;
       const next = Math.max(1, Math.floor(number($("#nextReportSerialInput")?.value)) || 1);
-      const currentNext = nextReportSerial();
+      const currentSerial = Math.max(1, Math.floor(number(state.reportSerial)) || 1);
       const accepted = await askConfirm({
         title: "Modifier la numérotation",
-        message: "Le prochain rapport recevra le numéro " + next + ". Le rapport actuellement ouvert n’est pas renuméroté.",
+        message: "Le rapport actuellement ouvert recevra le numéro " + next + ". Le rapport suivant recevra automatiquement le numéro " + (next + 1) + ".",
         confirmLabel: "Appliquer",
-        danger: next < currentNext,
+        danger: next < currentSerial,
       });
       if (!accepted) return;
-      try { localStorage.setItem(reportSequenceKey, String(next)); } catch (_) { showToast("La numérotation ne peut pas être enregistrée sur cet appareil.", "warning"); return; }
-      save("Prochain numéro fixé à " + next);
-      refresh();
-      showToast("Le prochain rapport portera le numéro " + next + ".", "success");
+      let identity;
+      try { identity = setActiveReportSerial(next); } catch (_) { showToast("La numérotation ne peut pas être enregistrée sur cet appareil.", "warning"); return; }
+      if (!save("Rapport actif renuméroté")) return;
+      renderLaunchIdentity();
+      refresh({ inputs: true });
+      showToast(identity.reportNo + " est maintenant le rapport actif.", "success");
     });
     $("#resetReportSerialButton")?.addEventListener("click", async () => {
       if (!isAdminView()) return;
-      const accepted = await askConfirm({ title: "Réinitialiser la numérotation", message: "Le prochain rapport repartira au numéro 1. Cette action est réservée à un nouveau cycle de classement.", confirmLabel: "Réinitialiser", danger: true });
+      const accepted = await askConfirm({ title: "Réinitialiser la numérotation", message: "Le rapport actuellement ouvert deviendra immédiatement le n° 1. Le rapport suivant recevra le n° 2. Cette action démarre un nouveau cycle de classement.", confirmLabel: "Repartir à 1", danger: true });
       if (!accepted) return;
-      try { localStorage.setItem(reportSequenceKey, "1"); } catch (_) { showToast("La numérotation ne peut pas être enregistrée sur cet appareil.", "warning"); return; }
-      save("Numérotation réinitialisée");
-      refresh();
-      showToast("Le prochain rapport portera le numéro 1.", "success");
+      let identity;
+      try { identity = setActiveReportSerial(1); } catch (_) { showToast("La numérotation ne peut pas être enregistrée sur cet appareil.", "warning"); return; }
+      if (!save("Numérotation réinitialisée au rapport 1")) return;
+      renderLaunchIdentity();
+      refresh({ inputs: true });
+      showToast(identity.reportNo + " est maintenant le rapport actif.", "success");
     });
     $("#valuationPreview").addEventListener("change", (event) => {
       const select = event.target.closest("[data-task-rate]");
