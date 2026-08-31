@@ -1,6 +1,13 @@
-# Rapport journalier AINM — PWA terrain V9.2
+# Rapport journalier AINM — PWA terrain V9.3
 
 Application autonome, utilisable hors ligne, pour les rapports journaliers de travaux signalisation AINM.
+
+## Version V9.3
+
+- **Enregistrer le PDF sur le téléphone** utilise le rendu V5, propose un nom de fichier complet puis, après confirmation de l’enregistrement Android, crée automatiquement le rapport suivant.
+- Le nom de chaque PDF est désormais de la forme : `RJ_<chantier>_<date>_<référence-unique>_N<numero>.pdf`.
+- L’administrateur principal peut fixer le **prochain numéro** de rapport ou relancer volontairement un nouveau cycle à partir de **1**. Le rapport déjà ouvert n’est jamais renuméroté.
+- Le cache PWA passe à V9.3.
 
 ## Version V9.2
 
@@ -88,10 +95,10 @@ Décompresser l’archive dans le dépôt puis exécuter :
 
 ```sh
 cd ~/projets
-unzip -o ~/storage/downloads/rapport-journalier-ainm-pwa-v9.2-numerotation-sharepoint.zip
+unzip -o ~/storage/downloads/rapport-journalier-ainm-pwa-v9.3-enregistrement-numerotation.zip
 cd ~/projets/rapport-journalier-ainm-pwa
 git add -A
-git commit -m "Mise à jour V9.2 : numérotation et SharePoint"
+git commit -m "Mise à jour V9.3 : enregistrement et numérotation"
 git push
 ```
 

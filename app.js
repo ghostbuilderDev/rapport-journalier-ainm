@@ -3,7 +3,7 @@
   "use strict";
 
   const STORAGE_KEY = "ainm-rj-pwa-v1";
-  const APP_VERSION = "9.2";
+  const APP_VERSION = "9.3";
   const snapshotKey = "ainm-rj-pwa-last-snapshot";
   const adminSessionKey = "ainm-rj-pwa-admin-unlocked";
   const reportSequenceKey = "ainm-rj-pwa-report-serial-v2";
@@ -163,6 +163,20 @@
       uid: `${code}-${String(serial).padStart(6, "0")}-${uid()}`,
       reportNo: `AINM-RJ-${String(serial).padStart(6, "0")}-${code}`,
     };
+  }
+
+  function nextReportSerial() {
+    try { return Math.max(1, Math.floor(number(localStorage.getItem(reportSequenceKey))) || 1); }
+    catch (_) { return Math.max(1, Math.floor(number(state?.reportSerial)) + 1); }
+  }
+
+  function reportPdfFilename(report = state) {
+    const meta = report?.meta || {};
+    const serial = Math.max(1, Math.floor(number(report?.reportSerial)) || 1);
+    const chantier = safeArchiveFilename(meta.operation, "chantier");
+    const date = safeArchiveFilename(meta.date, "date");
+    const reference = safeArchiveFilename("REF-" + (report?.reportUid || meta.reportNo || "RJ"), "REF-RJ").slice(0, 55);
+    return "RJ_" + chantier + "_" + date + "_" + reference + "_N" + String(serial).padStart(6, "0") + ".pdf";
   }
 
   function readReportHistory() {
@@ -1872,7 +1886,7 @@
     $("#adminLoginPane").classList.toggle("hidden", unlocked || !adminLoginOpen);
     $("#adminWorkspace").classList.toggle("hidden", !unlocked);
     $$(".admin-finance").forEach((element) => element.classList.toggle("hidden", !unlocked));
-    $("#printButton").textContent = unlocked ? "Imprimer rapport + annexe interne" : "Imprimer le rapport PDF";
+    $("#printButton").textContent = unlocked ? "Enregistrer rapport + annexe interne" : "Enregistrer le PDF sur le téléphone";
     if (adminLoginOpen && !unlocked) {
       $("#adminLoginTitle").textContent = configured ? "Déverrouiller l’espace administrateur" : "Initialiser l’espace administrateur";
       $("#adminLoginHint").textContent = configured
@@ -1887,6 +1901,8 @@
     const open = breakdown.valuations.length - breakdown.priced.length;
     $("#adminEvidenceNote").textContent = `${billingEvidence.sourceLabel || "Référentiel de décompte"} : ${billingEvidence.billedTimeArticleBases?.length || 0} postes PB2, ${billingEvidence.billedSeries300Articles?.length || 0} articles Série 300 et les postes PB1 observés sont intégrés.`;
     $("#includeCommonCostsCheckbox").checked = Boolean(state.settings.admin.includeCommonCosts);
+    const nextInput = $("#nextReportSerialInput");
+    if (nextInput) nextInput.value = String(nextReportSerial());
     $("#adminValuationStats").innerHTML = `<span class="admin-stat"><strong>${breakdown.priced.length}</strong> ligne(s) valorisée(s)</span><span class="admin-stat"><strong>${open}</strong> à contrôler</span><span class="admin-stat"><strong>${euros(breakdown.total)}</strong> HT indicatif</span>`;
     renderValuationPreview();
   }
@@ -2544,7 +2560,31 @@
   }
 
   function sharePointPdfFilename() {
-    return `Rapport_journalier_${safeArchiveFilename(state.meta.date, "date")}_${safeArchiveFilename(state.meta.operation, "chantier")}_${safeArchiveFilename(state.meta.reportNo, "AINM-RJ")}.pdf`;
+    return reportPdfFilename();
+  }
+
+  async function savePdfOnPhone() {
+    const filename = reportPdfFilename();
+    const previousTitle = document.title;
+    let handled = false;
+    const complete = async () => {
+      if (handled) return;
+      handled = true;
+      document.title = previousTitle;
+      const accepted = await askConfirm({
+        title: "PDF enregistré sur le téléphone ?",
+        message: "Le fichier proposé est " + filename + ". Confirmer uniquement après avoir touché Enregistrer dans Android ; le rapport suivant recevra alors automatiquement le numéro suivant.",
+        confirmLabel: "PDF enregistré",
+      });
+      if (!accepted) { showToast("Rapport conservé avec son numéro actuel.", "warning"); return; }
+      const next = startNextReportAfterSharePointTransmission();
+      showToast(next.archivedReportNo + " enregistré sur le téléphone. " + next.nextReportNo + " est prêt.", "success");
+    };
+    document.title = filename.replace(/\.pdf$/i, "");
+    window.addEventListener("afterprint", complete, { once: true });
+    renderPrintReport();
+    window.print();
+    window.setTimeout(complete, 350);
   }
 
   function blobToBase64(blob) {
@@ -3414,7 +3454,7 @@
       saveCompanyVisa();
     });
 
-    $("#printButton").addEventListener("click", () => { renderPrintReport(); window.print(); });
+    $("#printButton").addEventListener("click", () => { void savePdfOnPhone(); });
     $("#archiveSharePointButton")?.addEventListener("click", () => { void archiveReportOnSharePoint(); });
     $("#exportButton").addEventListener("click", exportState);
     $("#openAdminButton").addEventListener("click", openAdminAccess);
@@ -3422,13 +3462,38 @@
     $("#confirmAdminButton").addEventListener("click", confirmAdminAccess);
     $("#adminPinInput").addEventListener("keydown", (event) => { if (event.key === "Enter") { event.preventDefault(); confirmAdminAccess(); } });
     $("#lockAdminButton").addEventListener("click", lockAdminAccess);
-    $("#adminPrintButton").addEventListener("click", () => { renderPrintReport(); window.print(); });
+    $("#adminPrintButton").addEventListener("click", () => { void savePdfOnPhone(); });
     $("#adminConfigurePricesButton").addEventListener("click", () => { renderMappingDialog(); $("#mappingDialog").showModal(); });
     $("#includeCommonCostsCheckbox").addEventListener("change", (event) => {
       if (!isAdminView()) return;
       state.settings.admin.includeCommonCosts = event.target.checked;
       save("Dispositions communes mises à jour");
       refresh();
+    });
+    $("#saveNextReportSerialButton")?.addEventListener("click", async () => {
+      if (!isAdminView()) return;
+      const next = Math.max(1, Math.floor(number($("#nextReportSerialInput")?.value)) || 1);
+      const currentNext = nextReportSerial();
+      const accepted = await askConfirm({
+        title: "Modifier la numérotation",
+        message: "Le prochain rapport recevra le numéro " + next + ". Le rapport actuellement ouvert n’est pas renuméroté.",
+        confirmLabel: "Appliquer",
+        danger: next < currentNext,
+      });
+      if (!accepted) return;
+      try { localStorage.setItem(reportSequenceKey, String(next)); } catch (_) { showToast("La numérotation ne peut pas être enregistrée sur cet appareil.", "warning"); return; }
+      save("Prochain numéro fixé à " + next);
+      refresh();
+      showToast("Le prochain rapport portera le numéro " + next + ".", "success");
+    });
+    $("#resetReportSerialButton")?.addEventListener("click", async () => {
+      if (!isAdminView()) return;
+      const accepted = await askConfirm({ title: "Réinitialiser la numérotation", message: "Le prochain rapport repartira au numéro 1. Cette action est réservée à un nouveau cycle de classement.", confirmLabel: "Réinitialiser", danger: true });
+      if (!accepted) return;
+      try { localStorage.setItem(reportSequenceKey, "1"); } catch (_) { showToast("La numérotation ne peut pas être enregistrée sur cet appareil.", "warning"); return; }
+      save("Numérotation réinitialisée");
+      refresh();
+      showToast("Le prochain rapport portera le numéro 1.", "success");
     });
     $("#valuationPreview").addEventListener("change", (event) => {
       const select = event.target.closest("[data-task-rate]");

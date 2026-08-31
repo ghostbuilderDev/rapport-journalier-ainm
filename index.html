@@ -315,7 +315,7 @@
             <div class="signature-actions"><button id="saveAfterWorkSignatureButton" class="secondary-button" type="button">Enregistrer</button><button id="clearAfterWorkSignatureButton" class="text-button" type="button">Effacer la signature</button></div>
           </section>
           <div class="review-actions">
-            <button id="printButton" class="primary-button" type="button">Imprimer le rapport PDF</button>
+            <button id="printButton" class="primary-button" type="button">Enregistrer le PDF sur le téléphone</button>
             <button id="archiveSharePointButton" class="sharepoint-button" type="button">Archiver sur SharePoint</button>
             <button id="exportButton" class="secondary-button" type="button">Sauvegarder la saisie</button>
           </div>
@@ -345,9 +345,18 @@
               </div>
               <div id="adminValuationStats" class="admin-stats"></div>
               <label class="admin-common-option"><input id="includeCommonCostsCheckbox" type="checkbox" /> <span>Inclure les dispositions communes PCLE à titre indicatif (7 % GC, 7 % signalisation et 5 % installations)</span></label>
+              <section class="admin-numbering">
+                <p class="eyebrow">Numérotation des rapports</p>
+                <p class="muted">Le réglage concerne le prochain rapport. Le rapport en cours garde toujours sa référence.</p>
+                <div class="admin-actions">
+                  <label class="field"><span>Prochain numéro</span><input id="nextReportSerialInput" type="number" min="1" inputmode="numeric" /></label>
+                  <button id="saveNextReportSerialButton" class="secondary-button" type="button">Appliquer</button>
+                  <button id="resetReportSerialButton" class="text-button danger-text" type="button">Repartir à 1</button>
+                </div>
+              </section>
               <div class="admin-actions">
                 <button id="adminConfigurePricesButton" class="secondary-button" type="button">Paramétrer les références marché</button>
-                <button id="adminPrintButton" class="secondary-button" type="button">Imprimer avec annexe interne</button>
+                <button id="adminPrintButton" class="secondary-button" type="button">Enregistrer avec annexe interne</button>
               </div>
               <details class="valuation-details" open>
                 <summary>Contrôle de valorisation interne</summary>
