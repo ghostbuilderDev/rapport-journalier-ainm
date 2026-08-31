@@ -1,6 +1,12 @@
-# Rapport journalier AINM — PWA terrain V8.6
+# Rapport journalier AINM — PWA terrain V8.7
 
 Application autonome, utilisable hors ligne, pour les rapports journaliers de travaux signalisation AINM.
+
+## Version V8.7
+
+- Les rubriques **Interceptions et consignations**, **Anomalies constatées** et **Rapports fournis** sont maintenant reliées à leurs collections de données réelles : l’enregistrement, l’affichage, la modification et la suppression fonctionnent de nouveau.
+- Dans les visas, le clavier Android se ferme automatiquement **trois secondes après la dernière frappe** dans le nom ou la fonction, afin de dégager immédiatement la zone de signature.
+- Le cache PWA passe à V8.7 afin que cette correction soit chargée dès la réouverture de l’application.
 
 ## Version V8.6
 
@@ -45,10 +51,10 @@ Décompresser l’archive dans le dépôt puis exécuter :
 
 ```sh
 cd ~/projets
-unzip -o ~/storage/downloads/rapport-journalier-ainm-pwa-v8.6-correctifs-enregistrement-signatures.zip
+unzip -o ~/storage/downloads/rapport-journalier-ainm-pwa-v8.7-correctif-menus-signature.zip
 cd ~/projets/rapport-journalier-ainm-pwa
 git add -A
-git commit -m "Mise à jour V8.6 : enregistrement et signatures"
+git commit -m "Mise à jour V8.7 : correction menus et signature"
 git push
 ```
 

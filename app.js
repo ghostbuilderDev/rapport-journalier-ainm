@@ -3,7 +3,7 @@
   "use strict";
 
   const STORAGE_KEY = "ainm-rj-pwa-v1";
-  const APP_VERSION = "8.6";
+  const APP_VERSION = "8.7";
   const snapshotKey = "ainm-rj-pwa-last-snapshot";
   const adminSessionKey = "ainm-rj-pwa-admin-unlocked";
   const reportSequenceKey = "ainm-rj-pwa-report-serial-v2";
@@ -195,7 +195,7 @@
     const identity = allocateReportIdentity();
     return {
       schema: 1,
-      appVersion: 8.6,
+      appVersion: 8.7,
       updatedAt: new Date().toISOString(),
       reportSerial: identity.serial,
       reportUid: identity.uid,
@@ -288,7 +288,7 @@
     });
     state.personnel = state.personnel.filter((row) => number(row.count) > 0);
     state.sncfMeans = state.sncfMeans.filter((row) => number(row.count) > 0);
-    state.appVersion = Math.max(8.6, Number(state.appVersion) || 0);
+    state.appVersion = Math.max(8.7, Number(state.appVersion) || 0);
     ["personnel", "sncfMeans"].forEach((key) => {
       state[key].forEach((row) => { row.role = canonicalSncfRole(row.role); });
     });
@@ -315,6 +315,7 @@
   let companySignatureCanvasReady = false;
   let companySignatureResizeBound = false;
   let companyVisaDraft = null;
+  let signatureKeyboardTimer = null;
   let adminLoginOpen = false;
   let adminUnlocked = (() => {
     try { return sessionStorage.getItem(adminSessionKey) === "1"; } catch (_) { return false; }
@@ -329,6 +330,13 @@
     toast.className = `app-toast visible ${tone}`.trim();
     window.clearTimeout(toastTimer);
     toastTimer = window.setTimeout(() => { toast.className = "app-toast"; }, 4200);
+  }
+
+  function scheduleSignatureKeyboardDismissal(input) {
+    window.clearTimeout(signatureKeyboardTimer);
+    signatureKeyboardTimer = window.setTimeout(() => {
+      if (document.activeElement === input) input.blur();
+    }, 3000);
   }
 
   function askConfirm({ title = "Confirmer l’action", message, confirmLabel = "Confirmer", danger = false }) {
@@ -1230,6 +1238,16 @@
     },
   };
 
+  // Les identifiants d'interface sont volontairement au singulier, alors que
+  // le rapport stocke ces rubriques dans leurs collections au pluriel.
+  const rowCollectionKey = (key) => ({
+    possession: "possessions",
+    anomaly: "anomalies",
+    document: "documents",
+    material: "materials",
+    selfCheck: "selfChecks",
+  })[key] || key;
+
   function renderDataList(key) {
     const target = $(`#${key}List`);
     const config = rowConfig[key];
@@ -1238,7 +1256,7 @@
       target.innerHTML = "";
       return;
     }
-    const rows = state[key] || [];
+    const rows = state[rowCollectionKey(key)] || [];
     if (key === "possession") {
       target.innerHTML = rows.length ? `<div class="possession-table-wrap"><table class="possession-table"><thead><tr><th>Type / voie</th><th>Prévue</th><th>Accordée</th><th>ARF / réelle</th><th>Intervention</th><th>ARF</th><th></th></tr></thead><tbody>${rows.map((row) => `<tr><td><strong>${escapeHtml(row.kind || "Interception / consignation")}</strong><br>${escapeHtml([row.voie && `Voie ${row.voie}`, row.zone].filter(Boolean).join(" · ") || "—")}</td><td>${escapeHtml(`${row.plannedStart || "—"} → ${row.plannedEnd || "—"}`)}</td><td>${escapeHtml(`${row.agreedStart || "—"} → ${row.agreedEnd || "—"}`)}</td><td>${escapeHtml(`${row.actualStart || "—"} → ${row.actualEnd || "—"}`)}</td><td>${escapeHtml(`${row.interventionStart || "—"} → ${row.interventionEnd || "—"}`)}</td><td>${row.arfStartPhoto ? "Début ✓" : "Début —"}<br>${row.arfEndPhoto ? "Fin ✓" : "Fin —"}</td><td class="table-actions"><button class="mini-button" type="button" data-edit-row="possession:${row.id}">Modifier</button><button class="mini-button danger" type="button" data-delete-row="possession:${row.id}">Supprimer</button></td></tr>`).join("")}</tbody></table></div>` : `<p class="empty-inline">Aucune interception ou consignation saisie.</p>`;
       return;
@@ -1872,7 +1890,8 @@
   async function saveRow() {
     if (!rowDraft || rowSaveInProgress) return;
     const config = rowConfig[rowDraft.key];
-    if (!config || !Array.isArray(state[rowDraft.key])) {
+    const collectionKey = rowCollectionKey(rowDraft.key);
+    if (!config || !Array.isArray(state[collectionKey])) {
       showToast("Cette fiche ne peut pas être enregistrée. Fermez-la puis recommencez.", "warning");
       return;
     }
@@ -1883,7 +1902,7 @@
       button.disabled = true;
       button.textContent = "Enregistrement…";
     }
-    const listBeforeSave = clone(state[rowDraft.key]);
+    const listBeforeSave = clone(state[collectionKey]);
     try {
       if (config.read) Object.assign(rowDraft.row, config.read());
       else config.fields.forEach(([name]) => { rowDraft.row[name] = $(`#row_${name}`)?.value.trim() || ""; });
@@ -1919,12 +1938,12 @@
       }
       if (rowDraft.key === "anomaly") await capture(["row_anomalyCamera", "row_anomalyFile"], "photo", "Anomalie");
       if (rowDraft.key === "document") await appendImageAttachments(rowDraft.row, "attachments", ["row_documentCamera", "row_documentFile"], MAX_DOCUMENT_PHOTOS, "Pièce jointe document");
-      const list = state[rowDraft.key];
+      const list = state[collectionKey];
       const index = list.findIndex((item) => item.id === rowDraft.row.id);
       if (index >= 0) list.splice(index, 1, rowDraft.row);
       else list.push(rowDraft.row);
       if (!save("Élément enregistré")) {
-        state[rowDraft.key] = listBeforeSave;
+        state[collectionKey] = listBeforeSave;
         return;
       }
       const savedTitle = config.title || "Élément";
@@ -2577,7 +2596,7 @@
       const remove = event.target.closest("[data-delete-row]");
       if (edit) {
         const [key, id] = edit.dataset.editRow.split(":");
-        const row = state[key]?.find((item) => item.id === id);
+        const row = state[rowCollectionKey(key)]?.find((item) => item.id === id);
         if (row) openRowDialog(key, row);
         return;
       }
@@ -2585,7 +2604,8 @@
       const accepted = await askConfirm({ title: "Supprimer la ligne", message: "Supprimer cette ligne du rapport ?", confirmLabel: "Supprimer", danger: true });
       if (!accepted) return;
       const [key, id] = remove.dataset.deleteRow.split(":");
-      state[key] = state[key].filter((row) => row.id !== id);
+      const collectionKey = rowCollectionKey(key);
+      state[collectionKey] = state[collectionKey].filter((row) => row.id !== id);
       save("Ligne supprimée");
       refresh();
     }));
@@ -2628,12 +2648,14 @@
       save();
       renderAfterWorkSignature();
       renderPrintReport();
+      scheduleSignatureKeyboardDismissal(event.target);
     });
     $("#afterWorkSignerRole").addEventListener("input", (event) => {
       state.afterWorkSignature.role = event.target.value;
       save();
       renderAfterWorkSignature();
       renderPrintReport();
+      scheduleSignatureKeyboardDismissal(event.target);
     });
     $("#saveAfterWorkSignatureButton")?.addEventListener("click", () => {
       if (!state.afterWorkSignature.dataUrl) {
@@ -2681,6 +2703,13 @@
       event.preventDefault();
       event.stopPropagation();
       saveCompanyVisa();
+    });
+    $("#companyVisaForm")?.addEventListener("input", (event) => {
+      const input = event.target.closest("#companyVisaName, #companyVisaRole");
+      if (input) scheduleSignatureKeyboardDismissal(input);
+    });
+    $("#companyVisaDialog")?.addEventListener("close", () => {
+      window.clearTimeout(signatureKeyboardTimer);
     });
     $("#companyVisaForm")?.addEventListener("submit", (event) => {
       if (event.submitter?.id !== "saveCompanyVisaButton") return;
