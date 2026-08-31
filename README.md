@@ -1,6 +1,19 @@
-# Rapport journalier AINM — PWA terrain V8.7
+# Rapport journalier AINM — PWA terrain V8.9
 
 Application autonome, utilisable hors ligne, pour les rapports journaliers de travaux signalisation AINM.
+
+## Version V8.9
+
+- À chaque ouverture, une page d’accueil AINM affiche immédiatement la **version exacte** de l’application, le numéro du rapport actif et la séance en cours.
+- Le bouton **Ouvrir le rapport** donne accès à la saisie sans modifier ni perdre le brouillon local.
+- La version reste visible en permanence dans l’en-tête après l’entrée dans l’application.
+- Le cache PWA passe à V8.9 afin de charger cet écran d’accueil dès la réouverture.
+
+## Version V8.8
+
+- Les tableaux d’effectifs par entreprise et SNCF restent modifiables, mais leurs commandes sont désormais rangées dans une zone d’actions dédiée : le compteur, **Modifier** et la croix ne peuvent plus se chevaucher.
+- Sur les téléphones étroits, chaque fonction s’affiche sur toute la largeur pour conserver des commandes grandes et lisibles.
+- Le cache PWA passe à V8.8 afin de charger la correction de mise en page dès la réouverture de l’application.
 
 ## Version V8.7
 
@@ -51,10 +64,10 @@ Décompresser l’archive dans le dépôt puis exécuter :
 
 ```sh
 cd ~/projets
-unzip -o ~/storage/downloads/rapport-journalier-ainm-pwa-v8.7-correctif-menus-signature.zip
+unzip -o ~/storage/downloads/rapport-journalier-ainm-pwa-v8.9-accueil-version.zip
 cd ~/projets/rapport-journalier-ainm-pwa
 git add -A
-git commit -m "Mise à jour V8.7 : correction menus et signature"
+git commit -m "Mise à jour V8.9 : accueil et version"
 git push
 ```
 

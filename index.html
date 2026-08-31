@@ -11,6 +11,30 @@
     <title>Rapport journalier · AINM</title>
   </head>
   <body>
+    <section id="startupScreen" class="startup-screen" aria-label="Accueil du Rapport journalier AINM">
+      <div class="startup-atmosphere" aria-hidden="true"><span class="startup-orbit orbit-one"></span><span class="startup-orbit orbit-two"></span><span class="startup-scanline"></span></div>
+      <main class="startup-panel">
+        <div class="startup-topline">
+          <div class="startup-brand">
+            <img src="icons/rapport-journalier-ainm.png" alt="" aria-hidden="true" />
+            <div><strong>AINM</strong><span>Travaux signalisation</span></div>
+          </div>
+          <span class="startup-version"><span>Version</span><strong data-app-version>V8.9</strong></span>
+        </div>
+        <div class="startup-content">
+          <p class="startup-kicker">Opérations · terrain · signalisation</p>
+          <h1>Rapport<br /><span>journalier</span></h1>
+          <p class="startup-intro">Préparer, tracer et valider la séance de travaux depuis un seul dossier terrain.</p>
+          <section class="startup-session-card" aria-label="Rapport en cours">
+            <div><span>Rapport actif</span><strong id="startupReportNo">Chargement…</strong></div>
+            <div><span>Séance</span><strong id="startupSessionInfo">Brouillon local</strong></div>
+          </section>
+          <button id="enterAppButton" class="startup-enter-button" type="button"><span>Ouvrir le rapport</span><b aria-hidden="true">→</b></button>
+          <p class="startup-footnote"><span aria-hidden="true">●</span> Utilisable hors ligne · données conservées sur cet appareil</p>
+        </div>
+      </main>
+    </section>
+
     <div class="app-shell">
       <header class="topbar no-print">
         <div class="brand" aria-label="AINM Infrapôle Paris Sud Est">
@@ -19,6 +43,7 @@
           <span class="brand-context">Rapport travaux</span>
         </div>
         <div class="topbar-actions">
+          <span class="app-version-badge" data-app-version aria-label="Version de l’application">V8.9</span>
           <span id="saveState" class="save-state" aria-live="polite">Brouillon local</span>
           <button class="icon-button" id="newReportButton" type="button" title="Nouveau rapport" aria-label="Nouveau rapport">＋</button>
           <button class="icon-button" id="moreButton" type="button" title="Actions" aria-label="Ouvrir les actions">•••</button>

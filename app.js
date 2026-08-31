@@ -3,7 +3,7 @@
   "use strict";
 
   const STORAGE_KEY = "ainm-rj-pwa-v1";
-  const APP_VERSION = "8.7";
+  const APP_VERSION = "8.9";
   const snapshotKey = "ainm-rj-pwa-last-snapshot";
   const adminSessionKey = "ainm-rj-pwa-admin-unlocked";
   const reportSequenceKey = "ainm-rj-pwa-report-serial-v2";
@@ -195,7 +195,7 @@
     const identity = allocateReportIdentity();
     return {
       schema: 1,
-      appVersion: 8.7,
+      appVersion: 8.9,
       updatedAt: new Date().toISOString(),
       reportSerial: identity.serial,
       reportUid: identity.uid,
@@ -288,7 +288,7 @@
     });
     state.personnel = state.personnel.filter((row) => number(row.count) > 0);
     state.sncfMeans = state.sncfMeans.filter((row) => number(row.count) > 0);
-    state.appVersion = Math.max(8.7, Number(state.appVersion) || 0);
+    state.appVersion = Math.max(8.9, Number(state.appVersion) || 0);
     ["personnel", "sncfMeans"].forEach((key) => {
       state[key].forEach((row) => { row.role = canonicalSncfRole(row.role); });
     });
@@ -337,6 +337,24 @@
     signatureKeyboardTimer = window.setTimeout(() => {
       if (document.activeElement === input) input.blur();
     }, 3000);
+  }
+
+  function renderLaunchIdentity() {
+    $$('[data-app-version]').forEach((element) => { element.textContent = `V${APP_VERSION}`; });
+    const reportNo = state.meta?.reportNo || "Rapport en préparation";
+    const session = [state.meta?.shiftType === "nuit" ? "Nuit" : "Journée", state.meta?.date ? formatDate(state.meta.date) : ""].filter(Boolean).join(" · ");
+    const reportReference = $("#startupReportNo");
+    const sessionInfo = $("#startupSessionInfo");
+    if (reportReference) reportReference.textContent = reportNo;
+    if (sessionInfo) sessionInfo.textContent = session || "Brouillon local";
+  }
+
+  function enterApplication() {
+    const screen = $("#startupScreen");
+    if (!screen || screen.hidden) return;
+    screen.classList.add("is-leaving");
+    screen.setAttribute("aria-hidden", "true");
+    window.setTimeout(() => { screen.hidden = true; }, 240);
   }
 
   function askConfirm({ title = "Confirmer l’action", message, confirmLabel = "Confirmer", danger = false }) {
@@ -711,6 +729,7 @@
     const contextChip = $("#contextStatus");
     contextChip.className = `status-chip ${contextDone ? "success" : "warning"}`;
     contextChip.textContent = contextDone ? "Complet" : "À compléter";
+    renderLaunchIdentity();
   }
 
   function renderQuickCatalog() {
@@ -924,7 +943,7 @@
       return `<section class="roster-company"><header><div class="roster-header-main"><strong>${escapeHtml(company)}</strong><span>${escapeHtml(team || "Entreprise intervenante")}</span></div><button type="button" class="roster-add-function" data-add-personnel-company="${escapeHtml(company)}">＋ Fonction</button></header>${roles.length ? `<div class="roster-role-grid">${roles.map((role) => {
         const count = roleCounter(state.personnel, role, company, team);
         const attributes = `data-quick-personnel-company="${escapeHtml(company)}" data-quick-personnel-role="${escapeHtml(role)}" data-quick-personnel-team="${escapeHtml(team)}"`;
-        return `<div class="roster-role"><span>${escapeHtml(role)}</span><div class="roster-role-actions"><div class="counter-control"><button type="button" aria-label="Retirer une personne : ${escapeHtml(role)}" ${attributes} data-counter-delta="-1">−</button><strong>${displayNumber(count, 0)}</strong><button type="button" aria-label="Ajouter une personne : ${escapeHtml(role)}" ${attributes} data-counter-delta="1">+</button></div>${count ? `<button type="button" class="roster-edit-button" ${attributes} data-edit-quick-personnel>Modifier</button>` : ""}<button type="button" class="roster-remove-button" title="Retirer la fonction du tableau" aria-label="Retirer la fonction ${escapeHtml(role)}" ${attributes} data-remove-quick-personnel>×</button></div></div>`;
+        return `<div class="roster-role"><span>${escapeHtml(role)}</span><div class="roster-role-actions"><div class="counter-control"><button type="button" aria-label="Retirer une personne : ${escapeHtml(role)}" ${attributes} data-counter-delta="-1">−</button><strong>${displayNumber(count, 0)}</strong><button type="button" aria-label="Ajouter une personne : ${escapeHtml(role)}" ${attributes} data-counter-delta="1">+</button></div><div class="roster-inline-actions">${count ? `<button type="button" class="roster-edit-button" ${attributes} data-edit-quick-personnel>Modifier</button>` : ""}<button type="button" class="roster-remove-button" title="Retirer la fonction du tableau" aria-label="Retirer la fonction ${escapeHtml(role)}" ${attributes} data-remove-quick-personnel>×</button></div></div></div>`;
       }).join("")}</div>` : `<p class="roster-empty">Aucune fonction dans ce tableau. Utiliser « + Fonction » pour la créer.</p>`}</section>`;
     }).join("");
   }
@@ -934,7 +953,7 @@
     if (!target) return;
     target.innerHTML = `<section class="roster-company"><header><div class="roster-header-main"><strong>Personnel SNCF</strong><span>Effectif de la séance</span></div><button type="button" class="roster-add-function" data-add-sncf-function>＋ Fonction</button></header><div class="roster-role-grid">${SNCF_MEANS_PRESETS.map((role) => {
       const count = state.sncfMeans.filter((row) => canonicalSncfRole(row.role) === role).reduce((total, row) => total + number(row.count), 0);
-      return `<div class="roster-role"><span>${escapeHtml(role)}</span><div class="roster-role-actions"><div class="counter-control"><button type="button" aria-label="Retirer ${escapeHtml(role)}" data-quick-sncf-role="${escapeHtml(role)}" data-counter-delta="-1">−</button><strong>${displayNumber(count, 0)}</strong><button type="button" aria-label="Ajouter ${escapeHtml(role)}" data-quick-sncf-role="${escapeHtml(role)}" data-counter-delta="1">+</button></div>${count ? `<button type="button" class="roster-edit-button" data-quick-sncf-role="${escapeHtml(role)}" data-edit-quick-sncf>Modifier</button><button type="button" class="roster-remove-button" aria-label="Retirer entièrement ${escapeHtml(role)}" data-quick-sncf-role="${escapeHtml(role)}" data-clear-quick-sncf>×</button>` : ""}</div></div>`;
+      return `<div class="roster-role"><span>${escapeHtml(role)}</span><div class="roster-role-actions"><div class="counter-control"><button type="button" aria-label="Retirer ${escapeHtml(role)}" data-quick-sncf-role="${escapeHtml(role)}" data-counter-delta="-1">−</button><strong>${displayNumber(count, 0)}</strong><button type="button" aria-label="Ajouter ${escapeHtml(role)}" data-quick-sncf-role="${escapeHtml(role)}" data-counter-delta="1">+</button></div>${count ? `<div class="roster-inline-actions"><button type="button" class="roster-edit-button" data-quick-sncf-role="${escapeHtml(role)}" data-edit-quick-sncf>Modifier</button><button type="button" class="roster-remove-button" aria-label="Retirer entièrement ${escapeHtml(role)}" data-quick-sncf-role="${escapeHtml(role)}" data-clear-quick-sncf>×</button></div>` : ""}</div></div>`;
     }).join("")}</div></section>`;
   }
 
@@ -2422,6 +2441,7 @@
   }
 
   function setupEvents() {
+    $("#enterAppButton")?.addEventListener("click", enterApplication);
     $$("[data-path]").forEach((element) => {
       const handler = () => {
         const value = element.type === "checkbox" ? element.checked : element.value;
@@ -2829,6 +2849,7 @@
     // Persiste aussi la migration des rapports créés par les versions précédentes
     // afin qu'un rechargement ne réattribue jamais un numéro.
     save();
+    renderLaunchIdentity();
     renderInputs();
     setupEvents();
     setupSignatureCanvas();
