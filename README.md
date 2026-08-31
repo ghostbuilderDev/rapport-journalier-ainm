@@ -1,6 +1,14 @@
-# Rapport journalier AINM — PWA terrain V9.1
+# Rapport journalier AINM — PWA terrain V9.2
 
 Application autonome, utilisable hors ligne, pour les rapports journaliers de travaux signalisation AINM.
+
+## Version V9.2
+
+- La date de séance est calée sur la **date locale du téléphone à chaque ouverture** de l’application, y compris après minuit.
+- Dès que la passerelle accepte l’archivage SharePoint, le rapport transmis est clos et l’application ouvre automatiquement un **nouveau rapport vide** avec le numéro suivant. Un même numéro ne peut donc plus être envoyé deux fois depuis cet appareil.
+- Les rapports déjà marqués « archivés » par la V9.1 sont automatiquement clos au premier démarrage de la V9.2, puis basculent sur le numéro suivant.
+- L’envoi porte désormais le libellé de destination **RAPPORTS JOURNALIERS** (`archiveFolder`) afin que la passerelle/Power Automate le range dans un dossier distinct de **BRIEFING GLOBAL**.
+- Le cache PWA passe à V9.2.
 
 ## Version V9.1
 
@@ -80,10 +88,10 @@ Décompresser l’archive dans le dépôt puis exécuter :
 
 ```sh
 cd ~/projets
-unzip -o ~/storage/downloads/rapport-journalier-ainm-pwa-v9.1-visas-sharepoint.zip
+unzip -o ~/storage/downloads/rapport-journalier-ainm-pwa-v9.2-numerotation-sharepoint.zip
 cd ~/projets/rapport-journalier-ainm-pwa
 git add -A
-git commit -m "Mise à jour V9.1 : visas et SharePoint"
+git commit -m "Mise à jour V9.2 : numérotation et SharePoint"
 git push
 ```
 

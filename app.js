@@ -3,7 +3,7 @@
   "use strict";
 
   const STORAGE_KEY = "ainm-rj-pwa-v1";
-  const APP_VERSION = "9.1";
+  const APP_VERSION = "9.2";
   const snapshotKey = "ainm-rj-pwa-last-snapshot";
   const adminSessionKey = "ainm-rj-pwa-admin-unlocked";
   const reportSequenceKey = "ainm-rj-pwa-report-serial-v2";
@@ -17,6 +17,9 @@
   // reçoit le PDF final et le dépose dans l'espace SharePoint configuré.
   const SHAREPOINT_ARCHIVE_GATEWAY_URL = "https://script.google.com/macros/s/AKfycbz8O7ZV2kawKNPqv7bv1jML9R8yqrKjlZzop9wE1a8uqLO7i4aiamy_LgNwU5g7VDdP/exec";
   const SHAREPOINT_ARCHIVE_KEY = "ainm-rj-sharepoint-archive-v1";
+  // Dossier cible transmis à la passerelle. Le flux SharePoint doit router ce
+  // libellé vers son dossier dédié plutôt que vers celui des briefings.
+  const SHAREPOINT_ARCHIVE_FOLDER = "RAPPORTS JOURNALIERS";
   const SHAREPOINT_ARCHIVE_POLL_INTERVAL_MS = 3000;
   const SHAREPOINT_ARCHIVE_CONFIRMATION_WINDOW_MS = 300000;
   const LEGACY_COMBINED_COMPANY = "BOUYGUES ENERGIES & SERVICES / TSO SIGNALISATION";
@@ -30,7 +33,13 @@
   const $$ = (selector) => [...document.querySelectorAll(selector)];
   const uid = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
   const clone = (value) => JSON.parse(JSON.stringify(value));
-  const dateToday = () => new Date().toISOString().slice(0, 10);
+  // Date civile du téléphone : toISOString() seul bascule au jour précédent
+  // après minuit en France, car il travaille en UTC.
+  const dateToday = () => {
+    const now = new Date();
+    const local = new Date(now.getTime() - (now.getTimezoneOffset() * 60000));
+    return local.toISOString().slice(0, 10);
+  };
   const number = (value) => {
     if (typeof value === "number") return Number.isFinite(value) ? value : 0;
     const parsed = Number(String(value ?? "").replace(",", "."));
@@ -181,10 +190,35 @@
       equipment: clone(state.equipment || []),
       sncfMeans: clone(state.sncfMeans || []),
       sncfRosterRoles: clone(state.sncfRosterRoles || []),
+      sharepointArchive: clone(state.sharepointArchive || {}),
     };
     const history = readReportHistory().filter((item) => item.reportUid !== record.reportUid);
     history.unshift(record);
     writeReportHistory(history);
+  }
+
+  // Une fois le rapport suivant affiché, la confirmation de la passerelle ne
+  // doit plus modifier le nouveau brouillon. Elle est conservée sur le rapport
+  // déjà clos, dans l'historique local.
+  function updateArchivedReportSharePointStatus(requestId, patch) {
+    if (!requestId) return null;
+    let updatedRecord = null;
+    const history = readReportHistory().map((record) => {
+      if (record?.sharepointArchive?.requestId !== requestId) return record;
+      updatedRecord = {
+        ...record,
+        sharepointArchive: { ...(record.sharepointArchive || {}), ...patch },
+      };
+      return updatedRecord;
+    });
+    if (updatedRecord) writeReportHistory(history);
+    try {
+      const lastArchive = JSON.parse(localStorage.getItem(SHAREPOINT_ARCHIVE_KEY) || "null");
+      if (lastArchive?.requestId === requestId) {
+        localStorage.setItem(SHAREPOINT_ARCHIVE_KEY, JSON.stringify({ ...lastArchive, ...patch }));
+      }
+    } catch (_) { /* Historique de confirmation facultatif. */ }
+    return updatedRecord;
   }
   // L'espace interne n'est affiché que si un code a été créé sur cet appareil
   // et si la session actuelle a été déverrouillée.
@@ -322,6 +356,23 @@
     reserveReportSerial(state.reportSerial);
   };
   ensureState();
+
+  function setCurrentReportDateToToday() {
+    const today = dateToday();
+    if (state.meta?.date === today) return false;
+    state.meta.date = today;
+    return true;
+  }
+
+  // Une V9.1 pouvait laisser le rapport courant à l'état « archivé ». Cette
+  // migration le clôture une seule fois et attribue le numéro suivant, sans
+  // jamais réutiliser le numéro déjà transmis.
+  function createNextReportForPreviouslyArchivedState() {
+    if (state.sharepointArchive?.status !== "archived") return null;
+    const archivedReportNo = state.meta?.reportNo || "rapport précédent";
+    startNewReport(state);
+    return { archivedReportNo, nextReportNo: state.meta?.reportNo || "nouveau rapport" };
+  }
   let taskDraft = null;
   let rowDraft = null;
   let rowSaveInProgress = false;
@@ -2462,7 +2513,7 @@
   function renderSharePointArchiveStatus() {
     const archive = state.sharepointArchive || {};
     if (archive.status === "archived") {
-      updateSharePointArchiveStatus(`Archivé sur SharePoint le ${formatDateTime(archive.archivedAt || archive.sentAt)}. Le brouillon local est conservé.`, "success");
+      updateSharePointArchiveStatus(`Archivé sur SharePoint le ${formatDateTime(archive.archivedAt || archive.sentAt)}. Un nouveau rapport est créé automatiquement.`, "success");
     } else if (archive.status === "transmitted") {
       updateSharePointArchiveStatus(`Transmission envoyée le ${formatDateTime(archive.sentAt)}. Confirmation SharePoint en cours ; le brouillon et les signatures restent sur le téléphone.`, "warning");
     } else if (archive.status === "confirmation-pending") {
@@ -2470,7 +2521,7 @@
     } else if (archive.status === "failed") {
       updateSharePointArchiveStatus(`Archivage non confirmé : ${archive.error || "réessayer la transmission"}.`, "warning");
     } else {
-      updateSharePointArchiveStatus("Prêt pour l’archivage SharePoint. Le brouillon et les signatures restent sur le téléphone.");
+      updateSharePointArchiveStatus("Prêt pour l’archivage SharePoint. Après transmission, un nouveau numéro de rapport sera créé automatiquement.");
     }
   }
 
@@ -2875,19 +2926,28 @@
       try {
         const result = await readSharePointArchiveStatus(requestId);
         if (result?.state === "archived") {
+          const archivedRecord = updateArchivedReportSharePointStatus(requestId, {
+            status: "archived", archivedAt: new Date().toISOString(),
+          });
           if (state.sharepointArchive?.requestId === requestId) {
             state.sharepointArchive = { ...state.sharepointArchive, status: "archived", archivedAt: new Date().toISOString() };
             save("Rapport archivé sur SharePoint");
             renderSharePointArchiveStatus();
             showToast("Rapport archivé sur SharePoint. Le brouillon local est conservé.", "success");
+          } else {
+            showToast(`${archivedRecord?.meta?.reportNo || "Rapport"} archivé sur SharePoint. Le rapport suivant est déjà prêt.`, "success");
           }
           return;
         }
         if (result?.state === "failed" || result?.ok === false) {
+          const error = result.error || "La passerelle a refusé l’archivage.";
+          const archivedRecord = updateArchivedReportSharePointStatus(requestId, { status: "failed", error });
           if (state.sharepointArchive?.requestId === requestId) {
-            state.sharepointArchive = { ...state.sharepointArchive, status: "failed", error: result.error || "La passerelle a refusé l’archivage." };
+            state.sharepointArchive = { ...state.sharepointArchive, status: "failed", error };
             save("Archivage SharePoint à vérifier");
             renderSharePointArchiveStatus();
+          } else {
+            showToast(`${archivedRecord?.meta?.reportNo || "Rapport"} : archivage SharePoint à vérifier.`, "warning");
           }
           return;
         }
@@ -2900,7 +2960,19 @@
       state.sharepointArchive = { ...state.sharepointArchive, status: "confirmation-pending" };
       save("Confirmation SharePoint à vérifier");
       renderSharePointArchiveStatus();
+    } else {
+      updateArchivedReportSharePointStatus(requestId, { status: "confirmation-pending" });
     }
+  }
+
+  function startNextReportAfterSharePointTransmission() {
+    const archivedReportNo = state.meta?.reportNo || "rapport précédent";
+    startNewReport(state);
+    const nextReportNo = state.meta?.reportNo || "nouveau rapport";
+    save(`Nouveau rapport ${nextReportNo} créé`);
+    refresh({ inputs: true });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    return { archivedReportNo, nextReportNo };
   }
 
   async function archiveReportOnSharePoint() {
@@ -2924,14 +2996,23 @@
         date: state.meta.date || "",
         entreprise: participatingCompanyNames().join(" - "),
         documentType: "rapport-journalier-ainm",
+        archiveFolder: SHAREPOINT_ARCHIVE_FOLDER,
       });
       if (!queued?.ok || queued.state !== "queued") throw new Error(queued?.error || "La passerelle n’a pas accepté le rapport.");
-      state.sharepointArchive = { requestId, filename: pdf.filename, sentAt: new Date().toISOString(), status: "transmitted" };
+      state.sharepointArchive = {
+        requestId,
+        filename: pdf.filename,
+        reportNo: state.meta.reportNo || "",
+        reportUid: state.reportUid || "",
+        archiveFolder: SHAREPOINT_ARCHIVE_FOLDER,
+        sentAt: new Date().toISOString(),
+        status: "transmitted",
+      };
       try { localStorage.setItem(SHAREPOINT_ARCHIVE_KEY, JSON.stringify(state.sharepointArchive)); } catch (_) { /* Information facultative. */ }
       save("Rapport transmis à SharePoint");
+      const next = startNextReportAfterSharePointTransmission();
       setSharePointArchiveBusy(false);
-      renderSharePointArchiveStatus();
-      showToast("Rapport transmis à SharePoint. Le brouillon et les signatures sont conservés.", "success");
+      showToast(`${next.archivedReportNo} transmis. ${next.nextReportNo} est prêt.`, "success");
       void monitorSharePointArchive(requestId);
     } catch (error) {
       const message = error?.message || "Archivage SharePoint impossible.";
@@ -3443,15 +3524,19 @@
   }
 
   function boot() {
-    // Persiste aussi la migration des rapports créés par les versions précédentes
-    // afin qu'un rechargement ne réattribue jamais un numéro.
-    save();
+    // La date suit toujours le jour civil où l'application est ouverte. Un
+    // rapport V9.1 déjà confirmé comme archivé est clôturé ici pour repartir
+    // sans doublon sur le numéro suivant.
+    const migrated = createNextReportForPreviouslyArchivedState();
+    const dateUpdated = setCurrentReportDateToToday();
+    save(migrated ? `Nouveau rapport ${migrated.nextReportNo} créé` : (dateUpdated ? "Date du jour mise à jour" : "Brouillon local"));
     renderLaunchIdentity();
     renderInputs();
     setupEvents();
     setupSignatureCanvas();
     refresh();
     registerServiceWorker();
+    if (migrated) showToast(`${migrated.archivedReportNo} était archivé. ${migrated.nextReportNo} est maintenant prêt.`, "success");
   }
 
   boot();
