@@ -9,7 +9,7 @@
   "theme_color": "#34464c",
   "icons": [
     {
-      "src": "icons/rapport-journalier-ainm.png",
+      "src": "icons/rapport-journalier-ainm-pwa.png",
       "sizes": "1254x1254",
       "type": "image/png",
       "purpose": "any maskable"

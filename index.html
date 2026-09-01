@@ -6,7 +6,8 @@
     <meta name="theme-color" content="#34464c" />
     <meta name="description" content="Rapport journalier travaux signalisation — AINM" />
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="icon" href="icons/rapport-journalier-ainm.png" type="image/png" />
+    <link rel="icon" href="icons/rapport-journalier-ainm-pwa.png" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/rapport-journalier-ainm-pwa.png" />
     <link rel="stylesheet" href="styles.css" />
     <title>Rapport journalier · AINM</title>
   </head>
@@ -19,7 +20,7 @@
             <img src="icons/rapport-journalier-ainm.png" alt="" aria-hidden="true" />
             <div><strong>AINM</strong><span>Travaux signalisation</span></div>
           </div>
-          <span class="startup-version"><span>Version</span><strong data-app-version>V9.6 BETA</strong></span>
+          <span class="startup-version"><span>Version</span><strong data-app-version>V9.7 BETA</strong></span>
         </div>
         <div class="startup-content">
           <p class="startup-kicker">Opérations · terrain · signalisation</p>
@@ -43,7 +44,7 @@
           <span class="brand-context">Rapport travaux</span>
         </div>
         <div class="topbar-actions">
-          <span class="app-version-badge" data-app-version aria-label="Version de l’application">V9.6 BETA</span>
+          <span class="app-version-badge" data-app-version aria-label="Version de l’application">V9.7 BETA</span>
           <span id="saveState" class="save-state" aria-live="polite">Brouillon local</span>
           <button class="icon-button" id="newReportButton" type="button" title="Nouveau rapport" aria-label="Nouveau rapport">＋</button>
           <button class="icon-button" id="moreButton" type="button" title="Actions" aria-label="Ouvrir les actions">•••</button>
@@ -62,13 +63,15 @@
           </div>
         </section>
 
-        <nav class="stepper" aria-label="Étapes du rapport">
-          <button class="step active" data-scroll-target="contextSection" type="button"><span>1</span>Contexte</button>
-          <button class="step" data-scroll-target="productionSection" type="button"><span>2</span>Production</button>
-          <button class="step" data-scroll-target="traceabilitySection" type="button"><span>3</span>Moyens &amp; horaires</button>
-          <button class="step" data-scroll-target="archiveSection" type="button"><span>4</span>Archivage</button>
-          <button class="step" data-scroll-target="reviewSection" type="button"><span>5</span>Contrôle</button>
-        </nav>
+        <div class="stepper-shell no-print">
+          <nav class="stepper" aria-label="Raccourcis fixes du rapport">
+            <button class="step active" data-scroll-target="contextSection" aria-current="step" type="button"><span>1</span>Contexte</button>
+            <button class="step" data-scroll-target="productionSection" type="button"><span>2</span>Production</button>
+            <button class="step" data-scroll-target="traceabilitySection" type="button"><span>3</span>Moyens &amp; horaires</button>
+            <button class="step" data-scroll-target="archiveSection" type="button"><span>4</span>Archivage</button>
+            <button class="step" data-scroll-target="reviewSection" type="button"><span>5</span>Contrôle</button>
+          </nav>
+        </div>
 
         <section id="contextSection" class="section-card">
           <div class="section-heading">

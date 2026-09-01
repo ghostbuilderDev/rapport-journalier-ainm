@@ -1,9 +1,17 @@
-# Rapport journalier AINM — PWA terrain V9.6 BETA
+# Rapport journalier AINM — PWA terrain V9.7 BETA
 
 Application autonome, utilisable hors ligne, pour les rapports journaliers de travaux signalisation AINM.
 
+## Version V9.7 BETA
+
+- La barre de raccourcis **Contexte / Production / Moyens & horaires / Archivage / Contrôle** reste désormais visible sous l’en-tête pendant tout le défilement.
+- Le raccourci de la section en cours devient automatiquement actif et reste accessible, y compris sur téléphone.
+- Les liens de raccourci positionnent le contenu sous la barre fixe ; aucun titre de section ne passe derrière elle.
+- Le cache PWA passe à V9.7 BETA.
+
 ## Version V9.6 BETA
 
+- L’icône d’installation Android est maintenant l’emblème dédié **rapport validé + rails** créé pour l’application. Elle utilise un nouveau fichier afin de remplacer les anciennes icônes conservées dans le cache du téléphone.
 - La mention **BETA** apparaît après le numéro de version, sur l’écran d’accueil et dans l’en-tête.
 - Pendant la phase BETA, l’intégralité de l’espace administrateur est ouverte sans code : contrôle, valorisation, références marché, numérotation et PDF avec annexe interne.
 - Le verrou administrateur et le code déjà éventuellement configuré restent conservés en arrière-plan ; ils seront simplement réactivés lors de la sortie de BETA.
@@ -117,10 +125,10 @@ Décompresser l’archive dans le dépôt puis exécuter :
 
 ```sh
 cd ~/projets
-unzip -o ~/storage/downloads/rapport-journalier-ainm-pwa-v9.6-beta-admin-ouvert.zip
+unzip -o ~/storage/downloads/rapport-journalier-ainm-pwa-v9.7-beta-navigation-fixe.zip
 cd ~/projets/rapport-journalier-ainm-pwa
 git add -A
-git commit -m "Mise à jour V9.6 BETA : administration ouverte"
+git commit -m "Mise à jour V9.7 BETA : navigation fixe"
 git push
 ```
 

@@ -13,6 +13,8 @@
   --danger: #b42318;
   --radius: 16px;
   --shadow: 0 10px 28px rgba(24, 34, 42, 0.08);
+  --topbar-height: 60px;
+  --stepper-height: 64px;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: var(--ink);
   background: var(--surface);
@@ -76,7 +78,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   position: sticky;
   top: 0;
   z-index: 10;
-  height: 60px;
+  height: var(--topbar-height);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -110,12 +112,21 @@ h2 { margin-bottom: 0; font-size: 1.15rem; line-height: 1.2; }
 .kpi span { display: block; font-size: .69rem; opacity: .78; text-transform: uppercase; letter-spacing: .06em; }
 .kpi strong { display: block; margin-top: 3px; font-size: 1.14rem; }
 
-.stepper { display: flex; gap: 8px; overflow-x: auto; padding: 17px 2px 9px; scrollbar-width: none; }
+.stepper-shell {
+  position: sticky;
+  top: var(--topbar-height);
+  z-index: 9;
+  min-height: var(--stepper-height);
+  background: linear-gradient(180deg, var(--surface) 80%, rgba(241, 245, 246, .93));
+  box-shadow: 0 10px 16px -18px rgba(28, 51, 59, .75);
+}
+.stepper { display: flex; gap: 8px; overflow-x: auto; padding: 14px 2px 10px; scrollbar-width: none; scroll-padding-inline: 2px; }
 .stepper::-webkit-scrollbar { display: none; }
 .step { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 7px; padding: 9px 12px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); background: #fff; font-size: .82rem; font-weight: 700; }
 .step span { display: grid; place-items: center; width: 19px; height: 19px; border-radius: 50%; background: var(--surface-soft); font-size: .7rem; }
 .step.active, .step:hover { color: var(--sncf); border-color: rgba(72, 175, 211, .55); background: #f1fbfe; }
 .step.active span { color: #fff; background: var(--sncf); }
+#contextSection, #productionSection, #traceabilitySection, #archiveSection, #reviewSection, #photoSection { scroll-margin-top: calc(var(--topbar-height) + var(--stepper-height) + 16px); }
 
 .section-card { margin-top: 14px; padding: 22px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper); box-shadow: 0 2px 7px rgba(24, 34, 42, .025); }
 .section-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; margin-bottom: 16px; }
@@ -338,6 +349,7 @@ h2 { margin-bottom: 0; font-size: 1.15rem; line-height: 1.2; }
 .confirm-dialog .primary-button.danger:hover { background: #8f1d13; }
 
 @media (max-width: 720px) {
+  :root { --topbar-height: 57px; --stepper-height: 62px; }
   .startup-screen { padding: max(16px, env(safe-area-inset-top)) max(15px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(15px, env(safe-area-inset-left)); }
   .startup-panel { border-radius: 21px; }
   .startup-topline { padding: 16px; }
@@ -346,7 +358,6 @@ h2 { margin-bottom: 0; font-size: 1.15rem; line-height: 1.2; }
   .startup-intro { margin: 16px 0 20px; font-size: .9rem; }
   .startup-session-card > div { padding: 11px; }
   .app-version-badge { min-height: 23px; padding: 3px 6px; font-size: .61rem; }
-  .topbar { height: 57px; }
   .brand-app-mark { width: 30px; height: 30px; }
   .brand-logo { width: 112px; height: 38px; }
   .brand-context { display: none; }

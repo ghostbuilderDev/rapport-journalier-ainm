@@ -3,7 +3,7 @@
   "use strict";
 
   const STORAGE_KEY = "ainm-rj-pwa-v1";
-  const APP_VERSION = "9.6";
+  const APP_VERSION = "9.7";
   const BETA_MODE = true;
   const APP_VERSION_LABEL = `V${APP_VERSION}${BETA_MODE ? " BETA" : ""}`;
   const snapshotKey = "ainm-rj-pwa-last-snapshot";
@@ -3194,6 +3194,46 @@
     return Boolean(meta.reporter || meta.objective || meta.executionNotes || meta.nextWorks || meta.location || meta.orderNo);
   }
 
+  function setupSectionStepper() {
+    const steps = $$(".stepper [data-scroll-target]");
+    if (!steps.length) return;
+    let activeTarget = "";
+    let pending = false;
+
+    const updateActiveStep = () => {
+      const topbarBottom = $(".topbar")?.getBoundingClientRect().bottom || 0;
+      const stepperHeight = $(".stepper-shell")?.getBoundingClientRect().height || 0;
+      const threshold = topbarBottom + stepperHeight + 10;
+      let active = steps[0];
+      for (const step of steps) {
+        const section = $(`#${step.dataset.scrollTarget}`);
+        if (section && section.getBoundingClientRect().top <= threshold) active = step;
+      }
+      if (!active || active.dataset.scrollTarget === activeTarget) return;
+      activeTarget = active.dataset.scrollTarget;
+      steps.forEach((step) => {
+        const selected = step === active;
+        step.classList.toggle("active", selected);
+        if (selected) step.setAttribute("aria-current", "step");
+        else step.removeAttribute("aria-current");
+      });
+      active.scrollIntoView({ block: "nearest", inline: "nearest" });
+    };
+
+    const scheduleUpdate = () => {
+      if (pending) return;
+      pending = true;
+      requestAnimationFrame(() => {
+        pending = false;
+        updateActiveStep();
+      });
+    };
+
+    window.addEventListener("scroll", scheduleUpdate, { passive: true });
+    window.addEventListener("resize", scheduleUpdate);
+    scheduleUpdate();
+  }
+
   function setupEvents() {
     $("#enterAppButton")?.addEventListener("click", enterApplication);
     $$("[data-path]").forEach((element) => {
@@ -3233,6 +3273,7 @@
       renderPrintReport();
     });
     $$("[data-scroll-target]").forEach((button) => button.addEventListener("click", () => $(`#${button.dataset.scrollTarget}`).scrollIntoView({ behavior: "smooth", block: "start" })));
+    setupSectionStepper();
     $$("[data-duration-preset]").forEach((button) => button.addEventListener("click", () => {
       state.meta.workDuration = button.dataset.durationPreset;
       save("Durée de travaux renseignée");

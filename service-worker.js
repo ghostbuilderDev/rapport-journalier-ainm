@@ -1,4 +1,4 @@
-const CACHE = "rj-ainm-v9-6-beta";
+const CACHE = "rj-ainm-v9-7-beta-stepper-fixe";
 const ASSETS = [
   "./",
   "index.html",
@@ -11,6 +11,7 @@ const ASSETS = [
   "vendor/pdf-lib.min.js",
   "icons/icon.svg",
   "icons/rapport-journalier-ainm.png",
+  "icons/rapport-journalier-ainm-pwa.png",
   "assets/ainm-infrapole-paris-sud-est.jpg",
 ];
 
