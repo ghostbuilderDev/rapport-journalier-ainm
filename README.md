@@ -1,6 +1,13 @@
-# Rapport journalier AINM — PWA terrain V9.5
+# Rapport journalier AINM — PWA terrain V9.6 BETA
 
 Application autonome, utilisable hors ligne, pour les rapports journaliers de travaux signalisation AINM.
+
+## Version V9.6 BETA
+
+- La mention **BETA** apparaît après le numéro de version, sur l’écran d’accueil et dans l’en-tête.
+- Pendant la phase BETA, l’intégralité de l’espace administrateur est ouverte sans code : contrôle, valorisation, références marché, numérotation et PDF avec annexe interne.
+- Le verrou administrateur et le code déjà éventuellement configuré restent conservés en arrière-plan ; ils seront simplement réactivés lors de la sortie de BETA.
+- Le cache PWA passe à V9.6 BETA.
 
 ## Version V9.5
 
@@ -110,10 +117,10 @@ Décompresser l’archive dans le dépôt puis exécuter :
 
 ```sh
 cd ~/projets
-unzip -o ~/storage/downloads/rapport-journalier-ainm-pwa-v9.5-numerotation-active.zip
+unzip -o ~/storage/downloads/rapport-journalier-ainm-pwa-v9.6-beta-admin-ouvert.zip
 cd ~/projets/rapport-journalier-ainm-pwa
 git add -A
-git commit -m "Mise à jour V9.5 : numérotation active"
+git commit -m "Mise à jour V9.6 BETA : administration ouverte"
 git push
 ```
 

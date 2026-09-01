@@ -3,7 +3,9 @@
   "use strict";
 
   const STORAGE_KEY = "ainm-rj-pwa-v1";
-  const APP_VERSION = "9.5";
+  const APP_VERSION = "9.6";
+  const BETA_MODE = true;
+  const APP_VERSION_LABEL = `V${APP_VERSION}${BETA_MODE ? " BETA" : ""}`;
   const snapshotKey = "ainm-rj-pwa-last-snapshot";
   const adminSessionKey = "ainm-rj-pwa-admin-unlocked";
   const reportSequenceKey = "ainm-rj-pwa-report-serial-v2";
@@ -261,9 +263,10 @@
     } catch (_) { /* Historique de confirmation facultatif. */ }
     return updatedRecord;
   }
-  // L'espace interne n'est affiché que si un code a été créé sur cet appareil
-  // et si la session actuelle a été déverrouillée.
-  const isAdminView = () => adminUnlocked && isAdminConfigured();
+  // Pendant les essais BETA, toutes les fonctions administrateur sont
+  // volontairement ouvertes aux testeurs. Le code déjà enregistré reste
+  // conservé dans le brouillon pour pouvoir réactiver le verrou ensuite.
+  const isAdminView = () => BETA_MODE || (adminUnlocked && isAdminConfigured());
   const isAdminConfigured = () => Boolean(state.settings?.admin?.pinHash);
   const hashAdminPin = (pin) => {
     let hash = 2166136261;
@@ -452,7 +455,7 @@
   }
 
   function renderLaunchIdentity() {
-    $$('[data-app-version]').forEach((element) => { element.textContent = `V${APP_VERSION}`; });
+    $$('[data-app-version]').forEach((element) => { element.textContent = APP_VERSION_LABEL; });
     const reportNo = state.meta?.reportNo || "Rapport en préparation";
     const session = [state.meta?.shiftType === "nuit" ? "Nuit" : "Journée", state.meta?.date ? formatDate(state.meta.date) : ""].filter(Boolean).join(" · ");
     const reportReference = $("#startupReportNo");
@@ -1919,10 +1922,11 @@
   function renderAdminPanel() {
     const configured = isAdminConfigured();
     const unlocked = isAdminView();
-    $("#adminLockedPane").classList.toggle("hidden", unlocked || adminLoginOpen);
-    $("#adminLoginPane").classList.toggle("hidden", unlocked || !adminLoginOpen);
+    $("#adminLockedPane").classList.toggle("hidden", BETA_MODE || unlocked || adminLoginOpen);
+    $("#adminLoginPane").classList.toggle("hidden", BETA_MODE || unlocked || !adminLoginOpen);
     $("#adminWorkspace").classList.toggle("hidden", !unlocked);
     $$(".admin-finance").forEach((element) => element.classList.toggle("hidden", !unlocked));
+    $("#lockAdminButton")?.classList.toggle("hidden", BETA_MODE);
     $("#printButton").textContent = unlocked ? "Enregistrer rapport + annexe interne" : "Enregistrer le PDF sur le téléphone";
     if (adminLoginOpen && !unlocked) {
       $("#adminLoginTitle").textContent = configured ? "Déverrouiller l’espace administrateur" : "Initialiser l’espace administrateur";
